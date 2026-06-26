@@ -60,10 +60,10 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   const shareText = isDaily
     ? `BREAK PAR #${puzzleNo} ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)}) · Top ${pct}%\n\n${grid}\n\n` +
-      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.game`
+      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.xyz`
     : `BREAK PAR — Practice ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}\n\n` +
-      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.game`;
+      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.xyz`;
 
   return (
     <div className="screen">
