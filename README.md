@@ -25,6 +25,7 @@ also an **Unlimited Practice** mode (`/courses`) to play any course as often as 
 - [Getting Started](#-getting-started)
 - [Game Modes](#-game-modes)
 - [Accounts & Streaks](#-accounts--streaks)
+- [Authentication Setup (Clerk)](#-authentication-setup-clerk)
 - [Project Structure](#-project-structure)
 - [Data Flow per Round](#-data-flow-per-round)
 - [Database Migrations](#-database-migrations)
@@ -79,6 +80,32 @@ No sign-in required: a round can be started instantly and an anonymous **guest**
 is minted in an httpOnly cookie. Signing in with Clerk later **adopts** that guest row, so
 rounds and streaks carry over. Day-streaks follow Wordle rules — a streak is only "alive" if
 you played today or yesterday (`isStreakAlive`), and `maxStreak` survives a miss.
+
+## 🔐 Authentication Setup (Clerk)
+
+Auth is handled by [Clerk](https://clerk.com/). Sign-in is **optional** — guests can play
+instantly and adopt their history on sign-up (see [Accounts & Streaks](#-accounts--streaks)).
+
+**Username + password only (no email, no social login):** the sign-in/sign-up modals show
+whatever methods are enabled in the Clerk Dashboard, so this is all configured there — no code
+changes needed. In your **production** instance under **User & Authentication**:
+
+- **Username** → ON, set as a required identifier
+- **Password** → ON
+- **Email address** → OFF (or optional)
+- **Social Connections (SSO)** → Google/etc. OFF
+
+The chosen username flows straight onto the leaderboard (`upsertClerkUser` in `lib/user.ts`).
+
+> [!IMPORTANT]
+> A **custom production domain** (e.g. `breakpar.xyz`) requires Clerk **production** keys
+> (`pk_live_…` / `sk_live_…`), not the development keys (`pk_test_…` / `sk_test_…`). Dev keys
+> only authenticate on `localhost` / `*.accounts.dev`, so on a real domain every visitor falls
+> back to a guest. Add the domain in Clerk, set the DNS records it gives you, then put the live
+> keys in your host's production env vars and redeploy.
+>
+> Disabling email also disables email-based password recovery — keep email as an optional
+> recovery field if you need self-serve password resets.
 
 ## 📁 Project Structure
 
