@@ -1,35 +1,19 @@
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { prisma } from "@/lib/db";
 import { isAdmin, adminConfigured } from "@/lib/admin";
 import { FeedbackList, type FeedbackItem } from "./FeedbackList";
+import { AdminLogin, AdminLogout } from "./AdminLogin";
 
 export const dynamic = "force-dynamic";
 
-// Admin inbox for feedback. Gated by ADMIN_EMAILS (see lib/admin.ts).
+// Admin inbox for feedback. Protected by a password login (see lib/admin.ts).
 export default async function AdminFeedback() {
-  const ok = await isAdmin();
-
-  if (!ok) {
+  if (!(await isAdmin())) {
     return (
       <div className="screen">
-        <div className="topbar">
-          <div className="eyebrow">Admin</div>
-          <div className="acct">
-            <SignedIn><UserButton afterSignOutUrl="/" /></SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal"><button className="acct-link">Sign in</button></SignInButton>
-            </SignedOut>
-          </div>
-        </div>
-        <div className="spacer" />
-        <div className="tagline" style={{ textAlign: "center" }}>
-          {!adminConfigured()
-            ? "No admins configured. Set ADMIN_USERNAMES to enable this page."
-            : "You don't have access to this page."}
-        </div>
+        <div className="eyebrow">Admin · Feedback</div>
+        <AdminLogin configured={adminConfigured()} />
         <Link href="/" className="cta ghost" style={{ marginTop: 16 }}>Back to today</Link>
-        <div className="spacer" />
       </div>
     );
   }
@@ -54,7 +38,7 @@ export default async function AdminFeedback() {
     <div className="screen">
       <div className="topbar">
         <div className="eyebrow">Admin · Feedback</div>
-        <div className="acct"><UserButton afterSignOutUrl="/" /></div>
+        <AdminLogout />
       </div>
       <div className="wordmark" style={{ fontSize: "clamp(34px,10vw,46px)" }}>Inbox</div>
       <div className="tagline">{open} open · {rows.length} total</div>

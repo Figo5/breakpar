@@ -196,5 +196,13 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .fb-act{flex:1;cursor:pointer;font-family:'Oswald',sans-serif;font-weight:600;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--fairway);background:transparent;border:1.5px solid var(--line-strong);border-radius:10px;padding:9px 6px;transition:filter .12s}
 .fb-act:hover{filter:brightness(.97)} .fb-act:disabled{opacity:.5;cursor:default}
 .fb-act.danger{color:var(--flag);border-color:rgba(215,64,47,.4)}
+.admin-login{margin-top:18px}
+.al-card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:24px 20px;text-align:center}
+.al-emoji{font-size:34px}
+.al-card h2{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;margin:8px 0 4px}
+.al-card p{font-size:13px;color:var(--ink-soft);margin:0 0 16px;line-height:1.45}
+.al-card .fb-email{margin-top:0;text-align:center}
+.al-card .cta{margin-top:12px}
+.al-card .fb-err{margin-top:10px}
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

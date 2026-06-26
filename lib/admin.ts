@@ -1,44 +1,52 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
+import { createHmac, timingSafeEqual } from "crypto";
 
 /**
- * Admin gate. The allowlist lives in env vars — comma-separated lists:
- *   ADMIN_USERNAMES — Clerk usernames (use this for username/password sign-in)
- *   ADMIN_EMAILS    — email addresses (if your Clerk account has an email)
- * Empty/unset on both means "no admins", so the panel is locked by default.
+ * Simple password gate for the admin area. Set ADMIN_PASSWORD in the env; the
+ * /admin login form posts it, and on success we drop a signed cookie holding a
+ * token derived from the password (never the password itself). No Clerk needed.
  */
-function parseList(raw: string | undefined): string[] {
-  return (raw ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+export const ADMIN_COOKIE = "bp_admin";
+export const ADMIN_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+
+export function adminPassword(): string | null {
+  const p = process.env.ADMIN_PASSWORD?.trim();
+  return p && p.length > 0 ? p : null;
 }
 
-export function adminEmails(): string[] {
-  return parseList(process.env.ADMIN_EMAILS);
-}
-
-export function adminUsernames(): string[] {
-  return parseList(process.env.ADMIN_USERNAMES);
-}
-
-/** True if anyone is configured as an admin (either list is non-empty). */
 export function adminConfigured(): boolean {
-  return adminEmails().length > 0 || adminUsernames().length > 0;
+  return adminPassword() !== null;
 }
 
-/** True if the signed-in Clerk user matches the email OR username allowlist. */
+/** Deterministic session token for the configured password. */
+export function adminToken(): string | null {
+  const pw = adminPassword();
+  if (!pw) return null;
+  const secret = process.env.SERVER_SEED ?? "break-par-admin";
+  return createHmac("sha256", secret).update(`admin:${pw}`).digest("hex");
+}
+
+/** Constant-time compare of two hex strings of equal length. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+}
+
+/** True if the supplied password matches ADMIN_PASSWORD. */
+export function checkPassword(input: string): boolean {
+  const pw = adminPassword();
+  if (!pw) return false;
+  return safeEqual(input, pw);
+}
+
+/** True if the current request carries a valid admin cookie. */
 export async function isAdmin(): Promise<boolean> {
-  if (!adminConfigured()) return false;
-  const user = await currentUser();
-  if (!user) return false;
-
-  const emails = adminEmails();
-  if (emails.length && user.emailAddresses.some((e) => emails.includes(e.emailAddress.toLowerCase())))
-    return true;
-
-  const usernames = adminUsernames();
-  if (usernames.length && user.username && usernames.includes(user.username.toLowerCase()))
-    return true;
-
-  return false;
+  const want = adminToken();
+  if (!want) return false;
+  const got = (await cookies()).get(ADMIN_COOKIE)?.value ?? "";
+  return safeEqual(got, want);
 }
