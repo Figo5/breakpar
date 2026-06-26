@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { dailyCourse, puzzleNumber } from "@/lib/daily";
 import { coursePar } from "@/data/courses";
 import { relativeLabel } from "@/lib/scoring";
@@ -27,8 +27,11 @@ export default async function Home() {
           </SignedIn>
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="acct-link">Sign in to sync</button>
+              <button className="acct-link">Sign in</button>
             </SignInButton>
+            <SignUpButton mode="modal">
+              <button className="acct-link">Sign up</button>
+            </SignUpButton>
           </SignedOut>
         </div>
       </div>
