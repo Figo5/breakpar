@@ -3,20 +3,27 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { courseBySlug } from "@/data/courses";
-import { resolveHoleForRound, type HoleSpec } from "@/lib/engine/resolveHole";
+import { type HoleSpec } from "@/lib/engine/resolveHole";
+import { resolveHoleShots, SHOTS_PER_HOLE } from "@/lib/engine/shots";
+import { holeShotSeed } from "@/lib/engine/rng";
 import type { Decision } from "@/lib/engine/probabilities";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 
 const DECISIONS: Decision[] = ["safe", "normal", "aggressive"];
+const countAggressive = (joined: string) => joined.split(",").filter((d) => d === "aggressive").length;
 
-// PATCH: submit a decision for one hole. The SERVER resolves the outcome.
+// PATCH: submit the decision SEQUENCE for one hole (multi-shot). The client
+// sends every decision made on this hole so far; the SERVER replays them with
+// per-shot seeded RNG. While the hole is unfinished it returns the resulting
+// lie (and persists nothing — deterministic, so it's safe to re-send). Once the
+// final shot lands it writes a single HoleResult and advances the round.
 export const PATCH = route(async (
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  const limited = await rateLimit("hole", 120, 60_000); // 120/min (well above real play)
+  const limited = await rateLimit("hole", 240, 60_000); // 240/min (2 shots/hole headroom)
   if (limited) return limited;
 
   const { id: roundId } = await params;
@@ -25,11 +32,15 @@ export const PATCH = route(async (
 
   const body = (await req.json().catch(() => ({}))) as {
     holeNumber?: number;
-    decision?: Decision;
+    decisions?: Decision[];
   };
   const holeNumber = Number(body.holeNumber);
-  const decision = body.decision;
-  if (!decision || !DECISIONS.includes(decision) || !(holeNumber >= 1 && holeNumber <= 18))
+  const decisions = Array.isArray(body.decisions) ? body.decisions : [];
+  const validSeq =
+    decisions.length >= 1 &&
+    decisions.length <= SHOTS_PER_HOLE &&
+    decisions.every((d) => DECISIONS.includes(d));
+  if (!validSeq || !(holeNumber >= 1 && holeNumber <= 18))
     return NextResponse.json({ error: "bad-input" }, { status: 400 });
 
   const round = await prisma.round.findUnique({
@@ -45,6 +56,7 @@ export const PATCH = route(async (
   const existing = round.holeResults.find((h) => h.holeNumber === holeNumber);
   if (existing) {
     return NextResponse.json({
+      complete: true,
       outcome: existing.outcome,
       scoreChange: existing.scoreChange,
       score: round.score,
@@ -57,19 +69,16 @@ export const PATCH = route(async (
   if (round.holeResults.length !== holeNumber - 1)
     return NextResponse.json({ error: "out-of-order" }, { status: 409 });
 
-  // Enforce the aggression budget server-side (authoritative — a tampered
-  // client can't sneak extra aggressive plays past it).
-  if (decision === "aggressive") {
-    const used = round.holeResults.filter((h) => h.decision === "aggressive").length;
-    if (used >= AGGRESSIVE_BUDGET)
-      return NextResponse.json(
-        { error: "budget-exhausted", aggressiveBudget: AGGRESSIVE_BUDGET },
-        { status: 409 }
-      );
-  }
+  // Enforce the aggression budget server-side across the whole round (the
+  // decision column stores the per-hole shot sequence, so we can recount).
+  const priorAggr = round.holeResults.reduce((n, h) => n + countAggressive(h.decision), 0);
+  if (priorAggr + decisions.filter((d) => d === "aggressive").length > AGGRESSIVE_BUDGET)
+    return NextResponse.json(
+      { error: "budget-exhausted", aggressiveBudget: AGGRESSIVE_BUDGET },
+      { status: 409 }
+    );
 
-  // Resolve against the round's OWN stored course (works for both daily and
-  // unlimited rounds, and is immune to UTC-midnight rollover).
+  // Resolve against the round's OWN stored course (immune to UTC rollover).
   const course = courseBySlug(round.course.slug);
   const holeData = course?.holes.find((h) => h.number === holeNumber);
   if (!course || !holeData)
@@ -80,11 +89,14 @@ export const PATCH = route(async (
     strokeIndex: holeData.strokeIndex,
   };
 
-  // Deterministic, seeded by (server secret, roundId, holeNumber) — tamper-proof.
-  const result = resolveHoleForRound(roundId, decision, spec, {
-    difficulty: course.difficulty,
-    wind: course.wind,
-  });
+  // Deterministic per (server secret, round, hole, shot) — tamper-proof.
+  const step = resolveHoleShots(decisions, spec, { difficulty: course.difficulty, wind: course.wind }, (shot) =>
+    holeShotSeed(roundId, holeNumber, shot)
+  );
+
+  // Hole not finished: report the lie, persist nothing (safe to re-send).
+  if (!step.complete)
+    return NextResponse.json({ complete: false, shot: step.shot, lie: step.lie });
 
   let updated;
   try {
@@ -93,23 +105,22 @@ export const PATCH = route(async (
         data: {
           roundId,
           holeNumber,
-          decision,
-          outcome: result.outcome,
-          scoreChange: result.scoreDelta,
+          decision: decisions.join(","), // full shot sequence for this hole
+          outcome: step.outcome,
+          scoreChange: step.scoreDelta,
         },
       }),
       prisma.round.update({
         where: { id: roundId },
         data: {
-          score: { increment: result.strokes },
-          relativeToPar: { increment: result.scoreDelta },
+          score: { increment: step.strokes },
+          relativeToPar: { increment: step.scoreDelta },
         },
       }),
     ]);
   } catch (e) {
     // Concurrent submit for the same hole: the @@unique([roundId, holeNumber])
     // constraint rejects the duplicate (and rolls back the score increment).
-    // Return the already-stored result so the client stays consistent.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       const stored = await prisma.holeResult.findUnique({
         where: { roundId_holeNumber: { roundId, holeNumber } },
@@ -117,6 +128,7 @@ export const PATCH = route(async (
       const fresh = await prisma.round.findUnique({ where: { id: roundId } });
       if (stored && fresh)
         return NextResponse.json({
+          complete: true,
           outcome: stored.outcome,
           scoreChange: stored.scoreChange,
           score: fresh.score,
@@ -128,11 +140,11 @@ export const PATCH = route(async (
   }
 
   return NextResponse.json({
-    outcome: result.outcome,
-    label: result.label,
-    emoji: result.emoji,
-    scoreChange: result.scoreDelta,
-    strokes: result.strokes,
+    complete: true,
+    lie: step.lie,
+    outcome: step.outcome,
+    scoreChange: step.scoreDelta,
+    strokes: step.strokes,
     score: updated.score,
     relativeToPar: updated.relativeToPar,
   });

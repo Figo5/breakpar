@@ -35,3 +35,13 @@ export function holeSeed(roundId: string, holeNumber: number): number {
   const secret = process.env.SERVER_SEED ?? "dev-seed";
   return hashSeed(`${secret}:${roundId}:${holeNumber}`);
 }
+
+/**
+ * Seed for one SHOT within a hole (multi-shot play). Distinct per shot index so
+ * re-submitting the same decision list reproduces every shot identically — the
+ * anti-reroll guarantee at shot granularity.
+ */
+export function holeShotSeed(roundId: string, holeNumber: number, shotIndex: number): number {
+  const secret = process.env.SERVER_SEED ?? "dev-seed";
+  return hashSeed(`${secret}:${roundId}:${holeNumber}:s${shotIndex}`);
+}

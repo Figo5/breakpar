@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoleArt } from "@/components/HoleArt";
 import { Scorecard } from "@/components/Scorecard";
-import { holeCues, riskRead, situationRead, AGGRESSIVE_BUDGET } from "@/lib/holeRead";
+import { holeCues, riskRead, lieRiskRead, situationRead, AGGRESSIVE_BUDGET } from "@/lib/holeRead";
+import { LIE_META, shotPrompt, type Lie } from "@/lib/engine/shots";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
 import type { Course } from "@/data/courses";
@@ -39,6 +40,8 @@ function PlayInner() {
   const [pending, setPending] = useState<Outcome | null>(null);
   const [rel, setRel] = useState(0);
   const [aggressiveLeft, setAggressiveLeft] = useState(AGGRESSIVE_BUDGET);
+  const [holeDecisions, setHoleDecisions] = useState<Decision[]>([]); // current hole's shots
+  const [lie, setLie] = useState<Lie | null>(null); // position after the tee shot
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,29 +103,36 @@ function PlayInner() {
   async function choose(decision: Decision) {
     if (busy) return;
     setBusy(true);
+    const sequence = [...holeDecisions, decision]; // full shot list for this hole
     try {
       const res = await fetch(`/api/round/${roundId}/hole`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ holeNumber: hole.number, decision }),
+        body: JSON.stringify({ holeNumber: hole.number, decisions: sequence }),
       });
       if (res.status === 409) {
         const body = await res.json().catch(() => ({}));
         if (body.error === "budget-exhausted") {
           setAggressiveLeft(0);
           setError(null);
-          return; // button will already be disabled; just bail quietly
+          return; // not committed; button is already disabled
         }
       }
       if (!res.ok) throw new Error("hole");
       const data = await res.json();
-      const outcome = data.outcome as Outcome;
-      // Only commit local state once the server confirms, so a failed request
-      // can't desync the scorecard from the authoritative round.
-      setOutcomes((prev) => prev.map((o, i) => (i === holeIdx ? outcome : o)));
-      setRel(data.relativeToPar);
+      // Commit local state only after the server confirms.
+      setHoleDecisions(sequence);
       if (decision === "aggressive") setAggressiveLeft((n) => Math.max(0, n - 1));
-      setPending(outcome);
+      if (data.complete) {
+        const outcome = data.outcome as Outcome;
+        setOutcomes((prev) => prev.map((o, i) => (i === holeIdx ? outcome : o)));
+        setRel(data.relativeToPar);
+        setLie((data.lie as Lie) ?? lie);
+        setPending(outcome);
+      } else {
+        // Tee shot done — reveal the lie and tee up the scoring shot.
+        setLie(data.lie as Lie);
+      }
     } catch {
       setError("That shot didn't register. Tap to retry.");
     } finally {
@@ -149,9 +159,13 @@ function PlayInner() {
       return;
     }
     setPending(null);
+    setHoleDecisions([]);
+    setLie(null);
     setHoleIdx((i) => i + 1);
   }
 
+  const shotIdx = holeDecisions.length; // 0 = tee, 1 = scoring
+  const onTee = shotIdx === 0;
   const cues = holeCues(hole, conditions, course.greens);
   const situation = situationRead(rel, 18 - holeIdx);
 
@@ -173,17 +187,26 @@ function PlayInner() {
       {!pending ? (
         <>
           <div className="reads">
-            {situation && <div className={`situation s-${situation.tone}`}>{situation.text}</div>}
-            <div className="cues">
-              {cues.map((c, i) => (
-                <span className="cue" key={i}><span className="ci">{c.icon}</span>{c.text}</span>
-              ))}
-            </div>
+            {onTee && situation && <div className={`situation s-${situation.tone}`}>{situation.text}</div>}
+            {onTee ? (
+              <div className="cues">
+                {cues.map((c, i) => (
+                  <span className="cue" key={i}><span className="ci">{c.icon}</span>{c.text}</span>
+                ))}
+              </div>
+            ) : (
+              lie && (
+                <div className={`lie-banner l-${LIE_META[lie].tone}`}>
+                  <span className="le">{LIE_META[lie].emoji}</span>
+                  <span className="lt"><b>{LIE_META[lie].label}</b><span>{LIE_META[lie].note}</span></span>
+                </div>
+              )
+            )}
           </div>
-          <div className="prompt">How do you play it?</div>
+          <div className="prompt">{shotPrompt(hole.par, shotIdx)}</div>
           <div className="choices">
             {DECISIONS.map((d) => {
-              const risk = riskRead(d.id, hole, conditions);
+              const risk = onTee || !lie ? riskRead(d.id, hole, conditions) : lieRiskRead(lie, d.id);
               const isAggro = d.id === "aggressive";
               const outOfBudget = isAggro && aggressiveLeft <= 0;
               return (
@@ -192,7 +215,7 @@ function PlayInner() {
                   className={`choice c-${d.id}`}
                   disabled={busy || outOfBudget}
                   onClick={() => choose(d.id)}
-                  aria-label={`Play ${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + " on this hole."}`}
+                  aria-label={`Play ${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
                 >
                   <span className="dot" />
                   <span className="txt">

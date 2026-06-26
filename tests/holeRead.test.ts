@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   holeCues,
   riskRead,
+  lieRiskRead,
   situationRead,
   difficultyBucket,
   AGGRESSIVE_BUDGET,
@@ -36,6 +37,16 @@ describe("riskRead", () => {
   });
   it("greenlights aggressive on a gettable hole", () => {
     expect(riskRead("aggressive", gettable, easyConds).tone).toBe("good");
+  });
+});
+
+describe("lieRiskRead", () => {
+  it("greenlights going for it from a perfect lie, warns from trouble", () => {
+    expect(lieRiskRead("dialed", "aggressive").tone).toBe("good");
+    expect(lieRiskRead("trouble", "aggressive").tone).toBe("bad");
+  });
+  it("frames safe from trouble as a punch-out", () => {
+    expect(lieRiskRead("trouble", "safe").text).toMatch(/punch/i);
   });
 });
 

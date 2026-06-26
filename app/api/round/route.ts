@@ -80,7 +80,10 @@ export const POST = route(async (req: Request) => {
     mode: round.mode,
     completed: round.completed,
     playedHoles: round.holeResults.map((h) => h.holeNumber),
-    aggressiveUsed: round.holeResults.filter((h) => h.decision === "aggressive").length,
+    aggressiveUsed: round.holeResults.reduce(
+      (n, h) => n + h.decision.split(",").filter((d) => d === "aggressive").length,
+      0
+    ),
     aggressiveBudget: AGGRESSIVE_BUDGET,
     score: round.score,
     relativeToPar: round.relativeToPar,

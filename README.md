@@ -1,6 +1,6 @@
 # ⛳ Break Par
 
-> A daily browser golf game. One real course a day, 18 holes, one decision per hole — can you shoot under par?
+> A daily browser golf game. One real course a day, 18 holes, two shots each — read the hole, manage the risk, and try to shoot under par.
 
 ### 🔗 [Play it live → breakpar.xyz](https://breakpar.xyz)
 
@@ -14,8 +14,11 @@
   <a href="https://breakpar.xyz"><img alt="Live" src="https://img.shields.io/badge/Live-breakpar.xyz-22C55E"></a>
 </p>
 
-**Break Par** gives you one real course a day, 18 holes, and a single Safe / Normal / Aggressive
-decision per hole. Shoot under the course's par — about 3 in 10 smart rounds get there. There's
+**Break Par** gives you one real course a day and 18 holes. Each hole is two decisions — a tee
+shot that lands you in a lie (dialed / fairway / rough / trouble), then a scoring shot where you
+see that lie and choose Safe / Normal / Aggressive again (punch out or go for the hero shot). You
+also get only a handful of aggressive plays per round, so spending them well is the skill. Shoot
+under the course's par — about 3 in 10 smart rounds get there. There's
 also an **Unlimited Practice** mode (`/courses`) to play any course as often as you like.
 
 ## 📑 Table of Contents
@@ -45,9 +48,15 @@ The interesting part is **server-authoritative simulation**. The browser sends o
 be replayed for a better result — the seed is `hash(SERVER_SEED, roundId, holeNumber)`,
 so each hole is deterministic and idempotent. That's the anti-cheat backbone.
 
-Difficulty lives entirely in `lib/engine/probabilities.ts`. It's calibrated so smart course
-management breaks par ~29% of the time while reckless aggression scores worse on average and
-blows up more. Re-run the calibration any time you touch those numbers:
+Each hole is a two-shot decision tree: `lib/engine/shots.ts` resolves the tee shot into a lie,
+then the scoring shot into a final outcome, each seeded per shot so it can't be re-rolled. The
+client sends the decision sequence and the server replays it deterministically, writing a single
+result per hole on completion (no schema change needed).
+
+Difficulty lives in `lib/engine/shots.ts` (shot tables) and `lib/engine/probabilities.ts`
+(outcome deltas). It's calibrated so smart course management breaks par ~29% of the time while
+reckless aggression scores worse and blows up more. The harness also reports a **skill gap**
+(strong vs mindless play). Re-run it any time you touch those numbers:
 
 ```bash
 npm run engine:calibrate
@@ -111,7 +120,8 @@ The chosen username flows straight onto the leaderboard (`upsertClerkUser` in `l
 
 ```
 app/            screens (page.tsx, play/, courses/, result/) + API routes (api/)
-lib/engine/     probabilities.ts · rng.ts · resolveHole.ts  ← the simulation core
+lib/engine/     shots.ts (multi-shot) · probabilities.ts · rng.ts · resolveHole.ts  ← sim core
+lib/holeRead.ts player-facing reads (cues, risk, aggression budget)
 lib/            daily.ts · scoring.ts · streak.ts · leaderboard.ts · db.ts
 lib/            user.ts (guest + Clerk) · api.ts (error wrapper) · rateLimit.ts
 data/courses.ts the course catalogue (seeds the DB)
@@ -125,7 +135,8 @@ tests/          vitest unit tests (engine, scoring, daily)
 
 1. `GET /api/daily` → today's course + holes (public, cached).
 2. `POST /api/round` → start/resume the player's round for today (one per day).
-3. `PATCH /api/round/[id]/hole` → submit a decision; **server resolves** and persists.
+3. `PATCH /api/round/[id]/hole` → submit the hole's shot sequence; **server resolves** each shot
+   (returning the lie mid-hole) and persists the result once the hole is done.
 4. `POST /api/round/[id]/finish` → finalize, update streak + best score.
 5. `GET /api/leaderboard` → today's top players + your rank.
 

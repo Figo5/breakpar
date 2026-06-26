@@ -8,6 +8,7 @@
  */
 
 import { holeDifficulty, type HoleSpec } from "@/lib/engine/resolveHole";
+import type { Lie } from "@/lib/engine/shots";
 import type { Decision } from "@/lib/engine/probabilities";
 import type { CourseHole } from "@/data/courses";
 
@@ -16,7 +17,7 @@ import type { CourseHole } from "@/data/courses";
  * handful — deciding WHICH holes to spend them on is the core skill (an
  * allocation problem the player must solve with incomplete information).
  */
-export const AGGRESSIVE_BUDGET = 6;
+export const AGGRESSIVE_BUDGET = 8;
 
 export interface Conditions {
   difficulty: number;
@@ -96,6 +97,20 @@ export function riskRead(
     : bucket === 1
       ? { tone: "warn", text: "Risky" }
       : { tone: "bad", text: "Danger" };
+}
+
+/**
+ * Risk read for the SCORING shot, given the lie you actually drew. This is the
+ * punch-out-or-gamble call — the read depends on position, not just the hole.
+ */
+export function lieRiskRead(lie: Lie, decision: Decision): { tone: Tone; text: string } {
+  if (decision === "safe") return { tone: "good", text: lie === "trouble" ? "Punch out" : "Bankable" };
+  if (decision === "normal")
+    return lie === "trouble" ? { tone: "warn", text: "Risky" } : { tone: "good", text: "Solid" };
+  // aggressive — go for it
+  if (lie === "dialed" || lie === "fairway") return { tone: "good", text: "Go for it" };
+  if (lie === "rough") return { tone: "warn", text: "Risky" };
+  return { tone: "bad", text: "Hero or bust" };
 }
 
 /**
