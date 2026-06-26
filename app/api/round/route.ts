@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getOrStartUser, GUEST_COOKIE, GUEST_COOKIE_MAX_AGE } from "@/lib/user";
 import { dailyCourse, dateKey, puzzleNumber } from "@/lib/daily";
 import { coursePar, courseBySlug, type Course } from "@/data/courses";
+import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -79,6 +80,8 @@ export const POST = route(async (req: Request) => {
     mode: round.mode,
     completed: round.completed,
     playedHoles: round.holeResults.map((h) => h.holeNumber),
+    aggressiveUsed: round.holeResults.filter((h) => h.decision === "aggressive").length,
+    aggressiveBudget: AGGRESSIVE_BUDGET,
     score: round.score,
     relativeToPar: round.relativeToPar,
     puzzleNumber: unlimited ? null : puzzleNumber(),

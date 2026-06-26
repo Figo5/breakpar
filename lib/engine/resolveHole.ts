@@ -53,7 +53,7 @@ export function buildWeights(
   w.eagle *= 1 - (S.eagleDecay + S.aggressiveEagleDecay * aggressive) * d;
   w.birdie *= 1 - (S.birdieDecay + S.aggressiveBirdieDecay * aggressive) * d;
   w.par *= 1 - S.parDecay * d;
-  w.bogey *= 1 + S.bogeyGrowth * d;
+  w.bogey *= 1 + (S.bogeyGrowth + S.aggressiveBogeyGrowth * aggressive) * d;
   w.double *= 1 + (S.doubleGrowth + S.aggressiveDoubleGrowth * aggressive) * d;
   w.triple =
     (w.triple + S.tripleBase) *

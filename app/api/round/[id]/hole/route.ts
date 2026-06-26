@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/user";
 import { courseBySlug } from "@/data/courses";
 import { resolveHoleForRound, type HoleSpec } from "@/lib/engine/resolveHole";
 import type { Decision } from "@/lib/engine/probabilities";
+import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -55,6 +56,17 @@ export const PATCH = route(async (
   // Enforce sequential play (hole N requires N-1 holes already done).
   if (round.holeResults.length !== holeNumber - 1)
     return NextResponse.json({ error: "out-of-order" }, { status: 409 });
+
+  // Enforce the aggression budget server-side (authoritative — a tampered
+  // client can't sneak extra aggressive plays past it).
+  if (decision === "aggressive") {
+    const used = round.holeResults.filter((h) => h.decision === "aggressive").length;
+    if (used >= AGGRESSIVE_BUDGET)
+      return NextResponse.json(
+        { error: "budget-exhausted", aggressiveBudget: AGGRESSIVE_BUDGET },
+        { status: 409 }
+      );
+  }
 
   // Resolve against the round's OWN stored course (works for both daily and
   // unlimited rounds, and is immune to UTC-midnight rollover).

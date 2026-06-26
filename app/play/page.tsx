@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoleArt } from "@/components/HoleArt";
 import { Scorecard } from "@/components/Scorecard";
-import { previewOdds } from "@/lib/engine/resolveHole";
+import { holeCues, riskRead, situationRead, AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
 import type { Course } from "@/data/courses";
@@ -38,6 +38,7 @@ function PlayInner() {
   const [outcomes, setOutcomes] = useState<(Outcome | null)[]>(Array(18).fill(null));
   const [pending, setPending] = useState<Outcome | null>(null);
   const [rel, setRel] = useState(0);
+  const [aggressiveLeft, setAggressiveLeft] = useState(AGGRESSIVE_BUDGET);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,7 @@ function PlayInner() {
         setCourse(r.course as PlayCourse);
         setUnlimited(r.mode === "unlimited");
         setRoundId(r.roundId);
+        setAggressiveLeft((r.aggressiveBudget ?? AGGRESSIVE_BUDGET) - (r.aggressiveUsed ?? 0));
         if (r.playedHoles?.length) {
           setHoleIdx(Math.min(r.playedHoles.length, 17));
           setRel(r.relativeToPar ?? 0);
@@ -104,6 +106,14 @@ function PlayInner() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ holeNumber: hole.number, decision }),
       });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        if (body.error === "budget-exhausted") {
+          setAggressiveLeft(0);
+          setError(null);
+          return; // button will already be disabled; just bail quietly
+        }
+      }
       if (!res.ok) throw new Error("hole");
       const data = await res.json();
       const outcome = data.outcome as Outcome;
@@ -111,6 +121,7 @@ function PlayInner() {
       // can't desync the scorecard from the authoritative round.
       setOutcomes((prev) => prev.map((o, i) => (i === holeIdx ? outcome : o)));
       setRel(data.relativeToPar);
+      if (decision === "aggressive") setAggressiveLeft((n) => Math.max(0, n - 1));
       setPending(outcome);
     } catch {
       setError("That shot didn't register. Tap to retry.");
@@ -141,7 +152,8 @@ function PlayInner() {
     setHoleIdx((i) => i + 1);
   }
 
-  const odds = (d: Decision) => previewOdds(d, hole, conditions);
+  const cues = holeCues(hole, conditions, course.greens);
+  const situation = situationRead(rel, 18 - holeIdx);
 
   return (
     <div className="screen">
@@ -160,21 +172,36 @@ function PlayInner() {
 
       {!pending ? (
         <>
+          <div className="reads">
+            {situation && <div className={`situation s-${situation.tone}`}>{situation.text}</div>}
+            <div className="cues">
+              {cues.map((c, i) => (
+                <span className="cue" key={i}><span className="ci">{c.icon}</span>{c.text}</span>
+              ))}
+            </div>
+          </div>
           <div className="prompt">How do you play it?</div>
           <div className="choices">
             {DECISIONS.map((d) => {
-              const o = odds(d.id);
+              const risk = riskRead(d.id, hole, conditions);
+              const isAggro = d.id === "aggressive";
+              const outOfBudget = isAggro && aggressiveLeft <= 0;
               return (
                 <button
                   key={d.id}
                   className={`choice c-${d.id}`}
-                  disabled={busy}
+                  disabled={busy || outOfBudget}
                   onClick={() => choose(d.id)}
-                  aria-label={`Play ${d.label}: ${d.blurb}. ${o.underPct}% chance under par, ${o.overPct}% over.`}
+                  aria-label={`Play ${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + " on this hole."}`}
                 >
                   <span className="dot" />
-                  <span className="txt"><b>{d.label}</b><span>{d.blurb}</span></span>
-                  <span className="odds" aria-hidden="true"><em>{o.underPct}%</em> under<br />{o.overPct}% over</span>
+                  <span className="txt">
+                    <b>{d.label}{isAggro && <em className="budget">🔥 {aggressiveLeft} left</em>}</b>
+                    <span>{d.blurb}</span>
+                  </span>
+                  <span className={`risk r-${risk.tone}`} aria-hidden="true">
+                    {outOfBudget ? "Spent" : risk.text}
+                  </span>
                 </button>
               );
             })}

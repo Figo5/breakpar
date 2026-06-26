@@ -46,9 +46,9 @@ export const OUTCOME_META: Record<
 
 /** Base outcome weights per decision on a neutral (difficulty = 0) hole. */
 export const BASE_WEIGHTS: Record<Decision, Record<Outcome, number>> = {
-  safe: { eagle: 0, birdie: 11, par: 64, bogey: 23, double: 1.5, triple: 0.5 },
-  normal: { eagle: 2, birdie: 26, par: 49, bogey: 20, double: 2.5, triple: 0.5 },
-  aggressive: { eagle: 8, birdie: 40, par: 33, bogey: 13, double: 3, triple: 3 },
+  safe: { eagle: 0, birdie: 10, par: 65, bogey: 23, double: 1.5, triple: 0.5 },
+  normal: { eagle: 2, birdie: 24, par: 51, bogey: 20, double: 2.5, triple: 0.5 },
+  aggressive: { eagle: 9, birdie: 43, par: 30, bogey: 12, double: 3, triple: 3 },
 };
 
 /** How hole / course / conditions combine into a 0..1 difficulty scalar. */
@@ -70,11 +70,15 @@ export const DIFFICULTY_SCALING = {
   parDecay: 0.08,
   bogeyGrowth: 0.5,
   doubleGrowth: 0.95,
-  tripleGrowth: 1.35,
+  tripleGrowth: 1.1,
   tripleBase: 0.35, // floor so triples are always possible on hard holes
-  // additional growth applied only when decision === "aggressive":
+  // additional growth applied only when decision === "aggressive". The penalty
+  // for attacking a hard hole now leans on BOGEYS rather than catastrophic
+  // triples: similar mean cost, far less variance, so the better decision wins
+  // more reliably over 18 holes (variance is the enemy of skill expression).
   aggressiveEagleDecay: 0.1,
   aggressiveBirdieDecay: 0.1,
-  aggressiveDoubleGrowth: 2.6,
-  aggressiveTripleGrowth: 4.2,
+  aggressiveBogeyGrowth: 0.9,
+  aggressiveDoubleGrowth: 1.7,
+  aggressiveTripleGrowth: 2.4,
 };
