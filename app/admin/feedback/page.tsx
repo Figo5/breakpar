@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { prisma } from "@/lib/db";
-import { isAdmin, adminEmails } from "@/lib/admin";
+import { isAdmin, adminConfigured } from "@/lib/admin";
 import { FeedbackList, type FeedbackItem } from "./FeedbackList";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,8 @@ export default async function AdminFeedback() {
         </div>
         <div className="spacer" />
         <div className="tagline" style={{ textAlign: "center" }}>
-          {adminEmails().length === 0
-            ? "No admins configured. Set ADMIN_EMAILS to enable this page."
+          {!adminConfigured()
+            ? "No admins configured. Set ADMIN_USERNAMES to enable this page."
             : "You don't have access to this page."}
         </div>
         <Link href="/" className="cta ghost" style={{ marginTop: 16 }}>Back to today</Link>
