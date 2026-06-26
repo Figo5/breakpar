@@ -51,6 +51,20 @@ npm run dev                       # http://localhost:3000
 npm test                          # run the unit suite
 ```
 
+## Database migrations
+Schema changes go through Prisma **migrations** (not `db push`).
+```bash
+npm run db:migrate            # dev: create + apply a new migration locally
+npm run db:migrate:deploy     # prod: apply pending migrations (run by Vercel build)
+```
+Vercel's build command (`vercel.json`) runs `prisma migrate deploy` automatically on every
+deploy. A **fresh** database (e.g. a new prod DB) applies the `init` migration cleanly.
+For an **existing** database that was set up with `db push`, baseline it once so Prisma
+doesn't try to recreate the tables:
+```bash
+npx prisma migrate resolve --applied <timestamp>_init
+```
+
 ## Production notes
 - **Connection pooling**: `DATABASE_URL` must be the POOLED string (Neon `-pooler` /
   PgBouncer) for serverless; `DIRECT_URL` (direct) is used only by migrations.

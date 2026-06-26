@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "engine:calibrate": "tsx scripts/calibrate.ts",
     "test": "vitest run",
