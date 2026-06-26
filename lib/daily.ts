@@ -6,7 +6,7 @@
 import { COURSES, type Course } from "@/data/courses";
 import { hashSeed } from "@/lib/engine/rng";
 
-const EPOCH_UTC = Date.UTC(2024, 0, 1); // puzzle #1
+const EPOCH_UTC = Date.UTC(2026, 5, 25); // puzzle #1 (day 1 = 2026-06-25, rolls over at 00:00 UTC)
 
 export function dayIndex(date = new Date()): number {
   const today = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
