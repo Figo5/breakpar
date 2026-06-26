@@ -22,6 +22,7 @@ export default async function Home() {
       <div className="topbar">
         <div className="eyebrow">Daily Challenge · No. {puzzleNumber()}</div>
         <div className="acct">
+          <Link href="/profile" className="acct-link">Profile</Link>
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
           </SignedIn>
