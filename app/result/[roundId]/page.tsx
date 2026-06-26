@@ -119,6 +119,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
             <Link href="/courses" className="cta ghost">Browse courses</Link>
           </>
         )}
+        <Link href="/profile" className="cta ghost">View your profile &amp; best rounds</Link>
       </div>
     </div>
   );
