@@ -92,6 +92,18 @@ model HoleResult {
   @@unique([roundId, holeNumber])
 }
 
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?  // null for fully anonymous senders
+  kind      String   @default("general") // "bug" | "course" | "general"
+  message   String
+  email     String?  // optional reply-to the sender chose to share
+  path      String?  // page the widget was opened from
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
+}
+
 model Streak {
   id                 String @id @default(cuid())
   userId             String @unique
