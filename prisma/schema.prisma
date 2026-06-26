@@ -99,9 +99,11 @@ model Feedback {
   message   String
   email     String?  // optional reply-to the sender chose to share
   path      String?  // page the widget was opened from
+  resolved  Boolean  @default(false) // triaged/handled flag for the admin inbox
   createdAt DateTime @default(now())
 
   @@index([kind, createdAt])
+  @@index([resolved, createdAt])
 }
 
 model Streak {

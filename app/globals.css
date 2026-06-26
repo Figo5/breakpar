@@ -181,5 +181,20 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .fb-done-emoji{font-size:40px} .fb-done h3{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;margin:8px 0 2px}
 .fb-done p{font-size:13.5px;color:var(--ink-soft);margin:0 0 16px}
 @keyframes fbFade{from{opacity:0}to{opacity:1}} @keyframes fbUp{from{transform:translateY(14px);opacity:.6}to{transform:translateY(0);opacity:1}}
+.fb-list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.fb-item{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px}
+.fb-item.done{opacity:.6}
+.fb-item-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.fb-badge{font-family:'Oswald',sans-serif;font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream);background:var(--turf);border-radius:6px;padding:3px 7px}
+.fb-badge.k-bug{background:var(--flag)} .fb-badge.k-course{background:var(--fairway)} .fb-badge.k-general{background:var(--ink-soft)}
+.fb-when{font-size:11px;color:var(--ink-soft);font-family:'Oswald',sans-serif}
+.fb-msg{font-size:14px;line-height:1.5;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.fb-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:9px;font-size:12px}
+.fb-mail{color:var(--turf-light);text-decoration:underline} .fb-anon{color:var(--ink-soft)}
+.fb-path{color:var(--ink-soft);font-family:'Oswald',sans-serif}
+.fb-actions{display:flex;gap:8px;margin-top:12px}
+.fb-act{flex:1;cursor:pointer;font-family:'Oswald',sans-serif;font-weight:600;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--fairway);background:transparent;border:1.5px solid var(--line-strong);border-radius:10px;padding:9px 6px;transition:filter .12s}
+.fb-act:hover{filter:brightness(.97)} .fb-act:disabled{opacity:.5;cursor:default}
+.fb-act.danger{color:var(--flag);border-color:rgba(215,64,47,.4)}
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
