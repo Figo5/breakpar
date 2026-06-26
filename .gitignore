@@ -1,0 +1,23 @@
+# dependencies
+node_modules
+
+# next.js
+.next
+out
+
+# production / tooling
+.vercel
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# env files (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# OS
+.DS_Store

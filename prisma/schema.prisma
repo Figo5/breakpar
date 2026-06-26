@@ -1,0 +1,107 @@
+// Break 80 — PostgreSQL schema (Prisma)
+// Maps directly to the five models in the spec, with the relations and the
+// daily uniqueness constraints the gameplay needs.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Runtime uses the POOLED connection (PgBouncer/Neon pooler) so serverless
+  // functions don't exhaust Postgres connections. Migrations use the DIRECT one.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  // A user is backed by EITHER a Clerk account or an anonymous guest id.
+  clerkId   String?  @unique // Clerk subject, once signed in
+  guestId   String?  @unique // anonymous cookie identity for zero-login play
+  username  String            // display only — not unique (guests share patterns)
+  email     String?  @unique  // null for guests / providers without email
+  createdAt DateTime @default(now())
+
+  rounds  Round[]
+  streak  Streak?
+}
+
+model Course {
+  id         String  @id @default(cuid())
+  slug       String  @unique
+  name       String
+  location   String
+  rating     Float
+  slope      Int
+  difficulty Int     // 1..10
+  wind       Int
+  greens     String
+
+  holes  Hole[]
+  rounds Round[]
+}
+
+model Hole {
+  id          String @id @default(cuid())
+  courseId    String
+  holeNumber  Int    // 1..18
+  par         Int
+  yardage     Int
+  strokeIndex Int    // 1 = hardest
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, holeNumber])
+}
+
+model Round {
+  id          String   @id @default(cuid())
+  userId      String
+  courseId    String
+  mode        String   @default("daily") // "daily" (ranked) | "unlimited" (practice)
+  dateKey     String?  // "2026-06-25" for daily rounds; null for unlimited play
+  score       Int      @default(0)
+  relativeToPar Int    @default(0)
+  completed   Boolean  @default(false)
+  durationMs  Int?
+  playedAt    DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course      Course       @relation(fields: [courseId], references: [id])
+  holeResults HoleResult[]
+
+  // one ranked round per player per day. Unlimited rounds use dateKey = null,
+  // and Postgres treats each NULL as distinct, so a player can have many.
+  @@unique([userId, dateKey])
+  @@index([dateKey, score])
+  @@index([userId, mode])
+}
+
+model HoleResult {
+  id          String @id @default(cuid())
+  roundId     String
+  holeNumber  Int
+  decision    String // "safe" | "normal" | "aggressive"
+  outcome     String // "eagle" | "birdie" | ...
+  scoreChange Int
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  // a hole can only be played once per round (anti re-roll)
+  @@unique([roundId, holeNumber])
+}
+
+model Streak {
+  id                 String @id @default(cuid())
+  userId             String @unique
+  daysPlayed         Int    @default(0)
+  currentStreak      Int    @default(0)
+  maxStreak          Int    @default(0) // longest day-streak ever (survives a miss)
+  underParStreak     Int    @default(0) // consecutive under-par days
+  underParTotal      Int    @default(0) // total under-par days (for win %)
+  bestScore          Int    @default(999) // best relative-to-par score
+  lastPlayedKey      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

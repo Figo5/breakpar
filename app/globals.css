@@ -1,0 +1,134 @@
+/* Break 80 design system — tokens shared by every screen. */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --fairway:#143728; --fairway-2:#1E5138; --turf:#2D6A4F; --turf-light:#40916C;
+  --cream:#F7F3E8; --paper:#FBF8EF; --sand:#E7D29A; --ink:#13201A; --ink-soft:#475a50;
+  --flag:#D7402F; --gold:#E0A02B; --safe:#2D6A4F;
+  --line:rgba(19,32,26,.12); --line-strong:rgba(19,32,26,.22);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
+  background:radial-gradient(120% 80% at 50% -10%,#1f5b3f 0%,var(--fairway) 55%,#0e2a1d 100%);
+  min-height:100vh;display:flex;justify-content:center;-webkit-font-smoothing:antialiased}
+
+.app{width:100%;max-width:440px;min-height:100vh;background:var(--cream);position:relative;
+  overflow:hidden;box-shadow:0 10px 40px rgba(8,25,16,.28);display:flex;flex-direction:column}
+.screen{flex:1;display:flex;flex-direction:column;padding:22px 20px 24px}
+
+.eyebrow{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.22em;text-transform:uppercase;font-size:11px;color:var(--ink-soft)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.acct{display:flex;align-items:center}
+.acct-link{background:none;border:none;cursor:pointer;font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--turf-light);text-decoration:underline;padding:4px}
+.stats-line{text-align:center;font-family:'Oswald',sans-serif;font-weight:500;font-size:12.5px;color:var(--ink-soft);margin-top:12px}
+.wordmark{font-family:'Anton',sans-serif;font-size:clamp(56px,18vw,76px);line-height:.86;color:var(--fairway);margin:6px 0 2px;text-transform:uppercase}
+.wordmark span{color:var(--flag)}
+.tagline{font-family:'Oswald',sans-serif;font-weight:500;font-size:15px;color:var(--ink-soft);margin-bottom:20px}
+
+.nameplate{background:linear-gradient(180deg,var(--fairway-2),var(--fairway));color:var(--cream);border-radius:16px;padding:18px;position:relative;overflow:hidden}
+.nameplate .lbl{font-family:'Oswald',sans-serif;letter-spacing:.2em;text-transform:uppercase;font-size:10px;opacity:.75}
+.nameplate h2{font-family:'Oswald',sans-serif;font-weight:700;font-size:26px;margin:2px 0 1px}
+.nameplate .loc{font-size:13px;opacity:.8;margin-bottom:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;display:flex;gap:6px}
+
+.start-stats{display:flex;gap:10px;margin-top:16px}
+.stat-card{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:11px 12px;text-align:center}
+.stat-card .n{font-family:'Anton',sans-serif;font-size:24px;color:var(--fairway);line-height:1}
+.stat-card .k{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:4px;font-family:'Oswald',sans-serif}
+.spacer{flex:1}
+.home-note{text-align:center;font-family:'Oswald',sans-serif;font-weight:600;color:var(--ink-soft);margin-bottom:14px;font-size:14px}
+.timer-mono{font-variant-numeric:tabular-nums;font-weight:700;color:var(--fairway)}
+
+.cta{display:block;width:100%;border:none;cursor:pointer;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:18px;color:var(--cream);background:var(--flag);padding:17px;border-radius:14px;text-align:center;text-decoration:none;transition:transform .12s,filter .12s}
+.cta:hover{filter:brightness(1.05)} .cta:active{transform:translateY(2px)}
+.cta.ghost{background:transparent;color:var(--fairway);border:1.5px solid var(--line-strong)}
+.cta.green{background:var(--turf)}
+
+.play-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.hole-id{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--ink-soft)}
+.score-pill{display:flex;align-items:baseline;gap:7px;background:var(--fairway);color:var(--cream);padding:6px 13px;border-radius:999px}
+.score-pill .v{font-family:'Anton',sans-serif;font-size:20px;line-height:1}
+.score-pill .k{font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.7;font-family:'Oswald',sans-serif}
+.progress{height:5px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0 14px}
+.progress>i{display:block;height:100%;background:var(--flag);transition:width .4s}
+
+.hole-info{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:10px}
+.hole-info .big{font-family:'Anton',sans-serif;font-size:40px;color:var(--fairway);line-height:.9}
+.hole-info .par{font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em}
+.hole-info .yards{font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;text-align:right;color:var(--fairway)}
+.hole-info .yards small{display:block;font-size:10px;letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase}
+
+.hole-art{border-radius:14px;overflow:hidden;border:1px solid var(--line);position:relative}
+.hole-art svg{display:block;width:100%;height:auto}
+.wind-tag{position:absolute;top:10px;left:10px;background:rgba(19,32,26,.78);color:var(--cream);font-family:'Oswald',sans-serif;font-size:11px;padding:4px 9px;border-radius:8px;display:flex;gap:6px}
+.sig-tag{position:absolute;bottom:10px;right:10px;max-width:62%;background:rgba(224,160,43,.92);color:#1a1205;font-family:'Oswald',sans-serif;font-weight:600;font-size:10.5px;line-height:1.25;padding:4px 9px;border-radius:8px;text-align:right}
+
+.course-list{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+.course-card{display:block;text-decoration:none;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:15px 16px;transition:transform .1s,border-color .15s}
+.course-card:hover{border-color:var(--line-strong)} .course-card:active{transform:scale(.99)}
+.cc-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.cc-head h3{font-family:'Oswald',sans-serif;font-weight:700;font-size:18px;margin:0;line-height:1.1}
+.cc-par{font-family:'Anton',sans-serif;font-size:15px;color:var(--fairway);flex:none}
+.cc-loc{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.cc-blurb{font-size:12.5px;color:var(--ink-soft);margin-top:8px;line-height:1.45}
+.course-card .chip{background:var(--fairway);color:var(--cream);border:none}
+
+.prompt{font-family:'Oswald',sans-serif;font-weight:600;text-align:center;font-size:14px;letter-spacing:.04em;color:var(--ink-soft);margin:16px 0 12px;text-transform:uppercase}
+.choices{display:flex;flex-direction:column;gap:10px}
+.choice{display:flex;align-items:center;gap:13px;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:13px 15px;cursor:pointer;text-align:left;font-family:inherit;transition:transform .1s,border-color .15s}
+.choice:hover{border-color:var(--line-strong)} .choice:active{transform:scale(.985)}
+.choice:disabled{opacity:.5;cursor:default}
+.choice .dot{width:14px;height:14px;border-radius:50%;flex:none}
+.choice .txt{flex:1} .choice .txt b{font-family:'Oswald',sans-serif;font-weight:700;font-size:16px;text-transform:uppercase;display:block}
+.choice .txt span{font-size:12px;color:var(--ink-soft)}
+.choice .odds{font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;color:var(--ink-soft);text-align:right;line-height:1.35}
+.choice .odds em{font-style:normal;color:var(--fairway)}
+.c-safe .dot{background:var(--safe)} .c-normal .dot{background:var(--gold)} .c-aggressive .dot{background:var(--flag)}
+
+.result{text-align:center;padding:20px 6px 8px}
+.result .emoji{font-size:60px;line-height:1}
+.result .name{font-family:'Anton',sans-serif;font-size:34px;margin-top:4px;text-transform:uppercase}
+.result .delta{font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;color:var(--ink-soft);margin-top:2px}
+.result.good .name{color:var(--turf)} .result.even .name{color:var(--fairway)} .result.bad .name{color:var(--flag)}
+
+.scorecard{margin-top:auto;padding-top:16px}
+.sc-row{display:grid;grid-template-columns:repeat(9,1fr);gap:5px}
+.sc-row+.sc-row{margin-top:5px}
+.cell{aspect-ratio:1;border:1px solid var(--line);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;background:var(--paper);color:var(--ink-soft);position:relative}
+.cell.cur{border-color:var(--flag);box-shadow:0 0 0 2px rgba(215,64,47,.18)}
+.cell.played{color:var(--ink)}
+.cell.under::before{content:"";position:absolute;width:78%;height:78%;border-radius:50%;border:1.6px solid var(--turf)}
+.cell.eagle::after{content:"";position:absolute;width:92%;height:92%;border-radius:50%;border:1.6px solid var(--turf)}
+.cell.over::before{content:"";position:absolute;width:74%;height:74%;border:1.6px solid var(--flag)}
+.cell.dbl::after{content:"";position:absolute;width:90%;height:90%;border:1.6px solid var(--flag)}
+.sc-meta{display:flex;justify-content:space-between;margin-top:8px;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+
+.final-course{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);font-size:13px;text-align:center}
+.final-score{font-family:'Anton',sans-serif;font-size:96px;line-height:.85;color:var(--fairway);margin:6px 0 0;text-align:center}
+.final-rel{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;text-align:center}
+.made-it{color:var(--turf)} .missed{color:var(--flag)}
+.verdict{font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;margin-top:8px;text-align:center}
+.pct{display:block;width:fit-content;margin:12px auto 0;background:var(--fairway);color:var(--cream);font-family:'Oswald',sans-serif;font-weight:600;padding:7px 16px;border-radius:999px;font-size:13px}
+.breakdown{display:flex;gap:9px;margin:18px 0}
+.bd{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 6px;text-align:center}
+.bd .n{font-family:'Anton',sans-serif;font-size:28px;line-height:1;color:var(--fairway)}
+.bd .k{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-top:3px}
+.share-grid{background:var(--fairway);border-radius:14px;padding:16px;color:var(--cream);font-family:'Oswald',sans-serif;text-align:center}
+.share-grid .ghdr{font-weight:600;letter-spacing:.08em;font-size:13px;margin-bottom:10px}
+.share-grid .grid{font-size:19px;line-height:1.35;letter-spacing:2px;white-space:pre-line}
+.section-title{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:12px;color:var(--ink-soft);margin:22px 0 10px}
+.lb{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.lb-row{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:10px;padding:10px 13px;font-size:14px}
+.lb-row+.lb-row{border-top:1px solid var(--line)}
+.lb-row .rank{font-family:'Oswald',sans-serif;font-weight:700;color:var(--ink-soft)}
+.lb-row .nm{font-weight:600} .lb-row .tm{font-size:12px;color:var(--ink-soft);font-family:'Oswald',sans-serif}
+.lb-row .sc{font-family:'Anton',sans-serif;font-size:17px;color:var(--fairway)}
+.lb-row.you{background:rgba(215,64,47,.08)} .lb-row.you .nm{color:var(--flag)}
+.btn-stack{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+.footnote{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:16px;line-height:1.5}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
