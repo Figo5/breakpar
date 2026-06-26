@@ -2,6 +2,8 @@
 
 > A daily browser golf game. One real course a day, 18 holes, one decision per hole — can you shoot under par?
 
+### 🔗 [Play it live → breakpar.xyz](https://breakpar.xyz)
+
 <p align="center">
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white">
@@ -9,6 +11,7 @@
   <img alt="Prisma" src="https://img.shields.io/badge/Prisma-PostgreSQL-2D3748?logo=prisma&logoColor=white">
   <img alt="Clerk" src="https://img.shields.io/badge/Auth-Clerk-6C47FF?logo=clerk&logoColor=white">
   <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green">
+  <a href="https://breakpar.xyz"><img alt="Live" src="https://img.shields.io/badge/Live-breakpar.xyz-22C55E"></a>
 </p>
 
 **Break Par** gives you one real course a day, 18 holes, and a single Safe / Normal / Aggressive
