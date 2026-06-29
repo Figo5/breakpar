@@ -11,6 +11,7 @@ import {
   standingLabel,
   PERCENTILE_MIN_FIELD,
 } from "@/lib/scoring";
+import type { Outcome } from "@/lib/engine/probabilities";
 
 describe("relativeLabel", () => {
   it("formats even, over and under par", () => {
@@ -75,6 +76,21 @@ describe("tally + shareGrid", () => {
     expect(t.bogeysOrWorse).toBe(3);
     expect(t.pars).toBe(13);
     expect(shareGrid([...outcomes]).split("\n")).toHaveLength(2);
+  });
+
+  it("emits exactly 18 squares for an 18-hole round, 9 per row", () => {
+    const outcomes = Array<Outcome>(18).fill("par");
+    const [front, back] = shareGrid(outcomes).split("\n");
+    // spread counts code points (each square glyph is one), not UTF-16 units
+    expect([...front]).toHaveLength(9);
+    expect([...back]).toHaveLength(9);
+    expect([...front, ...back]).toHaveLength(18);
+  });
+
+  it("stays 18-wide when holeResults are short (blanks fill the gap)", () => {
+    const short = Array<Outcome>(16).fill("birdie"); // abandoned/partial round
+    const all = [...shareGrid(short).split("\n").join("")];
+    expect(all).toHaveLength(18);
   });
 });
 

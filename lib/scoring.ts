@@ -40,12 +40,20 @@ export function tally(outcomes: Outcome[]): RoundTally {
   return t;
 }
 
-/** Wordle-style share grid: front nine on one line, back nine on the next. */
-export function shareGrid(outcomes: Outcome[]): string {
-  const sq = (o: Outcome) => OUTCOME_META[o].square;
-  const front = outcomes.slice(0, 9).map(sq).join("");
-  const back = outcomes.slice(9, 18).map(sq).join("");
-  return `${front}\n${back}`;
+/** Unplayed-hole marker — keeps the grid full-width if a round is short. */
+const BLANK_SQUARE = "\u2B1B"; // ⬛
+
+/**
+ * Wordle-style share grid: exactly ONE square per hole, in hole order, front
+ * nine then back nine. Indexed against a fixed `holeCount` (default 18) so a
+ * round with missing holeResults can never silently shrink or shift the grid —
+ * an absent hole renders as a visible blank instead of dropping a square.
+ */
+export function shareGrid(outcomes: Outcome[], holeCount = 18): string {
+  const squares = Array.from({ length: holeCount }, (_, i) =>
+    outcomes[i] ? OUTCOME_META[outcomes[i]].square : BLANK_SQUARE
+  );
+  return `${squares.slice(0, 9).join("")}\n${squares.slice(9).join("")}`;
 }
 
 /**
