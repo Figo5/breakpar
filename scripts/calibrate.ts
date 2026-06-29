@@ -199,3 +199,20 @@ console.log(
   `\nSKILL GAP  skilled − naive  = ${gap.toFixed(1)} pts   ·   skilled − greedy = ${gapGreedy.toFixed(1)} pts`
 );
 console.log("(bigger gaps = decisions matter more = more skill-based)");
+
+// --- CI gate -----------------------------------------------------------------
+// Smart play (good/skilled) must break par within this band. Outside it means
+// an engine change wrecked difficulty -> exit non-zero so CI fails loudly
+// instead of printing red numbers nobody reads. Tunable: widen/narrow here.
+const BREAK_PAR_BAND = { min: 26, max: 34 } as const;
+const offenders = (["good", "skilled"] as const)
+  .map((name) => [name, results[name]] as const)
+  .filter(([, pct]) => pct < BREAK_PAR_BAND.min || pct > BREAK_PAR_BAND.max);
+if (offenders.length) {
+  console.error(
+    `\n\u2717 break-par out of band [${BREAK_PAR_BAND.min}\u2013${BREAK_PAR_BAND.max}%]: ` +
+      offenders.map(([n, p]) => `${n} ${p.toFixed(1)}%`).join(", ")
+  );
+  process.exit(1);
+}
+console.log(`\n\u2713 break-par within band [${BREAK_PAR_BAND.min}\u2013${BREAK_PAR_BAND.max}%] (good/skilled)`);

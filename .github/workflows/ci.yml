@@ -27,6 +27,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Engine calibration (break-par band gate)
+        run: npm run engine:calibrate
+
       - name: Production build
         run: npm run build
         env:
