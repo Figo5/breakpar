@@ -94,7 +94,7 @@ export default async function Home() {
       )}
 
       <div className="footnote">
-        New course every day at 00:00 UTC. Course names are trademarks of their
+        New course every day at midnight Eastern (ET). Course names are trademarks of their
         owners; Break Par is unaffiliated and layouts/yardages are stylized for play.
       </div>
     </div>
