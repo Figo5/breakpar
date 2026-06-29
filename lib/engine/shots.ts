@@ -38,7 +38,7 @@ import {
   type ScrambleResult,
 } from "./putting";
 import { rollEvent, applyEvent, type EventInstance } from "./events";
-import { teeNote, approachNote, puttNote, scrambleNote } from "./notes";
+import { teeNote, approachNote, puttNote, scrambleNote, layupNote, layupApproachNote } from "./notes";
 
 /** Hard cap on decisions per hole — keeps a round fast. */
 export const MAX_DECISIONS = 3;
@@ -118,7 +118,7 @@ function readBreak(rng: RNG): { breakDir: BreakDir; slope: Slope } {
 
 // --- the chain ------------------------------------------------------------
 
-export type ChainStage = "tee" | "approach" | "putt" | "scramble" | "done";
+export type ChainStage = "tee" | "approach" | "layup" | "putt" | "scramble" | "done";
 
 export interface ShotRecord {
   index: number; // decision index this shot consumed (-1 for an auto kick-in)
@@ -210,10 +210,21 @@ export function resolveHoleChain(
   if (aEv) applyEvent(aEv.def, "approach", gw as Record<string, number>);
   const green = pick(gw, mulberry32(opts.shotSeed(aIdx)));
   const reachedInTwo = hole.par === 5 && aDec === "aggressive";
+  // Non-aggressive par 5 = lay up: the approach is the lay-up, narrated as such.
+  const isPar5Layup = hole.par === 5 && !reachedInTwo;
   shots.push({
-    index: aIdx, stage: "approach", decision: aDec, green, event: aEv?.instance ?? null,
-    note: narrate ? approachNote(green, isPar3, noteRng(aIdx, 0x777)) : "",
+    index: aIdx, stage: "approach", decision: aDec, green: isPar5Layup ? undefined : green, event: aEv?.instance ?? null,
+    note: narrate ? (isPar5Layup ? layupApproachNote(noteRng(aIdx, 0x777)) : approachNote(green, isPar3, noteRng(aIdx, 0x777))) : "",
   });
+  // VISIBLE LAYUP THIRD: a narration-only wedge record so a laid-up par 5 plainly
+  // takes three to the green (two-putt = par now reads correctly). NOT a decision
+  // and makes NO outcome pick — scoring/calibration are byte-identical to before.
+  if (isPar5Layup) {
+    shots.push({
+      index: -1, stage: "layup", decision: null, green, event: null,
+      note: narrate ? layupNote(green, noteRng(aIdx, 0x515)) : "",
+    });
+  }
 
   const fIdx = aIdx + 1;
 
@@ -294,6 +305,8 @@ export function stagePrompt(stage: Exclude<ChainStage, "done">, par: number): st
       return "Putt — how do you read it?";
     case "scramble":
       return "Short game — get it up and down";
+    case "layup":
+      return "Lay up — wedge to the green"; // auto beat; never a decision prompt
   }
 }
 
