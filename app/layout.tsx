@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { FeedbackWidget } from "./FeedbackWidget";
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <html lang="en">
         <body>
           <div className="app">{children}<FeedbackWidget /></div>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
