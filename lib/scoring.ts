@@ -49,25 +49,59 @@ export function shareGrid(outcomes: Outcome[]): string {
 }
 
 /**
- * Heuristic percentile used as a fallback before the day's field is large
- * enough for a meaningful empirical percentile (see percentileFromRank).
+ * Minimum number of finished daily rounds before a percentile is meaningful.
+ * Below this, a "Top X%" is statistical noise (one finisher = "Top 1%"?), so we
+ * show a provisional rank instead of fabricating a percentage.
  */
-export function estimatePercentile(strokes: number, par: number): number {
-  const over = strokes - par;
-  return Math.max(1, Math.min(96, Math.round(4 + over * 3.4)));
-}
+export const PERCENTILE_MIN_FIELD = 30;
 
-/** Minimum completed rounds before we trust the empirical percentile. */
-export const PERCENTILE_MIN_SAMPLE = 20;
+export type DailyStanding =
+  | { kind: "percentile"; topPct: number; rank: number; field: number }
+  | { kind: "rank"; rank: number; field: number };
 
 /**
- * "Top X%" from a real rank within the day's field. rank is 1-based (1 = best),
- * total is the number of completed rounds. Clamped to 1..99 so we never show
- * "Top 0%" or a demoralising "Top 100%".
+ * Your standing in today's REAL field of finished daily rounds.
+ *
+ * Lower score is better. `betterCount` = finishers strictly ahead of you;
+ * `fieldSize` = total finishers today, including you.
+ *
+ * Tie convention: players who TIE your score do not count against you, so
+ * "Top X%" is the share of the field strictly ahead of you:
+ *
+ *     topPct = round(betterCount / fieldSize * 100)        (clamped to 1..99)
+ *
+ * i.e. if you beat-or-tied 95% of the field, betterCount is ~5% of it → Top 5%.
+ * A leader (betterCount = 0) clamps to "Top 1%" — never "Top 0%".
+ *
+ * Until the field reaches PERCENTILE_MIN_FIELD a percentage is meaningless, so
+ * we return a provisional `rank` ("3rd of 14 so far today") instead of guessing.
  */
-export function percentileFromRank(rank: number, total: number): number {
-  if (total <= 0) return 50;
-  return Math.max(1, Math.min(99, Math.round((rank / total) * 100)));
+export function dailyStanding(betterCount: number, fieldSize: number): DailyStanding {
+  const rank = betterCount + 1; // 1-based; players tied with you share this rank
+  if (fieldSize < PERCENTILE_MIN_FIELD) return { kind: "rank", rank, field: fieldSize };
+  const topPct = Math.max(1, Math.min(99, Math.round((betterCount / fieldSize) * 100)));
+  return { kind: "percentile", topPct, rank, field: fieldSize };
+}
+
+/** "1st", "2nd", "3rd", "11th"… for the small-field rank fallback. */
+export function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+}
+
+/**
+ * One-line label for the standing, shared by the result page and the share
+ * text so they always show the SAME number. The "so far today" framing is
+ * deliberate: early finishers' standings drift as more people play.
+ *
+ * We only brag with "Top X%" when it's actually flattering (topPct <= 50). A
+ * high percentage ("Top 78%") reads as a worse-than-it-is humblebrag, so for
+ * the bottom half we fall back to the neutral rank phrasing ("142nd of 240").
+ */
+export function standingLabel(s: DailyStanding): string {
+  if (s.kind === "percentile" && s.topPct <= 50) return `Top ${s.topPct}% so far today`;
+  return `${ordinal(s.rank)} of ${s.field} so far today`;
 }
 
 export interface StreakState {

@@ -6,7 +6,10 @@ import {
   updateStreak,
   tally,
   shareGrid,
-  percentileFromRank,
+  dailyStanding,
+  ordinal,
+  standingLabel,
+  PERCENTILE_MIN_FIELD,
 } from "@/lib/scoring";
 
 describe("relativeLabel", () => {
@@ -75,10 +78,52 @@ describe("tally + shareGrid", () => {
   });
 });
 
-describe("percentileFromRank", () => {
-  it("clamps to 1..99 and rounds", () => {
-    expect(percentileFromRank(1, 1000)).toBe(1); // best -> top 1%
-    expect(percentileFromRank(1000, 1000)).toBe(99); // worst clamped
-    expect(percentileFromRank(50, 100)).toBe(50);
+describe("dailyStanding", () => {
+  it("falls back to a rank (not a fabricated %) below the min field", () => {
+    // 12 finishers, you're 3rd best -> rank, no percentile
+    const s = dailyStanding(2, 12);
+    expect(s).toEqual({ kind: "rank", rank: 3, field: 12 });
+    expect(standingLabel(s)).toBe("3rd of 12 so far today");
+  });
+
+  it("reports Top X% once the field is big enough (strictly-better / field)", () => {
+    // 240 finishers, 18 strictly better -> 18/240 = 7.5% -> Top 8%
+    const s = dailyStanding(18, 240);
+    expect(s).toEqual({ kind: "percentile", topPct: 8, rank: 19, field: 240 });
+    expect(standingLabel(s)).toBe("Top 8% so far today");
+  });
+
+  it("clamps a leader to Top 1% and never shows Top 0%", () => {
+    const s = dailyStanding(0, 100);
+    expect(s.kind === "percentile" && s.topPct).toBe(1);
+  });
+
+  it("uses rank phrasing (not a high %) for the bottom half", () => {
+    // 240 finishers, 141 better -> Top 59% would be a confusing humblebrag
+    const s = dailyStanding(141, 240);
+    expect(s.kind === "percentile" && s.topPct).toBe(59);
+    expect(standingLabel(s)).toBe("142nd of 240 so far today");
+  });
+
+  it("ties do not count against you (only strictly-better do)", () => {
+    // 100 finishers, 9 better, several tied with you -> still 9/100 -> Top 9%
+    const s = dailyStanding(9, 100);
+    expect(s.kind === "percentile" && s.topPct).toBe(9);
+  });
+
+  it("the threshold is the documented constant", () => {
+    expect(dailyStanding(0, PERCENTILE_MIN_FIELD - 1).kind).toBe("rank");
+    expect(dailyStanding(0, PERCENTILE_MIN_FIELD).kind).toBe("percentile");
+  });
+});
+
+describe("ordinal", () => {
+  it("handles the teens and the 1/2/3 suffixes", () => {
+    expect(["1st", "2nd", "3rd", "4th"].map((_, i) => ordinal(i + 1))).toEqual(["1st", "2nd", "3rd", "4th"]);
+    expect(ordinal(11)).toBe("11th");
+    expect(ordinal(12)).toBe("12th");
+    expect(ordinal(13)).toBe("13th");
+    expect(ordinal(21)).toBe("21st");
+    expect(ordinal(102)).toBe("102nd");
   });
 });

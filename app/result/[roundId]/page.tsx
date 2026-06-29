@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -8,13 +9,42 @@ import {
   shareGrid,
   relativeLabel,
   brokePar,
-  estimatePercentile,
-  percentileFromRank,
-  PERCENTILE_MIN_SAMPLE,
+  dailyStanding,
+  standingLabel,
 } from "@/lib/scoring";
 import { topBoard, fieldStats } from "@/lib/leaderboard";
 import { type Outcome } from "@/lib/engine/probabilities";
 import { ShareButton } from "./ShareButton";
+
+// Per-round share metadata. The link-preview IMAGE is wired automatically by
+// the opengraph-image.tsx file in this segment; here we just give it a title +
+// description. Works unauthenticated; invalid id falls back to a generic title.
+export async function generateMetadata({ params }: { params: Promise<{ roundId: string }> }): Promise<Metadata> {
+  const { roundId } = await params;
+  const round = await prisma.round.findUnique({
+    where: { id: roundId },
+    select: { score: true, relativeToPar: true, mode: true, dateKey: true, course: { select: { slug: true } } },
+  });
+  const course = round ? courseBySlug(round.course.slug) : null;
+  if (!round || !course) return { title: "Break Par — result" };
+
+  const par = coursePar(course);
+  const courseName = course.name.split("—")[0].trim();
+  const isDaily = round.mode === "daily" && !!round.dateKey;
+  const puzzleNo = round.dateKey ? puzzleNumberForKey(round.dateKey) : null;
+  const tag = `${round.score} (${relativeLabel(round.relativeToPar)})`;
+  const title = isDaily ? `Break Par #${puzzleNo} — ${courseName}: ${tag}` : `Break Par — ${courseName}: ${tag}`;
+  const description = brokePar(round.score, par)
+    ? `Broke par at ${courseName} — ${tag}. Think you can?`
+    : `${tag} at ${courseName}. Can you break par?`;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website", url: `/result/${roundId}` },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 // Server component — final card + today's leaderboard.
 export default async function Result({ params }: { params: Promise<{ roundId: string }> }) {
@@ -41,8 +71,12 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   const made = brokePar(round.score, par);
   const grid = shareGrid(outcomes);
 
-  // Daily-only: the ranked ladder + empirical "Top X%" (heuristic fallback
-  // until the field is large enough). Unlimited practice has no ladder.
+  // Daily-only: the ranked ladder + REAL standing in today's field. The field
+  // is scoped by dateKey + completed, which means: only FINISHED, DAILY rounds
+  // for today's daily course (practice rounds carry dateKey = null, so they're
+  // excluded; each daily course owns its own dateKey). Unlimited practice has
+  // no ladder. Computed at view time, so the percentile drifts as more finish —
+  // hence the "so far today" copy. (The share text below snapshots it.)
   const [board, stats] = isDaily
     ? await Promise.all([
         topBoard(round.dateKey!, 8),
@@ -50,16 +84,16 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
       ])
     : [[], null];
 
-  const pct = !isDaily
-    ? null
-    : round.completed && stats!.fieldSize >= PERCENTILE_MIN_SAMPLE
-      ? percentileFromRank(stats!.rank, stats!.fieldSize)
-      : estimatePercentile(round.score, par);
+  const standing =
+    isDaily && round.completed && stats ? dailyStanding(stats.betterCount, stats.fieldSize) : null;
 
   const courseName = course.name.split("—")[0].trim();
+  // The share text snapshots the standing at render (share) time; the page may
+  // show a slightly different number later as more people finish today.
+  const standingLine = standing ? `\n${standingLabel(standing)}` : "";
   const shareText = isDaily
     ? `BREAK PAR #${puzzleNo} ⛳\n${courseName} (Par ${par})\n` +
-      `${round.score} (${relativeLabel(round.relativeToPar)}) · Top ${pct}%\n\n${grid}\n\n` +
+      `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}${standingLine}\n\n` +
       `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.xyz`
     : `BREAK PAR — Practice ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}\n\n` +
@@ -77,7 +111,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
       <div className="verdict">
         {made ? "You broke par. 🔥" : isDaily ? "So close — run it back tomorrow." : "So close — go again."}
       </div>
-      {pct !== null && <span className="pct">Top {pct}% today</span>}
+      {standing && <span className="pct">{standingLabel(standing)}</span>}
 
       <div className="breakdown">
         <div className="bd"><div className="n">{counts.birdiesOrBetter}</div><div className="k">Birdies+</div></div>
