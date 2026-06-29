@@ -129,6 +129,28 @@ describe("budget counts tee/approach only (putts are free)", () => {
   });
 });
 
+describe("par-5 layup birdie lean", () => {
+  // Same strokeIndex so difficulty is identical — the only difference is par.
+  const p4: HoleSpec = { number: 1, par: 4, strokeIndex: 9 };
+  const p5: HoleSpec = { number: 1, par: 5, strokeIndex: 9 };
+  const birdieRate = (hole: HoleSpec, approach: Decision) => {
+    let b = 0;
+    const N = 4000;
+    for (let base = 1; base <= N; base++)
+      if (playToEnd(hole, base, (s) => (s.next === "approach" ? approach : "normal")).outcome === "birdie") b++;
+    return b / N;
+  };
+  it("a normally-played par 5 births more than a par 4 (plays like a par 5)", () => {
+    expect(birdieRate(p5, "normal")).toBeGreaterThan(birdieRate(p4, "normal"));
+  });
+  it("par 4 birdie rate is unchanged by the lean (lean is par-5 only)", () => {
+    // par 4 never reaches the par-5 branch; its rate equals the pre-lean ~22%.
+    const r = birdieRate(p4, "normal");
+    expect(r).toBeGreaterThan(0.15);
+    expect(r).toBeLessThan(0.27);
+  });
+});
+
 describe("stagePrompt", () => {
   it("labels each stage distinctly", () => {
     expect(stagePrompt("tee", 4)).toMatch(/tee/i);

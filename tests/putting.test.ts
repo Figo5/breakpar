@@ -22,6 +22,19 @@ describe("greenWeights", () => {
     expect(onGreen(dialed)).toBeGreaterThan(onGreen(trouble));
     expect(trouble.scramble).toBeGreaterThan(dialed.scramble);
   });
+  it("par-5 layup lean: a normal par 5 sets up more birdie looks than a par 4, but par 4 + aggressive par 5 are untouched", () => {
+    const par4n = greenWeights("fairway", "normal", { number: 1, par: 4, strokeIndex: 9 }, c);
+    const par5n = greenWeights("fairway", "normal", { number: 1, par: 5, strokeIndex: 9 }, c);
+    const looks = (w: Record<string, number>) => w.kickin + w.makeable;
+    // share of birdie-look results (proportions, since pick() normalizes)
+    const share = (w: Record<string, number>) =>
+      looks(w) / (w.kickin + w.makeable + w.lag + w.scramble);
+    expect(share(par5n)).toBeGreaterThan(share(par4n)); // par 5 leans birdie
+    // par 5 aggressive (go-for-it) is NOT leaned: same table as par 4 aggressive.
+    const par4a = greenWeights("fairway", "aggressive", { number: 1, par: 4, strokeIndex: 9 }, c);
+    const par5a = greenWeights("fairway", "aggressive", { number: 1, par: 5, strokeIndex: 9 }, c);
+    expect(par5a).toEqual(par4a);
+  });
   it("never produces negative weights across sources", () => {
     for (const src of ["dialed", "fairway", "rough", "trouble", "tee"] as const)
       for (const d of ["safe", "normal", "aggressive"] as const)

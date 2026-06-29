@@ -125,6 +125,21 @@ export const GREEN_DIFFICULTY = {
   aggressiveScrambleGrowth: 1.2,
 };
 
+/**
+ * Par-5 "wedge third" lean. A laid-up / normally-played par 5 wedges its third
+ * shot into the green, so it sets up a better birdie look than a par-4 mid-iron.
+ * Applied ONLY to the non-aggressive par-5 path in greenWeights() — the go-for-it
+ * (aggressive) approach is the separate reached-in-two -> eagle route and is
+ * untouched. Multipliers bias toward birdie looks (more kickin/makeable, less
+ * lag, slightly fewer missed greens). Tune here; pick() normalizes proportions.
+ */
+export const PAR5_LAYUP_LEAN = {
+  kickin: 1.5,
+  makeable: 1.25,
+  lag: 0.55,
+  scramble: 0.9,
+};
+
 /** Difficulty-adjusted GreenResult odds for an approach decision. */
 export function greenWeights(
   source: GreenSource,
@@ -140,6 +155,16 @@ export function greenWeights(
   w.makeable *= 1 - G.makeableDecay * d;
   w.lag *= 1 + G.lagGrowth * d;
   w.scramble *= 1 + (G.scrambleGrowth + G.aggressiveScrambleGrowth * aggressive) * d;
+  // Par-5 wedge-third lean: laid-up / normally-played par 5s set up better
+  // birdie looks than a par-4 approach. Non-aggressive par-5 path only; the
+  // aggressive go-for-it (reached-in-two -> eagle) route is left untouched.
+  if (hole.par === 5 && decision !== "aggressive") {
+    const L = PAR5_LAYUP_LEAN;
+    w.kickin *= L.kickin;
+    w.makeable *= L.makeable;
+    w.lag *= L.lag;
+    w.scramble *= L.scramble;
+  }
   return w;
 }
 
