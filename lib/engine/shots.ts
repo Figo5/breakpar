@@ -277,7 +277,7 @@ export function resolveHoleChain(
   const outcome = composeOutcome(reachedInTwo, { kind: "putt", result: pres });
   shots.push({
     index: fIdx, stage: "putt", decision: fDec, puttResult: pres, distanceFt, event: pEv?.instance ?? null,
-    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999)) : "",
+    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999), fDec) : "",
   });
   return finalize(hole, shots, fIdx + 1, lie, green, outcome);
 }
