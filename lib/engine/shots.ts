@@ -297,10 +297,4 @@ export function stagePrompt(stage: Exclude<ChainStage, "done">, par: number): st
   }
 }
 
-/** Back-compat label used by the (pre-rework) play page. */
-export function shotPrompt(par: number, shotIndex: number): string {
-  if (shotIndex === 0) return par === 3 ? "Tee shot — attack the pin?" : "Tee shot — how do you play it?";
-  return par === 3 ? "Putt — how do you read it?" : "Approach — how do you play it?";
-}
-
 export { LIES };

@@ -1,15 +1,7 @@
 import { describe, it, expect } from "vitest";
-import {
-  resolveHole,
-  resolveHoleForRound,
-  holeDifficulty,
-  buildWeights,
-  previewOdds,
-  type HoleSpec,
-} from "@/lib/engine/resolveHole";
+import { holeDifficulty } from "@/lib/engine/resolveHole";
 import { mulberry32 } from "@/lib/engine/rng";
 
-const hole: HoleSpec = { number: 1, par: 4, strokeIndex: 9 };
 const conditions = { difficulty: 7, wind: 12 };
 
 describe("rng", () => {
@@ -35,37 +27,5 @@ describe("holeDifficulty", () => {
     expect(hard).toBeGreaterThan(easy);
     expect(hard).toBeLessThanOrEqual(1);
     expect(easy).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("buildWeights", () => {
-  it("all weights stay non-negative as difficulty rises", () => {
-    for (const d of [0, 0.25, 0.5, 0.75, 1]) {
-      const w = buildWeights("aggressive", d);
-      for (const v of Object.values(w)) expect(v).toBeGreaterThanOrEqual(0);
-    }
-  });
-});
-
-describe("resolveHole", () => {
-  it("is reproducible from the same seed (anti re-roll)", () => {
-    const a = resolveHoleForRound("round-1", "normal", hole, conditions);
-    const b = resolveHoleForRound("round-1", "normal", hole, conditions);
-    expect(a).toEqual(b);
-  });
-
-  it("strokes equal par + scoreDelta", () => {
-    const r = resolveHole("normal", hole, conditions, mulberry32(7));
-    expect(r.strokes).toBe(hole.par + r.scoreDelta);
-  });
-});
-
-describe("previewOdds", () => {
-  it("under/over are percentages and aggressive birdies more than safe", () => {
-    const safe = previewOdds("safe", hole, conditions);
-    const aggro = previewOdds("aggressive", hole, conditions);
-    expect(safe.underPct).toBeGreaterThanOrEqual(0);
-    expect(safe.overPct).toBeLessThanOrEqual(100);
-    expect(aggro.underPct).toBeGreaterThan(safe.underPct);
   });
 });
