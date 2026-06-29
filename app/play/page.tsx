@@ -354,7 +354,7 @@ function PlayInner() {
 // --- helpers ---------------------------------------------------------------
 
 function stageTag(stage: ShotRecord["stage"]): string {
-  return stage === "tee" ? "Tee" : stage === "approach" ? "Approach" : stage === "putt" ? "Putt" : "Chip";
+  return stage === "tee" ? "Tee" : stage === "approach" ? "Approach" : stage === "layup" ? "Wedge" : stage === "putt" ? "Putt" : "Chip";
 }
 
 /** The position/read banner above the choices, per stage. */

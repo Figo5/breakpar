@@ -129,6 +129,33 @@ describe("budget counts tee/approach only (putts are free)", () => {
   });
 });
 
+describe("par-5 visible layup (narration-only, no scoring change)", () => {
+  const layups = (r: ChainResult) => r.shots.filter((s) => s.stage === "layup");
+  const normalApproach = (s: ChainResult) => (s.next === "approach" ? "normal" : "normal") as Decision;
+  it("a non-aggressive par 5 inserts exactly one auto layup record (a visible wedge third)", () => {
+    for (let base = 1; base <= 200; base++) {
+      const ls = layups(playToEnd(par5, base, normalApproach));
+      expect(ls).toHaveLength(1);
+      expect(ls[0].index).toBe(-1); // auto — consumes no decision
+      expect(ls[0].decision).toBeNull();
+      expect(ls[0].note.length).toBeGreaterThan(0); // narrates the wedge
+    }
+  });
+  it("aggressive par 5, par 4 and par 3 have NO layup record (paths untouched)", () => {
+    for (let base = 1; base <= 200; base++) {
+      expect(layups(playToEnd(par5, base, (s) => (s.next === "approach" ? "aggressive" : "normal")))).toHaveLength(0);
+      expect(layups(playToEnd(par4, base, () => "normal"))).toHaveLength(0);
+      expect(layups(playToEnd(par3, base, () => "normal"))).toHaveLength(0);
+    }
+  });
+  it("the layup consumes no decision: `used` counts only real (index>=0) shots", () => {
+    for (let base = 1; base <= 200; base++) {
+      const r = playToEnd(par5, base, normalApproach);
+      expect(r.used).toBe(r.shots.filter((s) => s.index >= 0).length);
+    }
+  });
+});
+
 describe("par-5 layup birdie lean", () => {
   // Same strokeIndex so difficulty is identical — the only difference is par.
   const p4: HoleSpec = { number: 1, par: 4, strokeIndex: 9 };

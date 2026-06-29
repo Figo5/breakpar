@@ -28,6 +28,20 @@ const APPROACH_NOTES: Record<GreenResult, string[]> = {
   scramble: ["Missed the green 😬", "Short-sided yourself", "Sailed it — chipping for par now"],
 };
 
+// Par-5 layup (non-aggressive): the approach is the lay-up, then a wedge third
+// sets up the green proximity. Makes the on-in-3 (par) scoring visible.
+const LAYUP_APPROACH_NOTES = [
+  "Laid up to wedge range",
+  "Played safe — laying up short",
+  "Took the lay-up, wedge in hand next",
+];
+const LAYUP_WEDGE_NOTES: Record<GreenResult, string[]> = {
+  kickin: ["Wedged it stiff — kick-in 🎯", "Third to a foot, gimme left", "Dialed the wedge, tap-in range"],
+  makeable: ["Wedge third to a birdie look", "Spun it close — makeable for birdie", "Wedge to the dance floor, real chance"],
+  lag: ["Wedge on, but a long putt left", "Third found the green, lag from distance", "On in three — long two-putt territory"],
+  scramble: ["Caught the wedge thin — missed the green 😬", "Wedge third leaked off the green", "Chunked the lay-up wedge, scrambling now"],
+};
+
 const PAR3_TEE_NOTES: Record<GreenResult, string[]> = {
   kickin: ["Tee shot to tap-in range 🎯", "Dart at the flag — gimme", "Nearly aced it!"],
   makeable: ["Tee shot to a birdie look", "On the green with a chance", "Good iron, makeable birdie"],
@@ -79,4 +93,14 @@ export function puttNote(result: PuttResult, bucket: PuttBucket, ft: number | un
 
 export function scrambleNote(result: ScrambleResult, rng: () => number): string {
   return pick(SCRAMBLE_NOTES[result], rng);
+}
+
+/** Par-5 lay-up approach line (the 2nd shot, played safe short of the green). */
+export function layupApproachNote(rng: () => number): string {
+  return pick(LAYUP_APPROACH_NOTES, rng);
+}
+
+/** Par-5 wedge third — narrates the visible shot that explains on-in-3 scoring. */
+export function layupNote(green: GreenResult, rng: () => number): string {
+  return pick(LAYUP_WEDGE_NOTES[green], rng);
 }
