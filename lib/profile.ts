@@ -7,7 +7,7 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { isStreakAlive } from "@/lib/scoring";
-import { dateKey, puzzleNumberForKey } from "@/lib/daily";
+import { dateKey, previousKey, puzzleNumberForKey } from "@/lib/daily";
 import { coursePar, courseBySlug } from "@/data/courses";
 
 export interface ProfileRound {
@@ -100,7 +100,7 @@ export async function getProfile(): Promise<ProfileData | null> {
   ]);
 
   const today = dateKey();
-  const yesterday = dateKey(new Date(Date.now() - 86_400_000));
+  const yesterday = previousKey(today); // civil yesterday (DST-safe)
   const alive = !!streak && isStreakAlive(streak.lastPlayedKey, today, yesterday);
 
   const bestRounds = bestRows

@@ -1,37 +1,88 @@
 /**
- * Deterministic "course of the day". Same UTC date -> same course + puzzle #
+ * Deterministic "course of the day". Same Eastern date -> same course + puzzle #
  * for every player, so the daily leaderboard is apples-to-apples.
+ *
+ * The day boundary is midnight **America/New_York** (DST-aware), not 00:00 UTC:
+ * a dateKey is the civil Eastern date, and all key<->index math is civil-date
+ * arithmetic (count of days from EPOCH). EPOCH is a civil day-number anchor, not
+ * a wall-clock instant, so it never needs a timezone.
  */
 
 import { COURSES, type Course } from "@/data/courses";
 
-const EPOCH_UTC = Date.UTC(2026, 5, 25); // puzzle #1 (day 1 = 2026-06-25, rolls over at 00:00 UTC)
+const TZ = "America/New_York";
+const EPOCH_UTC = Date.UTC(2026, 5, 25); // puzzle #1 = civil date 2026-06-25 (day 0)
+
+interface CivilDate {
+  y: number;
+  m: number; // 1..12
+  d: number;
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** The civil (calendar) date at `date` in America/New_York — DST-aware. */
+function easternCivilDate(date: Date): CivilDate {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  return { y: get("year"), m: get("month"), d: get("day") };
+}
+
+/** Day number (days since EPOCH) for a civil date — pure calendar arithmetic. */
+function dayNumber({ y, m, d }: CivilDate): number {
+  return Math.floor((Date.UTC(y, m - 1, d) - EPOCH_UTC) / 86_400_000);
+}
+
+const keyOf = ({ y, m, d }: CivilDate): string => `${y}-${pad(m)}-${pad(d)}`;
+
+/** Parse a "YYYY-MM-DD" dateKey into its civil-date parts. */
+function parseKey(key: string): CivilDate {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m, d };
+}
 
 export function dayIndex(date = new Date()): number {
-  const today = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return Math.floor((today - EPOCH_UTC) / 86_400_000);
+  return dayNumber(easternCivilDate(date));
 }
 
 export function puzzleNumber(date = new Date()): number {
   return dayIndex(date) + 1;
 }
 
-/** Date key like "2026-06-25" used as the DB partition for daily rounds. */
+/** Date key like "2026-06-25" — the Eastern civil date, used to partition rounds. */
 export function dateKey(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
+  return keyOf(easternCivilDate(date));
 }
 
-/** Parse a "YYYY-MM-DD" key back into the UTC midnight Date it represents. */
+/**
+ * Parse a "YYYY-MM-DD" key into the UTC-midnight Date it nominally represents.
+ * Kept for callers that need an instant; key<->puzzle/course math no longer
+ * routes through this (that's pure civil arithmetic on the key string), so a
+ * stored key always maps to the same puzzle/course regardless of timezone.
+ */
 export function keyToDate(key: string): Date {
   return new Date(`${key}T00:00:00.000Z`);
 }
 
+/** The dateKey of the civil day BEFORE `key` (DST-safe — pure calendar math). */
+export function previousKey(key: string): string {
+  const { y, m, d } = parseKey(key);
+  const prev = new Date(Date.UTC(y, m - 1, d - 1)); // UTC arithmetic on civil parts
+  return `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}-${pad(prev.getUTCDate())}`;
+}
+
 /**
- * Puzzle number for a stored round, derived from its persisted dateKey rather
- * than wall-clock time (so a round straddling UTC midnight stays consistent).
+ * Puzzle number for a stored round, derived from its persisted dateKey via pure
+ * civil-date arithmetic (NOT a timezone conversion) so a round's number is
+ * fixed forever the moment its key is written.
  */
 export function puzzleNumberForKey(key: string): number {
-  return puzzleNumber(keyToDate(key));
+  return dayNumber(parseKey(key)) + 1;
 }
 
 /**
@@ -65,8 +116,10 @@ export function dailyCourse(date = new Date()): Course {
 /**
  * Resolve the course for a stored round by its persisted dateKey. Anything
  * tied to an existing round MUST use this (not dailyCourse()) so gameplay and
- * results don't flip to a different course when play crosses UTC midnight.
+ * results don't flip to a different course when play crosses the day boundary.
+ * Uses civil-date arithmetic on the key — never a timezone conversion.
  */
 export function dailyCourseForKey(key: string): Course {
-  return dailyCourse(keyToDate(key));
+  const len = COURSES.length;
+  return COURSES[((dayNumber(parseKey(key)) % len) + len) % len];
 }
