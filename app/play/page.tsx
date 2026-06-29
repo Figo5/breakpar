@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoleArt } from "@/components/HoleArt";
 import { PuttView } from "@/components/PuttView";
@@ -20,6 +20,7 @@ import { LIE_META, stagePrompt, type Lie, type PuttContext, type ShotRecord } fr
 import { GREEN_META, type GreenResult } from "@/lib/engine/putting";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
+import { track, identifyUser, type RoundMeta } from "@/lib/analytics";
 import type { Course } from "@/data/courses";
 
 type PlayCourse = Course & { par: number };
@@ -79,6 +80,13 @@ function PlayInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Analytics: round context reused by every funnel event, plus refs to drive
+  // best-effort round_abandoned without re-rendering.
+  const metaRef = useRef<RoundMeta | null>(null);
+  const finishedRef = useRef(false);
+  const completedHolesRef = useRef(0);
+  const abandonReportedRef = useRef(false);
+
   // Bootstrap: start/resume the round (daily, or unlimited if ?course=slug).
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +112,21 @@ function PlayInner() {
         setHoleIdx(startIdx);
         setStage(initialStage(c.holes[startIdx].par));
         if (r.playedHoles?.length) setRel(r.relativeToPar ?? 0);
+
+        // Analytics. Identify with the durable server User.id so this person is
+        // one PostHog identity across sessions and a later sign-in.
+        const meta: RoundMeta = {
+          roundId: r.roundId,
+          slug: c.slug,
+          mode: r.mode === "unlimited" ? "practice" : "daily",
+          puzzleNumber: r.puzzleNumber ?? null,
+        };
+        metaRef.current = meta;
+        completedHolesRef.current = startIdx;
+        if (r.userId) identifyUser(r.userId);
+        // Only count a fresh start (0 holes played) as round_started; a resume
+        // already fired it on its original day.
+        if (!r.playedHoles?.length) track.roundStarted(meta);
       } catch (e) {
         if (!cancelled)
           setError(
@@ -117,6 +140,24 @@ function PlayInner() {
       cancelled = true;
     };
   }, [slug]);
+
+  // round_abandoned (best-effort): a started round left unfinished. Fires once,
+  // on SPA unmount (back to home, etc.) or pagehide (tab close/navigate away).
+  // The finish path sets finishedRef first, so a normal finish never reports.
+  // Hard tab-closes may drop the event (no flush guarantee) — approximate by
+  // design; the SPA-unmount path is reliable.
+  useEffect(() => {
+    const report = () => {
+      if (abandonReportedRef.current || finishedRef.current || !metaRef.current) return;
+      abandonReportedRef.current = true;
+      track.roundAbandoned(metaRef.current, completedHolesRef.current);
+    };
+    window.addEventListener("pagehide", report);
+    return () => {
+      window.removeEventListener("pagehide", report);
+      report();
+    };
+  }, []);
 
   if (error) {
     return (
@@ -167,6 +208,8 @@ function PlayInner() {
         const outcome = data.outcome as Outcome;
         setOutcomes((prev) => prev.map((o, i) => (i === holeIdx ? outcome : o)));
         setRel(data.relativeToPar);
+        completedHolesRef.current = holeIdx + 1;
+        if (metaRef.current) track.holeCompleted(metaRef.current, hole.number, outcome);
         setGreen((data.green as GreenResult) ?? green);
         setLie((data.lie as Lie) ?? lie);
         setPending(outcome);
@@ -195,6 +238,12 @@ function PlayInner() {
           body: JSON.stringify({}),
         });
         if (!res.ok) throw new Error("finish");
+        // round_finished: server-authoritative score; toPar/brokePar from the
+        // running relative-to-par (final after hole 18). Suppress abandoned.
+        const fin = await res.json().catch(() => ({} as { score?: number }));
+        finishedRef.current = true;
+        if (metaRef.current)
+          track.roundFinished(metaRef.current, fin.score ?? course!.par + rel, rel, rel < 0);
         router.push(`/result/${roundId}`);
       } catch {
         setError("Couldn't post your card. Tap to retry.");

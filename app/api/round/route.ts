@@ -86,6 +86,10 @@ export const POST = route(async (req: Request) => {
 
   const res = NextResponse.json({
     roundId: round.id,
+    // Durable server User.id surfaced so the client can posthog.identify() —
+    // the guest cookie is httpOnly, so this is the only path to a stable id.
+    // Not PII: it's the same opaque id already used as the round's userId.
+    userId: user.id,
     mode: round.mode,
     completed: round.completed,
     playedHoles: round.holeResults.map((h) => h.holeNumber),

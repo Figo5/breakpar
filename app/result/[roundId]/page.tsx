@@ -14,7 +14,10 @@ import {
 } from "@/lib/scoring";
 import { topBoard, fieldStats } from "@/lib/leaderboard";
 import { type Outcome } from "@/lib/engine/probabilities";
+import { getCurrentUser } from "@/lib/user";
+import { type RoundMeta } from "@/lib/analytics";
 import { ShareButton } from "./ShareButton";
+import { ResultTracker } from "./ResultTracker";
 
 // Per-round share metadata. The link-preview IMAGE is wired automatically by
 // the opengraph-image.tsx file in this segment; here we just give it a title +
@@ -68,6 +71,17 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   const puzzleNo = round.dateKey ? puzzleNumberForKey(round.dateKey) : null;
   const outcomes = round.holeResults.map((h) => h.outcome as Outcome);
   const counts = tally(outcomes);
+
+  // Analytics identity + own-round vs incoming-share signal. getCurrentUser is
+  // read-only for guests and safe on this public page.
+  const viewer = await getCurrentUser();
+  const ownRound = !!viewer && viewer.id === round.userId;
+  const analyticsMeta: RoundMeta = {
+    roundId: round.id,
+    slug: course.slug,
+    mode: round.mode === "unlimited" ? "practice" : "daily",
+    puzzleNumber: puzzleNo,
+  };
   const made = brokePar(round.score, par);
   const grid = shareGrid(outcomes);
 
@@ -101,6 +115,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
 
   return (
     <div className="screen">
+      <ResultTracker meta={analyticsMeta} ownRound={ownRound} userId={viewer?.id ?? null} />
       <div className="final-course">
         {isDaily ? `Break Par · No. ${puzzleNo} · ` : "Practice · "}{course.name}
       </div>
@@ -144,7 +159,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
       )}
 
       <div className="btn-stack">
-        <ShareButton text={shareText} />
+        <ShareButton text={shareText} meta={analyticsMeta} />
         {isDaily ? (
           <Link href="/" className="cta ghost">Back to today</Link>
         ) : (
