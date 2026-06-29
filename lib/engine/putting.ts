@@ -192,8 +192,13 @@ const PUTT_BASE: Record<Exclude<PuttBucket, "tap">, Record<Decision, Partial<Rec
     aggressive: { oneputt: 37, twoputt: 55, threeputt: 8 },
   },
   long: {
-    safe: { oneputt: 4, twoputt: 83, threeputt: 13 },
-    normal: { oneputt: 7, twoputt: 77, threeputt: 16 },
+    // Lag/Roll three-putt weights tightened so conservative actually protects
+    // against the three-jack: Lag ~11.6% course-weighted (~13% Fast, which
+    // should still punish), Roll eased a touch (16->13) to keep the Lag<Roll<
+    // Charge ordering smooth. safe=9 keeps calibration off the band ceiling.
+    // Charge unchanged — that's the risk you opt into.
+    safe: { oneputt: 4, twoputt: 83, threeputt: 9 },
+    normal: { oneputt: 7, twoputt: 77, threeputt: 13 },
     aggressive: { oneputt: 12, twoputt: 60, threeputt: 28 },
   },
 };

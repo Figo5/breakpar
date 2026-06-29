@@ -9,6 +9,7 @@
 
 import type { Lie } from "./shots";
 import type { GreenResult, PuttResult, ScrambleResult, PuttBucket } from "./putting";
+import type { Decision } from "./probabilities";
 
 function pick(pool: string[], rng: () => number): string {
   return pool[Math.floor(rng() * pool.length) % pool.length];
@@ -49,6 +50,15 @@ const PAR3_TEE_NOTES: Record<GreenResult, string[]> = {
   scramble: ["Missed the green off the tee 😬", "Bunkered it off the tee", "Pushed the tee shot, scrambling now"],
 };
 
+// A CONSERVATIVE (Lag) putt that still three-putts is variance, not a bad
+// choice — these notes read as bad luck so the safe play doesn't feel like a lie.
+const LAG_THREEPUTT_NOTES = [
+  "Played it safe and still got robbed — three from {ft} 😵",
+  "Perfect speed, wicked break — three-putt from {ft}",
+  "Tough read; the lag stayed up — three from {ft} feet",
+  "Did everything right, brutal three-putt from {ft}",
+];
+
 const PUTT_NOTES: Record<PuttResult, Partial<Record<PuttBucket, string[]>>> = {
   oneputt: {
     short: ["Drained it from {ft} feet 🐦", "Buried the birdie putt from {ft}", "Centre cup from {ft} feet"],
@@ -85,8 +95,16 @@ export function approachNote(green: GreenResult, isPar3: boolean, rng: () => num
   return pick(isPar3 ? PAR3_TEE_NOTES[green] : APPROACH_NOTES[green], rng);
 }
 
-export function puttNote(result: PuttResult, bucket: PuttBucket, ft: number | undefined, rng: () => number): string {
+export function puttNote(
+  result: PuttResult,
+  bucket: PuttBucket,
+  ft: number | undefined,
+  rng: () => number,
+  decision?: Decision
+): string {
   if (bucket === "tap") return pick(KICKIN_NOTES, rng);
+  // Bad-luck note for a conservative putt that three-putts anyway.
+  if (decision === "safe" && result === "threeputt") return fmt(pick(LAG_THREEPUTT_NOTES, rng), ft);
   const pool = PUTT_NOTES[result][bucket === "short" ? "short" : "long"] ?? KICKIN_NOTES;
   return fmt(pick(pool, rng), ft);
 }
