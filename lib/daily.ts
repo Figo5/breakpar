@@ -38,6 +38,38 @@ function dayNumber({ y, m, d }: CivilDate): number {
   return Math.floor((Date.UTC(y, m - 1, d) - EPOCH_UTC) / 86_400_000);
 }
 
+/**
+ * America/New_York offset at `date`, in ms, where wallClockAsUTC - offset =
+ * realUTC. Used to turn a wall-clock Eastern time into a real UTC instant.
+ */
+function easternOffsetMs(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(date);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const hour = get("hour") % 24; // hour12:false can render midnight as "24"
+  const asUTC = Date.UTC(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
+  return asUTC - date.getTime();
+}
+
+/**
+ * The next daily rollover = midnight America/New_York after `now`, as a real UTC
+ * instant. This is the SAME boundary `dateKey` flips on (start of the next
+ * Eastern civil day), so a countdown to it hits zero exactly when the daily
+ * course changes. DST-aware: the transition is at 2 AM ET, never at midnight,
+ * so the offset around the boundary is stable and a single correction is exact.
+ */
+export function nextRollover(now = new Date()): Date {
+  const { y, m, d } = easternCivilDate(now);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)); // normalize next civil date
+  // Midnight ET on that civil date, expressed first as a UTC wall-clock number,
+  // then corrected by the zone offset to a real UTC instant.
+  const wallAsUTC = Date.UTC(next.getUTCFullYear(), next.getUTCMonth(), next.getUTCDate());
+  return new Date(wallAsUTC - easternOffsetMs(new Date(wallAsUTC)));
+}
+
 const keyOf = ({ y, m, d }: CivilDate): string => `${y}-${pad(m)}-${pad(d)}`;
 
 /** Parse a "YYYY-MM-DD" dateKey into its civil-date parts. */

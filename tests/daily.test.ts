@@ -3,6 +3,7 @@ import {
   dayIndex,
   dateKey,
   previousKey,
+  nextRollover,
   dailyCourse,
   dailyCourseForKey,
   puzzleNumber,
@@ -32,6 +33,23 @@ describe("date helpers (midnight America/New_York boundary)", () => {
   it("a stored key maps to a fixed puzzle number forever (civil arithmetic)", () => {
     expect(puzzleNumberForKey("2026-06-25")).toBe(1); // EPOCH = puzzle #1
     expect(puzzleNumberForKey("2026-06-26")).toBe(2);
+  });
+
+  it("nextRollover lands at midnight Eastern (04:00 UTC summer / 05:00 UTC winter)", () => {
+    // summer (EDT, UTC-4): midnight ET = 04:00 UTC
+    expect(nextRollover(new Date("2026-06-29T18:00:00Z")).toISOString()).toBe("2026-06-30T04:00:00.000Z");
+    // winter (EST, UTC-5): midnight ET = 05:00 UTC
+    expect(nextRollover(new Date("2027-01-15T12:00:00Z")).toISOString()).toBe("2027-01-16T05:00:00.000Z");
+  });
+
+  it("the countdown hits zero exactly when dateKey flips (timer == rollover)", () => {
+    for (const iso of ["2026-06-29T18:00:00Z", "2027-01-15T12:00:00Z", "2026-03-07T22:00:00Z"]) {
+      const now = new Date(iso);
+      const roll = nextRollover(now);
+      expect(dateKey(new Date(roll.getTime() - 1))).toBe(dateKey(now)); // 1ms before: still today
+      expect(dateKey(roll)).toBe(previousKey(dateKey(new Date(roll.getTime() + 86_400_000)))); // at boundary: the next day
+      expect(dateKey(roll)).not.toBe(dateKey(now)); // it flipped
+    }
   });
 
   it("previousKey is the civil day before — correct across both DST transitions", () => {
