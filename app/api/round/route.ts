@@ -5,6 +5,7 @@ import { getOrStartUser, GUEST_COOKIE, GUEST_COOKIE_MAX_AGE } from "@/lib/user";
 import { dailyCourse, dateKey, puzzleNumber } from "@/lib/daily";
 import { coursePar, courseBySlug, type Course } from "@/data/courses";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
+import { countTeeApproachAggressive } from "@/lib/engine/shots";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -80,8 +81,15 @@ export const POST = route(async (req: Request) => {
     mode: round.mode,
     completed: round.completed,
     playedHoles: round.holeResults.map((h) => h.holeNumber),
+    // Only tee/approach aggressive plays count against the budget — putt and
+    // short-game "Charge" decisions reuse the vocab but are never charged.
     aggressiveUsed: round.holeResults.reduce(
-      (n, h) => n + h.decision.split(",").filter((d) => d === "aggressive").length,
+      (n, h) =>
+        n +
+        countTeeApproachAggressive(
+          h.decision,
+          course.holes.find((ch) => ch.number === h.holeNumber)?.par ?? 4
+        ),
       0
     ),
     aggressiveBudget: AGGRESSIVE_BUDGET,

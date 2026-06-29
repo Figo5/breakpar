@@ -4,26 +4,32 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { courseBySlug } from "@/data/courses";
 import { type HoleSpec } from "@/lib/engine/resolveHole";
-import { resolveHoleShots, SHOTS_PER_HOLE } from "@/lib/engine/shots";
-import { holeShotSeed } from "@/lib/engine/rng";
-import type { Decision } from "@/lib/engine/probabilities";
+import {
+  resolveHoleChain,
+  MAX_DECISIONS,
+  approachDecisionCount,
+  countTeeApproachAggressive,
+} from "@/lib/engine/shots";
+import { holeShotSeed, eventSeed } from "@/lib/engine/rng";
+import type { Decision, Outcome } from "@/lib/engine/probabilities";
+import type { GreenSpeed } from "@/lib/engine/putting";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 
 const DECISIONS: Decision[] = ["safe", "normal", "aggressive"];
-const countAggressive = (joined: string) => joined.split(",").filter((d) => d === "aggressive").length;
 
-// PATCH: submit the decision SEQUENCE for one hole (multi-shot). The client
-// sends every decision made on this hole so far; the SERVER replays them with
-// per-shot seeded RNG. While the hole is unfinished it returns the resulting
-// lie (and persists nothing — deterministic, so it's safe to re-send). Once the
-// final shot lands it writes a single HoleResult and advances the round.
+// PATCH: submit the decision SEQUENCE for one hole (variable-length chain). The
+// client sends every decision made on this hole so far; the SERVER replays them
+// with per-shot seeded RNG + seeded events. While the hole is unfinished it
+// returns the NEXT-STAGE descriptor (reads, the play-by-play note, any event)
+// and persists nothing — deterministic, so it's safe to re-send. Once the chain
+// resolves it writes a single HoleResult and advances the round.
 export const PATCH = route(async (
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  const limited = await rateLimit("hole", 240, 60_000); // 240/min (2 shots/hole headroom)
+  const limited = await rateLimit("hole", 360, 60_000); // 360/min (3 shots/hole headroom)
   if (limited) return limited;
 
   const { id: roundId } = await params;
@@ -38,7 +44,7 @@ export const PATCH = route(async (
   const decisions = Array.isArray(body.decisions) ? body.decisions : [];
   const validSeq =
     decisions.length >= 1 &&
-    decisions.length <= SHOTS_PER_HOLE &&
+    decisions.length <= MAX_DECISIONS &&
     decisions.every((d) => DECISIONS.includes(d));
   if (!validSeq || !(holeNumber >= 1 && holeNumber <= 18))
     return NextResponse.json({ error: "bad-input" }, { status: 400 });
@@ -69,15 +75,6 @@ export const PATCH = route(async (
   if (round.holeResults.length !== holeNumber - 1)
     return NextResponse.json({ error: "out-of-order" }, { status: 409 });
 
-  // Enforce the aggression budget server-side across the whole round (the
-  // decision column stores the per-hole shot sequence, so we can recount).
-  const priorAggr = round.holeResults.reduce((n, h) => n + countAggressive(h.decision), 0);
-  if (priorAggr + decisions.filter((d) => d === "aggressive").length > AGGRESSIVE_BUDGET)
-    return NextResponse.json(
-      { error: "budget-exhausted", aggressiveBudget: AGGRESSIVE_BUDGET },
-      { status: 409 }
-    );
-
   // Resolve against the round's OWN stored course (immune to UTC rollover).
   const course = courseBySlug(round.course.slug);
   const holeData = course?.holes.find((h) => h.number === holeNumber);
@@ -89,15 +86,54 @@ export const PATCH = route(async (
     strokeIndex: holeData.strokeIndex,
   };
 
-  // Deterministic per (server secret, round, hole, shot) — tamper-proof.
-  const step = resolveHoleShots(decisions, spec, { difficulty: course.difficulty, wind: course.wind }, (shot) =>
-    holeShotSeed(roundId, holeNumber, shot)
+  // Aggression budget — counted across the round on TEE/APPROACH decisions only
+  // (putt/short-game decisions reuse the vocab but are never charged). Recount
+  // from stored chains, each interpreted with its own hole's par.
+  const parOf = (n: number) => course.holes.find((h) => h.number === n)?.par ?? 4;
+  const priorAggr = round.holeResults.reduce(
+    (sum, h) => sum + countTeeApproachAggressive(h.decision, parOf(h.holeNumber)),
+    0
   );
+  const thisAggr = decisions
+    .slice(0, approachDecisionCount(holeData.par))
+    .filter((d) => d === "aggressive").length;
+  if (priorAggr + thisAggr > AGGRESSIVE_BUDGET)
+    return NextResponse.json(
+      { error: "budget-exhausted", aggressiveBudget: AGGRESSIVE_BUDGET },
+      { status: 409 }
+    );
 
-  // Hole not finished: report the lie, persist nothing (safe to re-send).
-  if (!step.complete)
-    return NextResponse.json({ complete: false, shot: step.shot, lie: step.lie });
+  // Momentum reads the round's prior outcomes (deterministic, no dice).
+  const recent: Outcome[] = round.holeResults
+    .slice()
+    .sort((a, b) => a.holeNumber - b.holeNumber)
+    .map((h) => h.outcome as Outcome);
 
+  // Deterministic per (server secret, round, hole, shot) — tamper-proof.
+  const step = resolveHoleChain(decisions, spec, { difficulty: course.difficulty, wind: course.wind }, {
+    shotSeed: (shot) => holeShotSeed(roundId, holeNumber, shot),
+    eventSeed: (shot) => eventSeed(roundId, holeNumber, shot),
+    greens: course.greens as GreenSpeed,
+    recent,
+  });
+
+  // Hole not finished: report the next stage + reads + play-by-play. Persist
+  // nothing (deterministic, so re-sending reproduces the same chain).
+  if (!step.complete) {
+    const last = step.shots[step.shots.length - 1] ?? null;
+    return NextResponse.json({
+      complete: false,
+      stage: step.next,
+      lie: step.lie ?? null,
+      green: step.green ?? null,
+      putt: step.putt ?? null,
+      note: last?.note ?? null,
+      event: last?.event ?? null,
+      shots: step.shots,
+    });
+  }
+
+  const usedDecisions = decisions.slice(0, step.used).join(",");
   let updated;
   try {
     [, updated] = await prisma.$transaction([
@@ -105,16 +141,16 @@ export const PATCH = route(async (
         data: {
           roundId,
           holeNumber,
-          decision: decisions.join(","), // full shot sequence for this hole
-          outcome: step.outcome,
-          scoreChange: step.scoreDelta,
+          decision: usedDecisions, // full shot sequence actually played this hole
+          outcome: step.outcome!,
+          scoreChange: step.scoreDelta!,
         },
       }),
       prisma.round.update({
         where: { id: roundId },
         data: {
-          score: { increment: step.strokes },
-          relativeToPar: { increment: step.scoreDelta },
+          score: { increment: step.strokes! },
+          relativeToPar: { increment: step.scoreDelta! },
         },
       }),
     ]);
@@ -139,12 +175,17 @@ export const PATCH = route(async (
     throw e;
   }
 
+  const last = step.shots[step.shots.length - 1] ?? null;
   return NextResponse.json({
     complete: true,
-    lie: step.lie,
+    lie: step.lie ?? null,
+    green: step.green ?? null,
     outcome: step.outcome,
     scoreChange: step.scoreDelta,
     strokes: step.strokes,
+    note: last?.note ?? null,
+    event: last?.event ?? null,
+    shots: step.shots,
     score: updated.score,
     relativeToPar: updated.relativeToPar,
   });

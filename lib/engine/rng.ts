@@ -45,3 +45,14 @@ export function holeShotSeed(roundId: string, holeNumber: number, shotIndex: num
   const secret = process.env.SERVER_SEED ?? "dev-seed";
   return hashSeed(`${secret}:${roundId}:${holeNumber}:s${shotIndex}`);
 }
+
+/**
+ * Seed for the EVENT roll on one shot. Kept on a separate namespace from the
+ * shot-resolution seed so events fire (or not) independently of the outcome
+ * draw — and so re-submitting a decision list reproduces the same events and
+ * narration every time (anti re-roll at event granularity).
+ */
+export function eventSeed(roundId: string, holeNumber: number, shotIndex: number): number {
+  const secret = process.env.SERVER_SEED ?? "dev-seed";
+  return hashSeed(`${secret}:${roundId}:${holeNumber}:e${shotIndex}`);
+}

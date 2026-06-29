@@ -1,24 +1,47 @@
 /**
- * Multi-shot hole simulation — the decision-tree depth layer.
+ * Variable-length hole simulation — the decision-tree depth layer.
  *
- * Each hole is now played as TWO sequential, server-authoritative shots:
- *   1. Tee shot  -> resolves to a LIE (dialed / fairway / rough / trouble)
- *   2. Scoring shot -> the player SEES the lie, then chooses again, resolving
- *      to a final outcome (eagle..triple).
+ * A hole is now played as a CHAIN of server-authoritative stages, whose length
+ * varies by par and by how it unfolds:
  *
- * That second decision is the whole point: after a wild drive into trouble you
- * choose to punch out (salvage bogey) or go for the hero recovery (birdie or
- * blow-up). Risk management with information — real skill, not one dice roll.
+ *   Par 4 / 5:  Tee -> Lie -> Approach -> GreenResult -> Putt/Scramble -> Outcome
+ *   Par 3:      (tee = Approach) -> GreenResult -> Putt/Scramble -> Outcome
  *
- * Still deterministic: each shot is seeded by (server secret, round, hole, shot)
- * so it can't be re-rolled, and the server replays the decision list to resolve.
+ * Variable length is the whole point: a kick-in AUTO-RESOLVES (one fewer click),
+ * a missed green ADDS a short-game decision. The rhythm stops being identical
+ * every hole, and par 3s finally play unlike par 4s.
+ *
+ * Still deterministic: every stage and every event derives from a per-shot seed
+ * (server: secret+round+hole+shot), so re-submitting the decision list
+ * reproduces the identical chain, events, and narration — the anti-reroll core.
+ *
+ * Decisions are capped at MAX_DECISIONS (3) so a round stays ~1-3 min. Putt and
+ * short-game decisions reuse the safe/normal/aggressive vocab but are NEVER
+ * charged to the aggressive budget — only tee/approach decisions are (see
+ * countTeeApproachAggressive). That keeps the budget a tee-to-green resource.
  */
 
 import { holeDifficulty, type HoleSpec, type Conditions } from "./resolveHole";
 import { SCORE_DELTA, type Decision, type Outcome } from "./probabilities";
 import { mulberry32, type RNG } from "./rng";
+import {
+  greenWeights,
+  puttWeights,
+  scrambleWeights,
+  composeOutcome,
+  GREEN_META,
+  type GreenResult,
+  type GreenSource,
+  type GreenSpeed,
+  type PuttBucket,
+  type PuttResult,
+  type ScrambleResult,
+} from "./putting";
+import { rollEvent, applyEvent, type EventInstance } from "./events";
+import { teeNote, approachNote, puttNote, scrambleNote } from "./notes";
 
-export const SHOTS_PER_HOLE = 2;
+/** Hard cap on decisions per hole — keeps a round fast. */
+export const MAX_DECISIONS = 3;
 
 export type Lie = "dialed" | "fairway" | "rough" | "trouble";
 
@@ -30,43 +53,12 @@ export const LIE_META: Record<Lie, { label: string; emoji: string; note: string;
 };
 
 const LIES: Lie[] = ["dialed", "fairway", "rough", "trouble"];
-const OUTCOMES: Outcome[] = ["eagle", "birdie", "par", "bogey", "double", "triple"];
 
 /** Tee-shot lie distribution on a neutral hole (difficulty 0). */
 const TEE_BASE: Record<Decision, Record<Lie, number>> = {
   safe: { dialed: 8, fairway: 64, rough: 25, trouble: 3 },
   normal: { dialed: 22, fairway: 50, rough: 23, trouble: 5 },
   aggressive: { dialed: 44, fairway: 31, rough: 16, trouble: 9 },
-};
-
-/** Scoring-shot outcome distribution given the lie, on a neutral hole. */
-const SCORE_BASE: Record<Lie, Record<Decision, Partial<Record<Outcome, number>>>> = {
-  dialed: {
-    safe: { birdie: 35, par: 60, bogey: 5 },
-    normal: { eagle: 5, birdie: 57, par: 35, bogey: 3 },
-    aggressive: { eagle: 15, birdie: 58, par: 21, bogey: 4, double: 2 },
-  },
-  fairway: {
-    safe: { birdie: 9, par: 77, bogey: 13, double: 1 },
-    normal: { birdie: 25, par: 59, bogey: 14, double: 2 },
-    aggressive: { eagle: 3, birdie: 43, par: 37, bogey: 12, double: 4, triple: 1 },
-  },
-  rough: {
-    safe: { par: 54, bogey: 43, double: 3 },
-    normal: { birdie: 11, par: 51, bogey: 33, double: 5 },
-    aggressive: { birdie: 24, par: 33, bogey: 30, double: 10, triple: 3 },
-  },
-  trouble: {
-    safe: { par: 17, bogey: 63, double: 18, triple: 2 },
-    normal: { par: 11, bogey: 49, double: 32, triple: 8 },
-    aggressive: { birdie: 9, par: 18, bogey: 29, double: 30, triple: 14 },
-  },
-};
-
-const fill = (w: Partial<Record<Outcome, number>>): Record<Outcome, number> => {
-  const out = {} as Record<Outcome, number>;
-  for (const o of OUTCOMES) out[o] = w[o] ?? 0;
-  return out;
 };
 
 /** Difficulty-adjusted lie odds for a tee decision. */
@@ -81,25 +73,6 @@ export function teeWeights(decision: Decision, hole: HoleSpec, c: Conditions): R
   return w;
 }
 
-/** Difficulty-adjusted outcome odds for a scoring decision from a given lie. */
-export function scoreWeights(
-  lie: Lie,
-  decision: Decision,
-  hole: HoleSpec,
-  c: Conditions
-): Record<Outcome, number> {
-  const d = holeDifficulty(hole, c);
-  const aggressive = decision === "aggressive" ? 1 : 0;
-  const w = fill(SCORE_BASE[lie][decision]);
-  w.eagle *= 1 - 0.6 * d;
-  w.birdie *= 1 - 0.4 * d;
-  w.par *= 1 - 0.05 * d;
-  w.bogey *= 1 + (0.4 + 0.7 * aggressive) * d;
-  w.double *= 1 + (0.8 + 1.4 * aggressive) * d;
-  w.triple = (w.triple + 0.1) * (1 + (1.0 + 2.0 * aggressive) * d);
-  return w;
-}
-
 function pick<T extends string>(w: Record<T, number>, rng: RNG): T {
   const keys = Object.keys(w) as T[];
   const total = keys.reduce((a, k) => a + w[k], 0);
@@ -111,33 +84,222 @@ function pick<T extends string>(w: Record<T, number>, rng: RNG): T {
   return keys[keys.length - 1];
 }
 
-export type ShotStep =
-  | { complete: false; shot: number; lie: Lie }
-  | { complete: true; lie: Lie; outcome: Outcome; scoreDelta: number; strokes: number };
+// --- budget accounting (only tee/approach decisions count) -----------------
+
+/** Number of tee+approach decisions for a hole (par 3 has no separate tee). */
+export function approachDecisionCount(par: number): number {
+  return par === 3 ? 1 : 2;
+}
+
+/** Count aggressive plays that count against the budget within a stored chain
+ * ("safe,aggressive,normal"). Putt/short-game decisions (the trailing ones) are
+ * excluded — the budget is a tee-to-green resource only. */
+export function countTeeApproachAggressive(decisionCsv: string, par: number): number {
+  const ds = decisionCsv.split(",").filter(Boolean);
+  return ds.slice(0, approachDecisionCount(par)).filter((d) => d === "aggressive").length;
+}
+
+// --- putt geometry (distance + break), deterministic ----------------------
+
+function distanceFor(bucket: PuttBucket, rng: RNG): number {
+  if (bucket === "tap") return 1 + Math.floor(rng() * 3); // 1–3 ft
+  if (bucket === "short") return 6 + Math.floor(rng() * 13); // 6–18 ft
+  return 25 + Math.floor(rng() * 21); // 25–45 ft
+}
+
+export type BreakDir = "L" | "R" | "straight";
+export type Slope = "uphill" | "downhill" | "flat";
+
+function readBreak(rng: RNG): { breakDir: BreakDir; slope: Slope } {
+  const breakDir = (["L", "R", "straight"] as const)[Math.floor(rng() * 3)];
+  const slope = (["uphill", "downhill", "flat"] as const)[Math.floor(rng() * 3)];
+  return { breakDir, slope };
+}
+
+// --- the chain ------------------------------------------------------------
+
+export type ChainStage = "tee" | "approach" | "putt" | "scramble" | "done";
+
+export interface ShotRecord {
+  index: number; // decision index this shot consumed (-1 for an auto kick-in)
+  stage: Exclude<ChainStage, "done">;
+  decision: Decision | null;
+  lie?: Lie;
+  green?: GreenResult;
+  puttResult?: PuttResult;
+  scrambleResult?: ScrambleResult;
+  distanceFt?: number;
+  event: EventInstance | null;
+  note: string;
+}
+
+export interface PuttContext {
+  bucket: Exclude<PuttBucket, "tap">;
+  distanceFt: number;
+  breakDir: BreakDir;
+  slope: Slope;
+  speed: GreenSpeed;
+}
+
+export interface ChainResult {
+  complete: boolean;
+  used: number; // decisions consumed
+  shots: ShotRecord[];
+  lie?: Lie; // current position context (tee lie, par 4/5)
+  green?: GreenResult;
+  // when not complete:
+  next?: Exclude<ChainStage, "done">;
+  putt?: PuttContext; // present when next === "putt"
+  // when complete:
+  outcome?: Outcome;
+  scoreDelta?: number;
+  strokes?: number;
+}
+
+export interface ChainOpts {
+  shotSeed: (shotIndex: number) => number;
+  eventSeed: (shotIndex: number) => number;
+  greens?: GreenSpeed;
+  recent?: Outcome[]; // prior holes' outcomes (for momentum)
+  narration?: boolean; // default true; calibration turns it off for speed
+}
 
 /**
- * Resolve a hole from its decision list. `seedFor(shotIndex)` supplies the
- * per-shot RNG seed (server: secret+round+hole+shot; tests: any). Returns the
- * intermediate lie after the tee shot, or the final outcome once both shots
- * are in. Pure + deterministic.
+ * Resolve a hole from its decision list. Replays deterministically and returns
+ * either the next stage the player must decide (with reads), or the final
+ * outcome once the chain completes. Pure.
  */
-export function resolveHoleShots(
+export function resolveHoleChain(
   decisions: Decision[],
   hole: HoleSpec,
   c: Conditions,
-  seedFor: (shotIndex: number) => number
-): ShotStep {
-  const lie = pick(teeWeights(decisions[0], hole, c), mulberry32(seedFor(0)));
-  if (decisions.length < SHOTS_PER_HOLE) return { complete: false, shot: 1, lie };
+  opts: ChainOpts
+): ChainResult {
+  const isPar3 = hole.par === 3;
+  const greens = opts.greens ?? "Medium";
+  const recent = opts.recent ?? [];
+  const narrate = opts.narration !== false;
+  const shots: ShotRecord[] = [];
 
-  const outcome = pick(scoreWeights(lie, decisions[1], hole, c), mulberry32(seedFor(1)));
-  const scoreDelta = SCORE_DELTA[outcome];
-  return { complete: true, lie, outcome, scoreDelta, strokes: hole.par + scoreDelta };
+  const noteRng = (i: number, salt: number) => mulberry32((opts.shotSeed(i) ^ salt) >>> 0);
+
+  let lie: Lie | undefined;
+
+  // ---- TEE (par 4/5 only) ----
+  let aIdx = 0;
+  if (!isPar3) {
+    if (decisions.length < 1) return { complete: false, used: 0, shots, next: "tee" };
+    const dec = decisions[0];
+    const w = teeWeights(dec, hole, c);
+    const ev = rollEvent("tee", opts.eventSeed(0), { recent, firstShotOfHole: true });
+    if (ev) applyEvent(ev.def, "tee", w as Record<string, number>);
+    lie = pick(w, mulberry32(opts.shotSeed(0)));
+    shots.push({
+      index: 0, stage: "tee", decision: dec, lie, event: ev?.instance ?? null,
+      note: narrate ? teeNote(lie, noteRng(0, 0x777)) : "",
+    });
+    aIdx = 1;
+  }
+
+  // ---- APPROACH (all pars; par 3's tee shot IS the approach) ----
+  if (decisions.length <= aIdx) return { complete: false, used: aIdx, shots, next: "approach", lie };
+  const aDec = decisions[aIdx];
+  const source: GreenSource = isPar3 ? "tee" : (lie as Lie);
+  const gw = greenWeights(source, aDec, hole, c);
+  const aEv = rollEvent("approach", opts.eventSeed(aIdx), { recent, firstShotOfHole: isPar3 });
+  if (aEv) applyEvent(aEv.def, "approach", gw as Record<string, number>);
+  const green = pick(gw, mulberry32(opts.shotSeed(aIdx)));
+  const reachedInTwo = hole.par === 5 && aDec === "aggressive";
+  shots.push({
+    index: aIdx, stage: "approach", decision: aDec, green, event: aEv?.instance ?? null,
+    note: narrate ? approachNote(green, isPar3, noteRng(aIdx, 0x777)) : "",
+  });
+
+  const fIdx = aIdx + 1;
+
+  // ---- KICK-IN: auto-resolve, no extra decision ----
+  if (green === "kickin") {
+    const outcome = composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" });
+    shots.push({
+      index: -1, stage: "putt", decision: null, puttResult: "oneputt",
+      distanceFt: distanceFor("tap", mulberry32(opts.shotSeed(fIdx))), event: null,
+      note: narrate ? puttNote("oneputt", "tap", undefined, noteRng(fIdx, 0x999)) : "",
+    });
+    return finalize(hole, shots, aIdx + 1, lie, green, outcome);
+  }
+
+  // ---- SCRAMBLE: off the green, short-game decision ----
+  if (green === "scramble") {
+    if (decisions.length <= fIdx) return { complete: false, used: fIdx, shots, next: "scramble", lie, green };
+    const fDec = decisions[fIdx];
+    const sw = scrambleWeights(fDec, hole, c);
+    const sEv = rollEvent("scramble", opts.eventSeed(fIdx), { recent });
+    if (sEv) applyEvent(sEv.def, "scramble", sw as Record<string, number>);
+    const sres = pick(sw, mulberry32(opts.shotSeed(fIdx)));
+    const outcome = composeOutcome(reachedInTwo, { kind: "scramble", result: sres });
+    shots.push({
+      index: fIdx, stage: "scramble", decision: fDec, scrambleResult: sres, event: sEv?.instance ?? null,
+      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777)) : "",
+    });
+    return finalize(hole, shots, fIdx + 1, lie, green, outcome);
+  }
+
+  // ---- PUTT: on the green (makeable / lag) ----
+  const bucket = GREEN_META[green].bucket as Exclude<PuttBucket, "tap">;
+  // Fixed rng order (distance -> break -> result) so the preview descriptor and
+  // the resolution agree on geometry regardless of whether a decision is in yet.
+  const ctxRng = mulberry32(opts.shotSeed(fIdx));
+  const distanceFt = distanceFor(bucket, ctxRng);
+  const { breakDir, slope } = readBreak(ctxRng);
+
+  if (decisions.length <= fIdx)
+    return {
+      complete: false, used: fIdx, shots, next: "putt", lie, green,
+      putt: { bucket, distanceFt, breakDir, slope, speed: greens },
+    };
+
+  const fDec = decisions[fIdx];
+  const pw = puttWeights(bucket, fDec, greens);
+  const pEv = rollEvent("putt", opts.eventSeed(fIdx), { recent });
+  if (pEv) applyEvent(pEv.def, "putt", pw as Record<string, number>);
+  const pres = pick(pw, ctxRng); // continues the stream after distance + break
+  const outcome = composeOutcome(reachedInTwo, { kind: "putt", result: pres });
+  shots.push({
+    index: fIdx, stage: "putt", decision: fDec, puttResult: pres, distanceFt, event: pEv?.instance ?? null,
+    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999)) : "",
+  });
+  return finalize(hole, shots, fIdx + 1, lie, green, outcome);
 }
 
-/** Label for the shot the player is about to hit. */
+function finalize(
+  hole: HoleSpec,
+  shots: ShotRecord[],
+  used: number,
+  lie: Lie | undefined,
+  green: GreenResult,
+  outcome: Outcome
+): ChainResult {
+  const scoreDelta = SCORE_DELTA[outcome];
+  return { complete: true, used, shots, lie, green, outcome, scoreDelta, strokes: hole.par + scoreDelta };
+}
+
+/** Label for the stage the player is about to decide. */
+export function stagePrompt(stage: Exclude<ChainStage, "done">, par: number): string {
+  switch (stage) {
+    case "tee":
+      return "Tee shot — how do you play it?";
+    case "approach":
+      return par === 3 ? "Tee shot — attack the pin?" : "Approach — how do you play it?";
+    case "putt":
+      return "Putt — how do you read it?";
+    case "scramble":
+      return "Short game — get it up and down";
+  }
+}
+
+/** Back-compat label used by the (pre-rework) play page. */
 export function shotPrompt(par: number, shotIndex: number): string {
-  if (shotIndex === 0) return "Tee shot — how do you play it?";
+  if (shotIndex === 0) return par === 3 ? "Tee shot — attack the pin?" : "Tee shot — how do you play it?";
   return par === 3 ? "Putt — how do you read it?" : "Approach — how do you play it?";
 }
 

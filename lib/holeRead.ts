@@ -8,8 +8,9 @@
  */
 
 import { holeDifficulty, type HoleSpec } from "@/lib/engine/resolveHole";
-import type { Lie } from "@/lib/engine/shots";
+import type { Lie, BreakDir, Slope } from "@/lib/engine/shots";
 import type { Decision } from "@/lib/engine/probabilities";
+import type { GreenResult, GreenSpeed, PuttBucket } from "@/lib/engine/putting";
 import type { CourseHole } from "@/data/courses";
 
 /**
@@ -111,6 +112,73 @@ export function lieRiskRead(lie: Lie, decision: Decision): { tone: Tone; text: s
   if (lie === "dialed" || lie === "fairway") return { tone: "good", text: "Go for it" };
   if (lie === "rough") return { tone: "warn", text: "Risky" };
   return { tone: "bad", text: "Hero or bust" };
+}
+
+/**
+ * Putt reads — qualitative cues for the green, never the exact make %. The
+ * distance/break/speed are computed server-side from the shot seed (so they're
+ * stable on replay) and passed in here; we just turn them into glanceable cues.
+ */
+export function puttRead(
+  bucket: Exclude<PuttBucket, "tap">,
+  distanceFt: number,
+  breakDir: BreakDir,
+  slope: Slope,
+  speed: GreenSpeed
+): { cues: Cue[] } {
+  const cues: Cue[] = [];
+  cues.push(
+    bucket === "short"
+      ? { icon: "🎯", text: `Birdie look · ~${distanceFt} ft` }
+      : { icon: "📏", text: `Long putt · ~${distanceFt} ft` }
+  );
+
+  const slick = speed === "Fast" || speed === "Firm";
+  if (slope === "downhill") cues.push({ icon: "⏬", text: slick ? "Slick — downhill" : "Downhill" });
+  else if (slope === "uphill") cues.push({ icon: "⏫", text: "Uphill — firm it" });
+  else if (slick) cues.push({ icon: "⚡", text: "Quick green" });
+
+  if (breakDir === "L") cues.push({ icon: "↩️", text: "Breaks right-to-left" });
+  else if (breakDir === "R") cues.push({ icon: "↪️", text: "Breaks left-to-right" });
+  else cues.push({ icon: "➡️", text: "Dead straight" });
+
+  return { cues: cues.slice(0, 3) };
+}
+
+/** Risk read for a PUTT decision (Lag / Roll it / Charge). Charging a long,
+ * slick putt is where three-jacks live; lag protects the card. */
+export function puttRiskRead(
+  decision: Decision,
+  bucket: Exclude<PuttBucket, "tap">,
+  speed: GreenSpeed
+): { tone: Tone; text: string } {
+  const slick = speed === "Fast" || speed === "Firm";
+  if (decision === "safe") return { tone: "good", text: "Lag it close" };
+  if (decision === "normal") return { tone: "good", text: "Good speed" };
+  // aggressive — Charge
+  if (bucket === "short") return { tone: slick ? "warn" : "good", text: slick ? "Risky pace" : "Make it" };
+  return { tone: "bad", text: "Three-jack risk" };
+}
+
+/** Risk read for a SHORT-GAME decision (Punch / Chip / Flop) from off the green. */
+export function shortGameRiskRead(decision: Decision): { tone: Tone; text: string } {
+  if (decision === "safe") return { tone: "good", text: "Safe — take bogey" };
+  if (decision === "normal") return { tone: "good", text: "Get it close" };
+  return { tone: "warn", text: "Go for the save" };
+}
+
+/** Headline for the green position (used in the putt/scramble banner). */
+export function greenRead(green: GreenResult): { tone: Tone; text: string } {
+  switch (green) {
+    case "kickin":
+      return { tone: "good", text: "Kick-in — gimme" };
+    case "makeable":
+      return { tone: "good", text: "Birdie look" };
+    case "lag":
+      return { tone: "warn", text: "Long two-putt territory" };
+    case "scramble":
+      return { tone: "bad", text: "Missed green — get up & down" };
+  }
 }
 
 /**
