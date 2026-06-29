@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { FeedbackWidget } from "./FeedbackWidget";
+import { Analytics } from "@vercel/analytics/next";
 
 const SITE_URL = "https://breakpar.xyz";
 const TITLE = "Break Par — daily golf challenge";
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <html lang="en">
         <body>
           <div className="app">{children}<FeedbackWidget /></div>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
