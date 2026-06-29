@@ -1,19 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import { nextRollover } from "@/lib/daily";
 
-/** Counts down to the next UTC midnight, when a new daily course drops. */
+/** Counts down to the next daily rollover (midnight America/New_York), driven
+ * by the SAME boundary definition as lib/daily.ts so the timer and the actual
+ * course change always agree. */
 export function NextCourseTimer() {
   const [label, setLabel] = useState("");
 
   useEffect(() => {
     const tick = () => {
-      const now = new Date();
-      const next = Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1
-      );
-      const ms = next - now.getTime();
+      const ms = Math.max(0, nextRollover().getTime() - Date.now());
       const h = Math.floor(ms / 3_600_000);
       const m = Math.floor((ms % 3_600_000) / 60_000);
       const s = Math.floor((ms % 60_000) / 1000);
