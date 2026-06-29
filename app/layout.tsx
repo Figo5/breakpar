@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { FeedbackWidget } from "./FeedbackWidget";
 import { Analytics } from "@vercel/analytics/next";
+import { PostHogProvider } from "./PostHogProvider";
 
 const SITE_URL = "https://breakpar.xyz";
 const TITLE = "Break Par — daily golf challenge";
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <body>
           <div className="app">{children}<FeedbackWidget /></div>
           <Analytics />
+          <PostHogProvider />
         </body>
       </html>
     </ClerkProvider>
