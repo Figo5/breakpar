@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getOrStartUser, GUEST_COOKIE, GUEST_COOKIE_MAX_AGE } from "@/lib/user";
-import { dailyCourse, dateKey, puzzleNumber } from "@/lib/daily";
+import { dailyCourse, dateKey, puzzleNumberForKey } from "@/lib/daily";
 import { coursePar, courseBySlug, type Course } from "@/data/courses";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { countTeeApproachAggressive } from "@/lib/engine/shots";
@@ -50,7 +50,7 @@ export const POST = route(async (req: Request) => {
     // Unlimited rounds are never resumed — each start is a fresh card.
     round = await prisma.round.create({
       data: { userId: user.id, courseId: courseRow.id, mode: "unlimited", dateKey: null },
-      include: { holeResults: true },
+      include: { holeResults: true, course: { select: { slug: true } } },
     });
   } else {
     const key = dateKey();
@@ -60,7 +60,7 @@ export const POST = route(async (req: Request) => {
         where: { userId_dateKey: { userId: user.id, dateKey: key } },
         update: {},
         create: { userId: user.id, courseId: courseRow.id, mode: "daily", dateKey: key },
-        include: { holeResults: true },
+        include: { holeResults: true, course: { select: { slug: true } } },
       });
     } catch (e) {
       // Concurrent first-start race: two upserts both tried to create. The
@@ -68,13 +68,21 @@ export const POST = route(async (req: Request) => {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
         round = await prisma.round.findUniqueOrThrow({
           where: { userId_dateKey: { userId: user.id, dateKey: key } },
-          include: { holeResults: true },
+          include: { holeResults: true, course: { select: { slug: true } } },
         });
       } else {
         throw e;
       }
     }
   }
+
+  // Resolve the round's OWN stored course, not the freshly-computed one. On a
+  // RESUME the daily schedule may have moved since the round was created (a
+  // round straddling UTC midnight, or a catalogue change), so the recomputed
+  // dailyCourse() can disagree with what this round was actually played on.
+  // The hole route and result page already key off the stored course; this
+  // keeps start/resume consistent. For a fresh round this equals `course`.
+  const playedCourse = courseBySlug(round.course.slug) ?? course;
 
   const res = NextResponse.json({
     roundId: round.id,
@@ -88,15 +96,17 @@ export const POST = route(async (req: Request) => {
         n +
         countTeeApproachAggressive(
           h.decision,
-          course.holes.find((ch) => ch.number === h.holeNumber)?.par ?? 4
+          playedCourse.holes.find((ch) => ch.number === h.holeNumber)?.par ?? 4
         ),
       0
     ),
     aggressiveBudget: AGGRESSIVE_BUDGET,
     score: round.score,
     relativeToPar: round.relativeToPar,
-    puzzleNumber: unlimited ? null : puzzleNumber(),
-    course: coursePayload(course),
+    // Derive the puzzle number from the round's persisted dateKey (not wall
+    // clock) so a resume across midnight stays on its original puzzle.
+    puzzleNumber: round.dateKey ? puzzleNumberForKey(round.dateKey) : null,
+    course: coursePayload(playedCourse),
   });
 
   // Persist a freshly-minted guest identity so subsequent requests resolve it.
