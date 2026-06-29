@@ -1,6 +1,6 @@
 # ⛳ Break Par
 
-> A daily browser golf game. One real course a day, 18 holes, two shots each — read the hole, manage the risk, and try to shoot under par.
+> A daily browser golf game. One real course a day, 18 holes. Play each hole shot by shot — drive, approach, then putt or scramble — read the greens, manage the risk, and try to shoot under par.
 
 ### 🔗 [Play it live → breakpar.xyz](https://breakpar.xyz)
 
@@ -14,12 +14,17 @@
   <a href="https://breakpar.xyz"><img alt="Live" src="https://img.shields.io/badge/Live-breakpar.xyz-22C55E"></a>
 </p>
 
-**Break Par** gives you one real course a day and 18 holes. Each hole is two decisions — a tee
-shot that lands you in a lie (dialed / fairway / rough / trouble), then a scoring shot where you
-see that lie and choose Safe / Normal / Aggressive again (punch out or go for the hero shot). You
-also get only a handful of aggressive plays per round, so spending them well is the skill. Shoot
-under the course's par — about 3 in 10 smart rounds get there. There's
-also an **Unlimited Practice** mode (`/courses`) to play any course as often as you like.
+**Break Par** gives you one real course a day and 18 holes. Each hole plays as a short chain of
+decisions: a **tee shot** that lands you in a lie (dialed / fairway / rough / trouble), an
+**approach** that leaves you on or around the green, and then either a **putt** (Lag / Roll it /
+Charge) or a **scramble** (Punch / Chip / Flop) to finish. Kick-ins tap in automatically, so a hole
+is just 2–3 quick decisions. Par 3s play differently — the tee shot *is* the approach — and par 5s
+can be reached in two for an eagle. Occasional seeded **events** (a gust, pure greens, momentum
+after back-to-back birdies) and shot-by-shot **play-by-play** ("Drained it from 12 feet 🐦",
+"Three-jacked from the fringe 😬") add texture. You only get a handful of aggressive tee/approach
+plays per round — putts and chips are free — so spending the budget well is the skill. Shoot under
+the course's par — about 3 in 10 smart rounds get there. There's also an **Unlimited Practice** mode
+(`/courses`) to play any course as often as you like.
 
 ## 📑 Table of Contents
 
@@ -48,18 +53,25 @@ The interesting part is **server-authoritative simulation**. The browser sends o
 be replayed for a better result — the seed is `hash(SERVER_SEED, roundId, holeNumber)`,
 so each hole is deterministic and idempotent. That's the anti-cheat backbone.
 
-Each hole is a two-shot decision tree: `lib/engine/shots.ts` resolves the tee shot into a lie,
-then the scoring shot into a final outcome, each seeded per shot so it can't be re-rolled. The
-client sends the decision sequence and the server replays it deterministically, writing a single
-result per hole on completion (no schema change needed).
+Each hole is a **variable-length decision chain**: `lib/engine/shots.ts` resolves the tee shot into
+a lie, the approach into a green position (`lib/engine/putting.ts`: kick-in / makeable / lag /
+scramble), then a putt or short-game shot into the final outcome — each stage seeded per shot so it
+can't be re-rolled. Kick-ins auto-resolve and missed greens add a scramble decision, so the length
+varies (2–3 decisions, capped at 3). The client just renders the **next stage** the server returns;
+the server replays the decision list deterministically and writes a single result per hole on
+completion (no schema change). Seeded **events** (`lib/engine/events.ts`) and the deterministic
+**play-by-play** notes (`lib/engine/notes.ts`) derive from the same per-shot seeds, so a replay
+reproduces the identical chain, events, and narration.
 
-Difficulty lives in `lib/engine/shots.ts` (shot tables) and `lib/engine/probabilities.ts`
-(outcome deltas). It's calibrated so smart course management breaks par ~29% of the time while
-reckless aggression scores worse and blows up more. The harness also reports a **skill gap**
-(strong vs mindless play). Re-run it any time you touch those numbers:
+Difficulty lives in `lib/engine/shots.ts` and `lib/engine/putting.ts` (shot / green / putt tables)
+and `lib/engine/probabilities.ts` (outcome deltas). It's calibrated so smart course management
+breaks par ~30% of the time while reckless aggression scores worse and blows up more. The harness
+also reports a **skill gap** (strong vs mindless play) and putting feel-metrics — GIR, one-putt,
+three-putt and up-and-down rates. Re-run it any time you touch those numbers:
 
 ```bash
-npm run engine:calibrate
+npm run engine:calibrate          # Monte Carlo: break-par %, skill gap, putting metrics
+npx tsx scripts/transcript.ts     # human-readable sample holes (shot-by-shot + events)
 ```
 
 ## 🚀 Getting Started
@@ -166,23 +178,25 @@ The chosen username flows straight onto the leaderboard (`upsertClerkUser` in `l
 
 ```
 app/            screens (page.tsx, play/, courses/, result/) + API routes (api/)
-lib/engine/     shots.ts (multi-shot) · probabilities.ts · rng.ts · resolveHole.ts  ← sim core
-lib/holeRead.ts player-facing reads (cues, risk, aggression budget)
+lib/engine/     shots.ts (shot chain) · putting.ts (green/putt/scramble) · events.ts · notes.ts
+lib/engine/     probabilities.ts · rng.ts · resolveHole.ts  ← sim core
+lib/holeRead.ts player-facing reads (hole cues, lie/putt reads, aggression budget)
 lib/            daily.ts · scoring.ts · streak.ts · leaderboard.ts · db.ts
 lib/            user.ts (guest + Clerk) · api.ts (error wrapper) · rateLimit.ts
 data/courses.ts the course catalogue (seeds the DB)
 prisma/         schema.prisma · seed.ts
-components/     Scorecard · HoleArt
-scripts/        calibrate.ts (Monte Carlo difficulty check)
-tests/          vitest unit tests (engine, scoring, daily)
+components/     Scorecard · HoleArt · PuttView (top-down green)
+scripts/        calibrate.ts (Monte Carlo difficulty) · transcript.ts (sample holes)
+tests/          vitest unit tests (engine, putting, events, scoring, daily)
 ```
 
 ## 🔄 Data Flow per Round
 
 1. `GET /api/daily` → today's course + holes (public, cached).
 2. `POST /api/round` → start/resume the player's round for today (one per day).
-3. `PATCH /api/round/[id]/hole` → submit the hole's shot sequence; **server resolves** each shot
-   (returning the lie mid-hole) and persists the result once the hole is done.
+3. `PATCH /api/round/[id]/hole` → submit the hole's decision sequence so far; **server resolves**
+   the chain deterministically and returns the **next stage** (lie / green / putt read, the
+   play-by-play note, any event), persisting a single result once the hole completes.
 4. `POST /api/round/[id]/finish` → finalize, update streak + best score.
 5. `GET /api/leaderboard` → today's top players + your rank.
 
