@@ -4,7 +4,6 @@
  */
 
 import { COURSES, type Course } from "@/data/courses";
-import { hashSeed } from "@/lib/engine/rng";
 
 const EPOCH_UTC = Date.UTC(2026, 5, 25); // puzzle #1 (day 1 = 2026-06-25, rolls over at 00:00 UTC)
 
@@ -38,46 +37,29 @@ export function puzzleNumberForKey(key: string): number {
 /**
  * Pick the course for a day.
  *
- * ROTATION RULE: we never want a course to come back too soon (the old
- * step-recurrence only blocked back-to-back days, so St Andrews → Sawgrass →
- * St Andrews — a 2-day repeat — was still possible). Instead we play a single,
- * fixed, shuffled PERMUTATION of all courses on repeat. That makes each course
- * recur exactly every `COURSES.length` days, so a course can NEVER appear twice
- * within any window of `COURSES.length` consecutive days — the maximum possible
- * spacing for the catalogue.
+ * ROTATION RULE: courses play in catalogue order on repeat, so each course
+ * recurs every `COURSES.length` days — a course can NEVER appear twice within
+ * any window of that length (the maximum possible spacing for the catalogue).
  *
- * NOTE ON "same week": with only 5 courses it is mathematically impossible to
- * fill a 7-day week without a repeat (pigeonhole). This rule gives the best
- * achievable spacing (no repeat for 5 days). To make every calendar week fully
- * unique, add at least 7 courses to data/courses.ts — no code change needed.
+ * APPEND-STABLE — this is the important property: day `d` maps to index
+ * `d % len`. For any already-elapsed or current day `d < oldLen`, appending
+ * courses keeps `d % oldLen === d % newLen === d`, so the schedule for the past
+ * and for today NEVER changes when you add courses. Only FUTURE days (`d >=
+ * oldLen`) pick up the new courses. (The previous seeded-shuffle cycle did NOT
+ * have this property: growing the catalogue reshuffled every position and
+ * retroactively rewrote which course each elapsed day mapped to — splitting a
+ * live daily field whose rounds had already been played on the old course.)
  *
- * Because the cycle length (course count) is coprime with 7, the course that
- * lands on a given weekday drifts week to week, so it never feels static.
+ * INVARIANT: only ever APPEND to data/courses.ts; never reorder existing
+ * entries — reordering shifts indices and would move the schedule.
+ *
+ * NOTE ON "same week": with fewer than 7 courses a 7-day week can't be repeat-
+ * free (pigeonhole). Add ≥7 courses for fully-unique weeks — no code change.
  * Fully deterministic and O(1) per lookup.
  */
 export function dailyCourse(date = new Date()): Course {
-  return COURSES[resolvedPick(dayIndex(date))];
-}
-
-/**
- * A fixed, deterministically-shuffled order of all course indices. Seeded so
- * the order is non-alphabetical but constant forever (changing it would reshuffle
- * the whole future schedule — past rounds are unaffected since they persist their
- * own courseId).
- */
-const COURSE_CYCLE: number[] = (() => {
-  const order = Array.from({ length: COURSES.length }, (_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = hashSeed(`course-cycle:${i}`) % (i + 1);
-    [order[i], order[j]] = [order[j], order[i]];
-  }
-  return order;
-})();
-
-function resolvedPick(idx: number): number {
   const len = COURSES.length;
-  if (len <= 1) return 0;
-  return COURSE_CYCLE[((idx % len) + len) % len];
+  return COURSES[((dayIndex(date) % len) + len) % len];
 }
 
 /**
