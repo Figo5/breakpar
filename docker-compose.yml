@@ -1,0 +1,31 @@
+# Local Postgres for Break Par development.
+# Brings up a single Postgres 16 instance matching the app's Prisma schema.
+# Credentials/port are intentionally non-default so this never clashes with a
+# system Postgres on 5432. Point .env.local at it:
+#   DATABASE_URL / DIRECT_URL = postgresql://breakpar:breakpar@localhost:5433/breakpar
+services:
+  db:
+    image: postgres:16
+    container_name: breakpar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: breakpar
+      POSTGRES_PASSWORD: breakpar
+      POSTGRES_DB: breakpar
+    ports:
+      - "5433:5432"
+    volumes:
+      - breakpar-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` flips to healthy as soon as the server accepts connections.
+      test: ["CMD-SHELL", "pg_isready -U breakpar -d breakpar"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      # start_period is NOT counted toward retries — this absorbs a cold image
+      # pull + first-boot initdb without prematurely marking the container
+      # unhealthy.
+      start_period: 60s
+
+volumes:
+  breakpar-pgdata:

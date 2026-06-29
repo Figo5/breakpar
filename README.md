@@ -78,6 +78,52 @@ npm run dev                       # http://localhost:3000
 npm test                          # run the unit suite
 ```
 
+## 💻 Local development
+
+Don't want to provision a hosted Postgres? A `docker-compose.yml` ships a local
+**Postgres 16** instance, and `scripts/setup.sh` wires everything up in one command.
+
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) (with Compose) and Node 18.18+.
+
+```bash
+npm install
+cp .env.example .env.local        # then set the two DB URLs as below + add Clerk keys
+npm run db:setup                  # start Postgres, apply schema, seed courses
+npm run dev                       # http://localhost:3000
+```
+
+Point both database URLs in `.env.local` at the local container:
+
+```dotenv
+DATABASE_URL="postgresql://breakpar:breakpar@localhost:5433/breakpar"
+DIRECT_URL="postgresql://breakpar:breakpar@localhost:5433/breakpar"
+```
+
+> The container exposes Postgres on **port 5433** (not the default 5432) so it
+> won't clash with a system Postgres. Credentials are `breakpar` / `breakpar`.
+
+**What `npm run db:setup` does** (it's idempotent — safe to re-run):
+
+1. `docker compose up -d db` and waits for the container to report **healthy**
+   (the wait budget covers a cold image pull + first-boot `initdb`).
+2. Applies the schema: `prisma migrate deploy` when committed migrations exist
+   (the default here), or falls back to `prisma db push` on a checkout that has
+   no `prisma/migrations/`.
+3. Seeds the course catalogue (`npm run db:seed`).
+
+**Resetting the local DB** — ⚠️ destructive:
+
+```bash
+npm run db:reset                  # prompts for confirmation, then wipes + rebuilds
+```
+
+`db:reset` runs `docker compose down -v`, which **deletes the `breakpar-pgdata`
+volume** and every local round/user/leaderboard row before re-running setup. It
+only ever touches the local docker volume, but it's irreversible, so it asks you
+to type `reset` first. In CI/scripts, skip the prompt with `FORCE=1 npm run db:reset`.
+
+To stop the database without deleting data: `docker compose stop db`.
+
 ## 🏌️ Game Modes
 
 - **Daily** — one ranked round per UTC day, same course for everyone, leaderboard + streak.

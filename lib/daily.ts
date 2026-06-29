@@ -36,23 +36,48 @@ export function puzzleNumberForKey(key: string): number {
 }
 
 /**
- * Pick the course for a day. Uses a hash-derived STEP recurrence so the
- * sequence looks shuffled AND two consecutive days can never land on the same
- * course (the step is always 1..len-1). Walking from the epoch keeps it fully
- * deterministic — O(dayIndex), which is a few hundred trivial hashes.
+ * Pick the course for a day.
+ *
+ * ROTATION RULE: we never want a course to come back too soon (the old
+ * step-recurrence only blocked back-to-back days, so St Andrews → Sawgrass →
+ * St Andrews — a 2-day repeat — was still possible). Instead we play a single,
+ * fixed, shuffled PERMUTATION of all courses on repeat. That makes each course
+ * recur exactly every `COURSES.length` days, so a course can NEVER appear twice
+ * within any window of `COURSES.length` consecutive days — the maximum possible
+ * spacing for the catalogue.
+ *
+ * NOTE ON "same week": with only 5 courses it is mathematically impossible to
+ * fill a 7-day week without a repeat (pigeonhole). This rule gives the best
+ * achievable spacing (no repeat for 5 days). To make every calendar week fully
+ * unique, add at least 7 courses to data/courses.ts — no code change needed.
+ *
+ * Because the cycle length (course count) is coprime with 7, the course that
+ * lands on a given weekday drifts week to week, so it never feels static.
+ * Fully deterministic and O(1) per lookup.
  */
 export function dailyCourse(date = new Date()): Course {
   return COURSES[resolvedPick(dayIndex(date))];
 }
 
+/**
+ * A fixed, deterministically-shuffled order of all course indices. Seeded so
+ * the order is non-alphabetical but constant forever (changing it would reshuffle
+ * the whole future schedule — past rounds are unaffected since they persist their
+ * own courseId).
+ */
+const COURSE_CYCLE: number[] = (() => {
+  const order = Array.from({ length: COURSES.length }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = hashSeed(`course-cycle:${i}`) % (i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+})();
+
 function resolvedPick(idx: number): number {
   const len = COURSES.length;
-  let pick = hashSeed("course:0") % len;
-  for (let i = 1; i <= idx; i++) {
-    const step = 1 + (hashSeed(`course:${i}`) % (len - 1)); // 1..len-1, never 0
-    pick = (pick + step) % len;
-  }
-  return pick;
+  if (len <= 1) return 0;
+  return COURSE_CYCLE[((idx % len) + len) % len];
 }
 
 /**

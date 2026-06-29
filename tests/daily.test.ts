@@ -37,6 +37,19 @@ describe("dailyCourse", () => {
     }
   });
 
+  it("never repeats a course within any window of COURSES.length days", () => {
+    // The reported bug was a 2-day repeat (St Andrews -> Sawgrass -> St Andrews).
+    // With the permutation-cycle, no course may reappear until the whole
+    // catalogue has been shown -- i.e. not within COURSES.length consecutive days.
+    const win = COURSES.length;
+    for (let start = 0; start < 120; start++) {
+      const window = Array.from({ length: win }, (_, k) =>
+        dailyCourse(new Date(Date.UTC(2026, 0, 1 + start + k))).slug
+      );
+      expect(new Set(window).size).toBe(win); // all distinct in any window
+    }
+  });
+
   it("dailyCourseForKey matches dailyCourse for that day", () => {
     const day = new Date("2026-06-25T00:00:00Z");
     expect(dailyCourseForKey("2026-06-25").slug).toBe(dailyCourse(day).slug);
