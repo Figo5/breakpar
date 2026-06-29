@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
-import { dateKey } from "@/lib/daily";
+import { dateKey, previousKey } from "@/lib/daily";
 import { isStreakAlive } from "@/lib/scoring";
 
 export interface HomeState {
@@ -44,7 +44,7 @@ export async function getHomeState(): Promise<HomeState> {
 
   const streak = await prisma.streak.findUnique({ where: { userId: user.id } });
   const today = dateKey();
-  const yesterday = dateKey(new Date(Date.now() - 86_400_000));
+  const yesterday = previousKey(today); // civil yesterday (DST-safe)
 
   const todayRound = await prisma.round.findUnique({
     where: { userId_dateKey: { userId: user.id, dateKey: today } },

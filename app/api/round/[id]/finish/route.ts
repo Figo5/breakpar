@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
-import { dateKey, keyToDate } from "@/lib/daily";
+import { previousKey } from "@/lib/daily";
 import { updateStreak, type StreakState } from "@/lib/scoring";
 import { route } from "@/lib/api";
 
@@ -60,7 +60,7 @@ export const POST = route(async (
   const prev = (await prisma.streak.findUnique({ where: { userId: user.id } })) as
     | (StreakState & { lastPlayedKey: string | null })
     | null;
-  const yesterdayKey = dateKey(new Date(keyToDate(round.dateKey).getTime() - 86_400_000));
+  const yesterdayKey = previousKey(round.dateKey); // civil day before the round's key (DST-safe)
   const consecutive = prev?.lastPlayedKey === yesterdayKey;
   // relativeToPar is course-agnostic, so streak stats compare fairly day to day.
   const next = updateStreak(prev, round.relativeToPar, consecutive);
