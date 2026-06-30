@@ -38,7 +38,7 @@ const PUTT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
   { id: "aggressive", label: "Charge", blurb: "Ram it in — three-jack risk" },
 ];
 const SHORT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Punch", blurb: "Safe out, take your bogey" },
+  { id: "safe", label: "Punch", blurb: "Safe out, limit the damage" },
   { id: "normal", label: "Chip", blurb: "Standard chip at it" },
   { id: "aggressive", label: "Flop", blurb: "High flop, go for the save" },
 ];
@@ -76,6 +76,8 @@ function PlayInner() {
   const [green, setGreen] = useState<GreenResult | null>(null);
   const [puttCtx, setPuttCtx] = useState<PuttContext | null>(null);
   const [shotLog, setShotLog] = useState<ShotRecord[]>([]);
+  const [approachYards, setApproachYards] = useState<number | null>(null); // yards to pin (display)
+  const [ballT, setBallT] = useState(0.05); // ball position along the hole, 0..1 (display)
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +221,8 @@ function PlayInner() {
         setLie((data.lie as Lie) ?? lie);
         setGreen((data.green as GreenResult) ?? null);
         setPuttCtx((data.putt as PuttContext) ?? null);
+        setApproachYards((data.approachYards as number) ?? null);
+        setBallT(typeof data.ballT === "number" ? data.ballT : 0.05);
       }
     } catch {
       setError("That shot didn't register. Tap to retry.");
@@ -258,6 +262,8 @@ function PlayInner() {
     setGreen(null);
     setPuttCtx(null);
     setShotLog([]);
+    setApproachYards(null);
+    setBallT(0.05);
     setStage(initialStage(course!.holes[nextIdx].par));
     setHoleIdx(nextIdx);
   }
@@ -282,7 +288,7 @@ function PlayInner() {
       {stage === "putt" && puttCtx ? (
         <PuttView putt={puttCtx} />
       ) : (
-        <HoleArt hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} />
+        <HoleArt hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
       )}
 
       {!pending ? (
@@ -290,6 +296,9 @@ function PlayInner() {
           <div className="reads">
             {stage === "tee" && situation && <div className={`situation s-${situation.tone}`}>{situation.text}</div>}
             {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
+            {stage === "approach" && (approachYards ?? hole.yardage) && (
+              <div className="yardage">⛳ {approachYards ?? hole.yardage} to the pin</div>
+            )}
           </div>
 
           {shotLog.length > 0 && (
@@ -299,6 +308,7 @@ function PlayInner() {
                   <span className="pst">{stageTag(s.stage)}</span>
                   <span className="pnote">
                     {s.note}
+                    {typeof s.yards === "number" && <em className="pyd">~{s.yards} yd</em>}
                     {s.event && <em className={`pev pev-${s.event.tone}`}>⚡ {s.event.narration}</em>}
                   </span>
                 </div>

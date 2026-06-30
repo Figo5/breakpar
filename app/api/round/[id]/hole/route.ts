@@ -115,6 +115,7 @@ export const PATCH = route(async (
     eventSeed: (shot) => eventSeed(roundId, holeNumber, shot),
     greens: course.greens as GreenSpeed,
     recent,
+    holeYards: holeData.yardage, // display-only: drives yards-to-target + tee distance
   });
 
   // Hole not finished: report the next stage + reads + play-by-play. Persist
@@ -127,6 +128,8 @@ export const PATCH = route(async (
       lie: step.lie ?? null,
       green: step.green ?? null,
       putt: step.putt ?? null,
+      approachYards: step.approachYards ?? null,
+      ballT: step.ballT ?? null,
       note: last?.note ?? null,
       event: last?.event ?? null,
       shots: step.shots,

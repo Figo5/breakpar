@@ -50,8 +50,9 @@ const PAR3_TEE_NOTES: Record<GreenResult, string[]> = {
   scramble: ["Missed the green off the tee 😬", "Bunkered it off the tee", "Pushed the tee shot, scrambling now"],
 };
 
-// A CONSERVATIVE (Lag) putt that still three-putts is variance, not a bad
-// choice — these notes read as bad luck so the safe play doesn't feel like a lie.
+// A lag/long putt (or a conservative one) that still three-putts is variance,
+// not a bad choice — these notes read as bad luck so the "lag it close" /
+// long-two-putt framing doesn't feel like a lie when it drops a shot anyway.
 const LAG_THREEPUTT_NOTES = [
   "Played it safe and still got robbed — three from {ft} 😵",
   "Perfect speed, wicked break — three-putt from {ft}",
@@ -103,8 +104,12 @@ export function puttNote(
   decision?: Decision
 ): string {
   if (bucket === "tap") return pick(KICKIN_NOTES, rng);
-  // Bad-luck note for a conservative putt that three-putts anyway.
-  if (decision === "safe" && result === "threeputt") return fmt(pick(LAG_THREEPUTT_NOTES, rng), ft);
+  // Bad-luck note when the dropped shot comes from a position we framed as safe:
+  // a conservative (Lag) putt OR any long/lag putt three-jacking despite the
+  // "two-putt" read. Variance, not a bad call — so it doesn't feel like a lie.
+  // Aggressive (Charge) is never excused — you accepted the three-jack risk.
+  if (result === "threeputt" && decision !== "aggressive" && (decision === "safe" || bucket === "long"))
+    return fmt(pick(LAG_THREEPUTT_NOTES, rng), ft);
   const pool = PUTT_NOTES[result][bucket === "short" ? "short" : "long"] ?? KICKIN_NOTES;
   return fmt(pick(pool, rng), ft);
 }

@@ -6,8 +6,9 @@ import type { CourseHole } from "@/data/courses";
  * per-hole data, so each hole looks distinct. It's an artistic top-down
  * representation, not a licensed aerial image.
  */
-export function HoleArt({ hole, wind, windDir, greens }: {
+export function HoleArt({ hole, wind, windDir, greens, ballT = 0.05 }: {
   hole: CourseHole; wind: number; windDir: number; greens: string;
+  ballT?: number; // ball position along the hole, 0 (tee) -> 1 (green). Display-only.
 }) {
   const { par, dogleg, hazard, signature } = hole;
   const long = par === 5;
@@ -78,6 +79,21 @@ export function HoleArt({ hole, wind, windDir, greens }: {
           d={`M34 ${teeY - 2} Q 200 ${midY - 6} ${gx} ${greenY}`}
           stroke="#13201a" strokeWidth="2" strokeDasharray="3 7" fill="none" opacity=".45"
         />
+
+        {/* Ball marker: point on the tee->green quadratic at parameter t. */}
+        {(() => {
+          const t = Math.max(0, Math.min(1, ballT));
+          const mt = 1 - t;
+          // Quadratic Bezier P0(34,teeY-2) P1(200,midY-6) P2(gx,greenY).
+          const bx = mt * mt * 34 + 2 * mt * t * 200 + t * t * gx;
+          const by = mt * mt * (teeY - 2) + 2 * mt * t * (midY - 6) + t * t * greenY;
+          return (
+            <g>
+              <circle cx={bx} cy={by} r="7" fill="#fbf8ef" stroke="#13201a" strokeWidth="1.4" />
+              <circle cx={bx} cy={by} r="2" fill="#13201a" opacity=".35" />
+            </g>
+          );
+        })()}
       </svg>
 
       <div className="wind-tag">
