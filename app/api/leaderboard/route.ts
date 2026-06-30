@@ -15,6 +15,7 @@ export const GET = route(async () => {
   const board = top.map((r) => ({
     rank: r.rank,
     username: r.username,
+    xHandle: r.xHandle,
     score: r.score,
     durationMs: r.durationMs,
   }));

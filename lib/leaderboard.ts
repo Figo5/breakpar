@@ -10,6 +10,7 @@ export interface BoardEntry {
   id: string;
   userId: string;
   username: string;
+  xHandle: string | null; // optional X handle; null renders unchanged
   score: number;
   durationMs: number | null;
   rank: number;
@@ -21,12 +22,13 @@ export async function topBoard(dateKey: string, limit: number): Promise<BoardEnt
     where: { dateKey, completed: true },
     orderBy: [{ score: "asc" }, { durationMs: "asc" }],
     take: limit,
-    include: { user: { select: { username: true } } },
+    include: { user: { select: { username: true, xHandle: true } } },
   });
   return rows.map((r, i) => ({
     id: r.id,
     userId: r.userId,
     username: r.user.username,
+    xHandle: r.user.xHandle,
     score: r.score,
     durationMs: r.durationMs,
     rank: i + 1,

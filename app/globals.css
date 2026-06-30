@@ -156,7 +156,10 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .lb-row{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:10px;padding:10px 13px;font-size:14px}
 .lb-row+.lb-row{border-top:1px solid var(--line)}
 .lb-row .rank{font-family:'Oswald',sans-serif;font-weight:700;color:var(--ink-soft)}
-.lb-row .nm{font-weight:600} .lb-row .tm{font-size:12px;color:var(--ink-soft);font-family:'Oswald',sans-serif}
+.lb-row .nm{font-weight:600;display:flex;flex-direction:column;min-width:0}
+.lb-row .nm .xh{font-weight:500;font-size:11px;color:var(--ink-soft);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-row .nm .xh:hover{color:var(--fairway);text-decoration:underline}
+.lb-row .tm{font-size:12px;color:var(--ink-soft);font-family:'Oswald',sans-serif}
 .lb-row .sc{font-family:'Anton',sans-serif;font-size:17px;color:var(--fairway)}
 .lb-row.you{background:rgba(215,64,47,.08)} .lb-row.you .nm{color:var(--flag)}
 .profile-head{display:flex;align-items:center;gap:14px;margin-top:18px}

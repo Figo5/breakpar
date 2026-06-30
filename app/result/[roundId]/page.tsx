@@ -13,6 +13,7 @@ import {
   standingLabel,
 } from "@/lib/scoring";
 import { topBoard, fieldStats } from "@/lib/leaderboard";
+import { xHandleLabel, xHandleUrl } from "@/lib/xHandle";
 import { type Outcome } from "@/lib/engine/probabilities";
 import { getCurrentUser } from "@/lib/user";
 import { type RoundMeta } from "@/lib/analytics";
@@ -59,6 +60,8 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
     include: {
       holeResults: { orderBy: { holeNumber: "asc" } },
       course: { select: { slug: true } },
+      // handle ONLY — never the user's email on this public page.
+      user: { select: { xHandle: true } },
     },
   });
   if (!round) notFound();
@@ -105,13 +108,16 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   // The share text snapshots the standing at render (share) time; the page may
   // show a slightly different number later as more people finish today.
   const standingLine = standing ? `\n${standingLabel(standing)}` : "";
+  // Optional: tag the player's X handle on their own share. Handle-less rounds
+  // share exactly as before.
+  const handleLine = round.user.xHandle ? `\n${xHandleLabel(round.user.xHandle)}` : "";
   const shareText = isDaily
     ? `BREAK PAR #${puzzleNo} ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}${standingLine}\n\n` +
-      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.xyz`
+      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}${handleLine}\nbreakpar.xyz`
     : `BREAK PAR — Practice ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}\n\n` +
-      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}\nbreakpar.xyz`;
+      `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}${handleLine}\nbreakpar.xyz`;
 
   return (
     <div className="screen">
@@ -149,7 +155,14 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
             {board.map((r) => (
               <div key={r.id} className={`lb-row ${r.userId === round.userId ? "you" : ""}`}>
                 <span className="rank">{r.rank}</span>
-                <span className="nm">{r.userId === round.userId ? "You" : r.username}</span>
+                <span className="nm">
+                  {r.userId === round.userId ? "You" : r.username}
+                  {r.xHandle && (
+                    <a className="xh" href={xHandleUrl(r.xHandle)} target="_blank" rel="noopener noreferrer">
+                      {xHandleLabel(r.xHandle)}
+                    </a>
+                  )}
+                </span>
                 <span className="tm">{r.durationMs ? Math.round(r.durationMs / 1000) + "s" : ""}</span>
                 <span className="sc">{r.score}</span>
               </div>

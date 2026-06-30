@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
+import { normalizeXHandle } from "@/lib/xHandle";
 import type { User } from "@prisma/client";
 
 export const GUEST_COOKIE = "bp_guest";
@@ -54,10 +55,23 @@ export async function getOrStartUser(): Promise<{ user: User; newGuestId: string
  * over seamlessly instead of starting fresh.
  */
 async function upsertClerkUser(clerkId: string, guestId?: string | null): Promise<User> {
-  const existing = await prisma.user.findUnique({ where: { clerkId } });
-  if (existing) return existing;
-
   const cu = await currentUser();
+  // The X/Twitter @handle lives on the OAuth external account's `username`
+  // (confirmed via scripts/inspect-x-handle.ts). Validate to handle-only form.
+  const xHandle = normalizeXHandle(
+    cu?.externalAccounts?.find((e) => e.provider === "oauth_x")?.username
+  );
+
+  const existing = await prisma.user.findUnique({ where: { clerkId } });
+  if (existing) {
+    // Backfill / refresh the handle if Clerk now has one and we don't (or it
+    // changed). Cheap no-op write avoided when nothing's different.
+    if (xHandle && existing.xHandle !== xHandle) {
+      return prisma.user.update({ where: { id: existing.id }, data: { xHandle } });
+    }
+    return existing;
+  }
+
   const email = cu?.emailAddresses[0]?.emailAddress ?? null;
   const username = cu?.username ?? `${cu?.firstName ?? "golfer"}-${clerkId.slice(-6)}`;
 
@@ -67,7 +81,7 @@ async function upsertClerkUser(clerkId: string, guestId?: string | null): Promis
     if (guest && !guest.clerkId) {
       return prisma.user.update({
         where: { id: guest.id },
-        data: { clerkId, username: cu?.username ?? guest.username, email },
+        data: { clerkId, username: cu?.username ?? guest.username, email, xHandle },
       });
     }
   }
@@ -75,7 +89,7 @@ async function upsertClerkUser(clerkId: string, guestId?: string | null): Promis
   // Otherwise create (atomically, to dodge the find-then-create race).
   return prisma.user.upsert({
     where: { clerkId },
-    update: {},
-    create: { clerkId, username, email },
+    update: xHandle ? { xHandle } : {},
+    create: { clerkId, username, email, xHandle },
   });
 }
