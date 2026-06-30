@@ -1,11 +1,22 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { dateKey, previousKey } from "@/lib/daily";
-import { isStreakAlive } from "@/lib/scoring";
+import { streakStatus, type StreakStatus } from "@/lib/scoring";
+
+/**
+ * Today's Eastern civil day plus the two prior civil days, the exact key set
+ * `streakStatus` needs. `graceKey` is the day-before-yesterday — the bridge the
+ * one-day freeze spans. Pure civil arithmetic via `previousKey`, so DST-safe.
+ */
+function streakKeys(today = dateKey()) {
+  const yesterday = previousKey(today);
+  return { today, yesterday, graceKey: previousKey(yesterday) };
+}
 
 export interface HomeState {
   signedIn: boolean;
   streak: number; // effective current day-streak (0 if broken or none)
+  streakStatus: StreakStatus; // played-today | safe | at-risk | none
   maxStreak: number; // longest day-streak ever (persists through a miss)
   underParStreak: number; // effective consecutive under-par days
   bestToPar: number | null; // best relative-to-par ever, null if never finished
@@ -19,6 +30,7 @@ export interface HomeState {
 const EMPTY: HomeState = {
   signedIn: false,
   streak: 0,
+  streakStatus: "none",
   maxStreak: 0,
   underParStreak: 0,
   bestToPar: null,
@@ -43,8 +55,7 @@ export async function getHomeState(): Promise<HomeState> {
   if (!user) return EMPTY;
 
   const streak = await prisma.streak.findUnique({ where: { userId: user.id } });
-  const today = dateKey();
-  const yesterday = previousKey(today); // civil yesterday (DST-safe)
+  const { today, yesterday, graceKey } = streakKeys();
 
   const todayRound = await prisma.round.findUnique({
     where: { userId_dateKey: { userId: user.id, dateKey: today } },
@@ -52,12 +63,14 @@ export async function getHomeState(): Promise<HomeState> {
   });
 
   const s = streak;
-  const alive = !!s && isStreakAlive(s.lastPlayedKey, today, yesterday);
+  const status = streakStatus(s?.currentStreak ?? 0, s?.lastPlayedKey, today, yesterday, graceKey);
+  const alive = status !== "none";
   const daysPlayed = s?.daysPlayed ?? 0;
 
   return {
     signedIn: true,
     streak: alive ? s!.currentStreak : 0,
+    streakStatus: status,
     maxStreak: s?.maxStreak ?? 0, // headline stat — never reset by a miss
     underParStreak: alive ? s!.underParStreak : 0,
     bestToPar: s && s.bestScore < 999 ? s.bestScore : null,
@@ -67,4 +80,23 @@ export async function getHomeState(): Promise<HomeState> {
     playedTodayRoundId: todayRound?.completed ? todayRound.id : null,
     inProgressRoundId: todayRound && !todayRound.completed ? todayRound.id : null,
   };
+}
+
+export interface StreakBadge {
+  streak: number; // current day-streak to celebrate
+  isBest: boolean; // ties the player's all-time best (>=2)
+}
+
+/**
+ * The streak to celebrate on a player's result screen — the triumph-moment
+ * reinforcement. Read-only; returns null when there's no LIVE streak so a
+ * brand-new / streak-less player renders clean (never "🔥 0-day"). Honours the
+ * one-day freeze via `streakStatus`.
+ */
+export async function getStreakBadge(userId: string): Promise<StreakBadge | null> {
+  const s = await prisma.streak.findUnique({ where: { userId } });
+  if (!s) return null;
+  const { today, yesterday, graceKey } = streakKeys();
+  if (streakStatus(s.currentStreak, s.lastPlayedKey, today, yesterday, graceKey) === "none") return null;
+  return { streak: s.currentStreak, isBest: s.currentStreak >= 2 && s.currentStreak === s.maxStreak };
 }

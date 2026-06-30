@@ -101,7 +101,9 @@ export async function getProfile(): Promise<ProfileData | null> {
 
   const today = dateKey();
   const yesterday = previousKey(today); // civil yesterday (DST-safe)
-  const alive = !!streak && isStreakAlive(streak.lastPlayedKey, today, yesterday);
+  const graceKey = previousKey(yesterday); // one-day freeze bridge
+  const alive =
+    !!streak && isStreakAlive(streak.currentStreak, streak.lastPlayedKey, today, yesterday, graceKey);
 
   const bestRounds = bestRows
     .map((r, i) => shape(r, i + 1))

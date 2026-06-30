@@ -41,6 +41,8 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .stat-card .k{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:4px;font-family:'Oswald',sans-serif}
 .spacer{flex:1}
 .home-note{text-align:center;font-family:'Oswald',sans-serif;font-weight:600;color:var(--ink-soft);margin-bottom:14px;font-size:14px}
+.home-note.at-risk{color:var(--flag)}
+.streak-line{text-align:center;margin:12px auto 0;font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;color:var(--flag)}
 .timer-mono{font-variant-numeric:tabular-nums;font-weight:700;color:var(--fairway)}
 
 .cta{display:block;width:100%;border:none;cursor:pointer;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:18px;color:var(--cream);background:var(--flag);padding:17px;border-radius:14px;text-align:center;text-decoration:none;transition:transform .12s,filter .12s}

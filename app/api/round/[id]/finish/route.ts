@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
-import { previousKey } from "@/lib/daily";
-import { updateStreak, type StreakState } from "@/lib/scoring";
+import { nextStreak, type StreakState } from "@/lib/scoring";
 import { route } from "@/lib/api";
 
 // POST: finalize the round and roll up streak + best-score stats.
@@ -60,10 +59,9 @@ export const POST = route(async (
   const prev = (await prisma.streak.findUnique({ where: { userId: user.id } })) as
     | (StreakState & { lastPlayedKey: string | null })
     | null;
-  const yesterdayKey = previousKey(round.dateKey); // civil day before the round's key (DST-safe)
-  const consecutive = prev?.lastPlayedKey === yesterdayKey;
   // relativeToPar is course-agnostic, so streak stats compare fairly day to day.
-  const next = updateStreak(prev, round.relativeToPar, consecutive);
+  // nextStreak owns the one-day-freeze continuity rule (DST-safe, see lib/scoring).
+  const next = nextStreak(prev, round.dateKey, round.relativeToPar);
   // Total under-par days powers the win % stat (separate from the consecutive run).
   const underParTotal =
     ((prev as { underParTotal?: number } | null)?.underParTotal ?? 0) +
