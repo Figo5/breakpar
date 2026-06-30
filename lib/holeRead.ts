@@ -162,7 +162,7 @@ export function puttRiskRead(
 
 /** Risk read for a SHORT-GAME decision (Punch / Chip / Flop) from off the green. */
 export function shortGameRiskRead(decision: Decision): { tone: Tone; text: string } {
-  if (decision === "safe") return { tone: "good", text: "Safe — take bogey" };
+  if (decision === "safe") return { tone: "good", text: "Safe — limit the damage" };
   if (decision === "normal") return { tone: "good", text: "Get it close" };
   return { tone: "warn", text: "Go for the save" };
 }
@@ -175,7 +175,8 @@ export function greenRead(green: GreenResult): { tone: Tone; text: string } {
     case "makeable":
       return { tone: "good", text: "Birdie look" };
     case "lag":
-      return { tone: "warn", text: "Long two-putt territory" };
+      // Don't promise a two-putt the green can't guarantee — frame the intent.
+      return { tone: "warn", text: "Long putt — lag it close" };
     case "scramble":
       return { tone: "bad", text: "Missed green — get up & down" };
   }

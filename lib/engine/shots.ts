@@ -116,6 +116,53 @@ function readBreak(rng: RNG): { breakDir: BreakDir; slope: Slope } {
   return { breakDir, slope };
 }
 
+// --- display-only yardage (DOES NOT touch the outcome stream) --------------
+//
+// Believable yards-to-target + tee distance, derived from hole yardage + the
+// lie via an INDEPENDENT salted RNG (same proven pattern as the narration
+// notes). It never draws from the pick() streams that resolve outcomes, and is
+// only computed when opts.holeYards is supplied (the play route passes it;
+// calibration does NOT, so break-par stays byte-identical). The numbers are
+// consistent by construction: drive + remaining === holeYards.
+
+const YARD_SALT = 0x5944; // independent stream salt ("YD")
+
+/** Fraction of the hole a drive covers, by lie. Display-only. */
+const DRIVE_FRACTION: Record<Lie, number> = { dialed: 0.66, fairway: 0.62, rough: 0.58, trouble: 0.5 };
+
+/** Rough tee-shot distance (yards), rounded to 5, bounded so the remaining
+ * approach stays sane. Pure; takes a salted RNG. */
+export function driveYards(holeYards: number, lie: Lie, rng: RNG): number {
+  const jitter = (rng() - 0.5) * 0.06; // +/-3%
+  const f = Math.max(0.4, Math.min(0.72, DRIVE_FRACTION[lie] + jitter));
+  return Math.round((holeYards * f) / 5) * 5;
+}
+
+/** A short par-5 lay-up wedge's yards to the pin (80-110), clamped below the
+ * remaining distance. Display-only. */
+export function wedgeYards(remaining: number, rng: RNG): number {
+  const y = 80 + Math.floor(rng() * 31); // 80-110
+  return Math.max(40, Math.min(remaining - 5, y));
+}
+
+/** Ball position along the hole, 0 (tee) -> 1 (cup), for the HoleArt marker.
+ * Pure + display-only: derived from the stage, the green result, and how far
+ * the drive went. The putting stage has its own view, so 1.0 there. */
+export function ballProgress(
+  stage: Exclude<ChainStage, "done">,
+  green: GreenResult | null,
+  drive: number | null,
+  holeYards: number | null
+): number {
+  if (stage === "tee") return 0.05;
+  if (stage === "approach") {
+    if (drive && holeYards) return Math.max(0.1, Math.min(0.8, drive / holeYards));
+    return 0.05; // par 3 (no drive yet) — still on the tee
+  }
+  if (stage === "scramble") return 0.9; // just off the green
+  return 1; // on the green / done
+}
+
 // --- the chain ------------------------------------------------------------
 
 export type ChainStage = "tee" | "approach" | "layup" | "putt" | "scramble" | "done";
@@ -129,6 +176,7 @@ export interface ShotRecord {
   puttResult?: PuttResult;
   scrambleResult?: ScrambleResult;
   distanceFt?: number;
+  yards?: number; // display-only: tee = drive distance; layup wedge = yards to pin
   event: EventInstance | null;
   note: string;
 }
@@ -150,6 +198,8 @@ export interface ChainResult {
   // when not complete:
   next?: Exclude<ChainStage, "done">;
   putt?: PuttContext; // present when next === "putt"
+  approachYards?: number; // display-only: yards to the pin facing the approach
+  ballT?: number; // display-only: ball position along the hole, 0 (tee) -> 1 (cup)
   // when complete:
   outcome?: Outcome;
   scoreDelta?: number;
@@ -162,6 +212,7 @@ export interface ChainOpts {
   greens?: GreenSpeed;
   recent?: Outcome[]; // prior holes' outcomes (for momentum)
   narration?: boolean; // default true; calibration turns it off for speed
+  holeYards?: number; // display-only; when set, yards-to-target + tee distance are derived
 }
 
 /**
@@ -183,26 +234,41 @@ export function resolveHoleChain(
 
   const noteRng = (i: number, salt: number) => mulberry32((opts.shotSeed(i) ^ salt) >>> 0);
 
+  // Display-only yardage (independent of the outcome RNG; see helpers above).
+  const holeYards = opts.holeYards ?? null;
+  let drive: number | null = null;
+
   let lie: Lie | undefined;
 
   // ---- TEE (par 4/5 only) ----
   let aIdx = 0;
   if (!isPar3) {
-    if (decisions.length < 1) return { complete: false, used: 0, shots, next: "tee" };
+    if (decisions.length < 1)
+      return { complete: false, used: 0, shots, next: "tee", ballT: ballProgress("tee", null, null, holeYards) };
     const dec = decisions[0];
     const w = teeWeights(dec, hole, c);
     const ev = rollEvent("tee", opts.eventSeed(0), { recent, firstShotOfHole: true });
     if (ev) applyEvent(ev.def, "tee", w as Record<string, number>);
     lie = pick(w, mulberry32(opts.shotSeed(0)));
+    if (holeYards) drive = driveYards(holeYards, lie, noteRng(0, YARD_SALT));
     shots.push({
-      index: 0, stage: "tee", decision: dec, lie, event: ev?.instance ?? null,
+      index: 0, stage: "tee", decision: dec, lie, yards: drive ?? undefined, event: ev?.instance ?? null,
       note: narrate ? teeNote(lie, noteRng(0, 0x777)) : "",
     });
     aIdx = 1;
   }
 
+  // Yards to the pin facing the approach: total minus the drive (par 4/5), or
+  // the full hole for a par 3 (tee shot IS the approach). Consistent: the drive
+  // and this remaining always sum to holeYards.
+  const approachYards = holeYards ? (isPar3 ? holeYards : Math.max(40, holeYards - (drive ?? 0))) : undefined;
+
   // ---- APPROACH (all pars; par 3's tee shot IS the approach) ----
-  if (decisions.length <= aIdx) return { complete: false, used: aIdx, shots, next: "approach", lie };
+  if (decisions.length <= aIdx)
+    return {
+      complete: false, used: aIdx, shots, next: "approach", lie,
+      approachYards, ballT: ballProgress("approach", null, drive, holeYards),
+    };
   const aDec = decisions[aIdx];
   const source: GreenSource = isPar3 ? "tee" : (lie as Lie);
   const gw = greenWeights(source, aDec, hole, c);
@@ -221,7 +287,9 @@ export function resolveHoleChain(
   // and makes NO outcome pick — scoring/calibration are byte-identical to before.
   if (isPar5Layup) {
     shots.push({
-      index: -1, stage: "layup", decision: null, green, event: null,
+      index: -1, stage: "layup", decision: null, green,
+      yards: holeYards && approachYards ? wedgeYards(approachYards, noteRng(aIdx, YARD_SALT)) : undefined,
+      event: null,
       note: narrate ? layupNote(green, noteRng(aIdx, 0x515)) : "",
     });
   }
@@ -241,7 +309,8 @@ export function resolveHoleChain(
 
   // ---- SCRAMBLE: off the green, short-game decision ----
   if (green === "scramble") {
-    if (decisions.length <= fIdx) return { complete: false, used: fIdx, shots, next: "scramble", lie, green };
+    if (decisions.length <= fIdx)
+      return { complete: false, used: fIdx, shots, next: "scramble", lie, green, ballT: ballProgress("scramble", green, drive, holeYards) };
     const fDec = decisions[fIdx];
     const sw = scrambleWeights(fDec, hole, c);
     const sEv = rollEvent("scramble", opts.eventSeed(fIdx), { recent });
@@ -267,6 +336,7 @@ export function resolveHoleChain(
     return {
       complete: false, used: fIdx, shots, next: "putt", lie, green,
       putt: { bucket, distanceFt, breakDir, slope, speed: greens },
+      ballT: ballProgress("putt", green, drive, holeYards),
     };
 
   const fDec = decisions[fIdx];
