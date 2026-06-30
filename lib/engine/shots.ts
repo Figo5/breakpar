@@ -381,3 +381,6 @@ export function stagePrompt(stage: Exclude<ChainStage, "done">, par: number): st
 }
 
 export { LIES };
+// Re-export the shared Decision type so callers of the chain can import it from
+// here alongside the chain types (type-only; no runtime/calibration impact).
+export type { Decision };
