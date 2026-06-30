@@ -3,6 +3,7 @@ import {
   relativeLabel,
   brokePar,
   isStreakAlive,
+  streakStatus,
   updateStreak,
   tally,
   shareGrid,
@@ -29,12 +30,47 @@ describe("brokePar", () => {
   });
 });
 
-describe("isStreakAlive", () => {
-  it("alive when last played is today or yesterday, dead otherwise", () => {
-    expect(isStreakAlive("2026-06-25", "2026-06-25", "2026-06-24")).toBe(true);
-    expect(isStreakAlive("2026-06-24", "2026-06-25", "2026-06-24")).toBe(true);
-    expect(isStreakAlive("2026-06-23", "2026-06-25", "2026-06-24")).toBe(false);
-    expect(isStreakAlive(null, "2026-06-25", "2026-06-24")).toBe(false);
+// Today / yesterday / grace (day-before-yesterday) — three strictly-decreasing
+// civil dates, the exact key set streakStatus + isStreakAlive consume.
+const T = "2026-06-25";
+const Y = "2026-06-24";
+const G = "2026-06-23"; // grace bridge
+const OLD = "2026-06-22"; // two missed days -> dead
+
+describe("streakStatus (mutually exclusive)", () => {
+  it("maps each last-played key to exactly one state", () => {
+    expect(streakStatus(3, T, T, Y, G)).toBe("played-today");
+    expect(streakStatus(3, Y, T, Y, G)).toBe("safe");
+    expect(streakStatus(3, G, T, Y, G)).toBe("at-risk");
+    expect(streakStatus(3, OLD, T, Y, G)).toBe("none"); // freeze spent
+  });
+
+  it("is 'none' with no live streak regardless of key", () => {
+    expect(streakStatus(0, T, T, Y, G)).toBe("none");
+    expect(streakStatus(5, null, T, Y, G)).toBe("none");
+  });
+
+  it("never reports a safe streak as at-risk (no false warning)", () => {
+    // The three keys are distinct, so a player who played yesterday is 'safe'
+    // and can NEVER also match the grace key -> no spurious warning.
+    expect(new Set([T, Y, G]).size).toBe(3);
+    for (const last of [T, Y, G, OLD, null]) {
+      const states = (["played-today", "safe", "at-risk", "none"] as const).filter(
+        (st) => streakStatus(3, last, T, Y, G) === st
+      );
+      expect(states.length).toBe(1); // exactly one state, always
+    }
+  });
+});
+
+describe("isStreakAlive (one-day freeze window)", () => {
+  it("alive today, yesterday, or bridged by the freeze; dead beyond", () => {
+    expect(isStreakAlive(3, T, T, Y, G)).toBe(true);
+    expect(isStreakAlive(3, Y, T, Y, G)).toBe(true);
+    expect(isStreakAlive(3, G, T, Y, G)).toBe(true); // freeze keeps it alive
+    expect(isStreakAlive(3, OLD, T, Y, G)).toBe(false); // two misses -> dead
+    expect(isStreakAlive(0, T, T, Y, G)).toBe(false); // no streak
+    expect(isStreakAlive(3, null, T, Y, G)).toBe(false);
   });
 });
 

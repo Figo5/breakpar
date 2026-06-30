@@ -3,6 +3,7 @@
  */
 
 import { OUTCOME_META, type Outcome } from "@/lib/engine/probabilities";
+import { previousKey } from "@/lib/daily";
 
 export const relativeToPar = (strokes: number, par: number) => strokes - par;
 
@@ -13,15 +14,54 @@ export const relativeLabel = (rel: number) =>
 export const brokePar = (strokes: number, par: number) => strokes < par;
 
 /**
- * A day-streak is only "alive" if the last played day is today or yesterday;
- * otherwise the run of consecutive days is already broken (Wordle behavior).
- * Pure so it can be unit-tested without a DB.
+ * The four mutually-exclusive states of a player's streak, used to drive both
+ * the prominence treatment and the loss-averse copy:
+ *   - "none":         no live streak (never played, or the run is dead).
+ *   - "played-today": today's round is in the books — streak is locked in.
+ *   - "safe":         played yesterday; play today to extend (no urgency).
+ *   - "at-risk":      missed YESTERDAY but the one-day freeze still bridges it;
+ *                     play today or the streak finally breaks (loss-averse).
  */
-export const isStreakAlive = (
+export type StreakStatus = "none" | "played-today" | "safe" | "at-risk";
+
+/**
+ * Classify a streak into exactly ONE state. Pure (no DB) so it's trivially
+ * testable.
+ *
+ * PROVABLY MUTUALLY EXCLUSIVE: `todayKey`, `yesterdayKey` and `graceKey` are
+ * three STRICTLY-decreasing civil dates (each is `previousKey` of the last), so
+ * they are pairwise distinct. `lastPlayedKey` can equal at most one of them, and
+ * the branches are checked in order with a catch-all, so this returns one and
+ * only one status — there is no input for which a player is both "safe" and
+ * "at-risk". A streak with no plays, or whose last play predates `graceKey`
+ * (i.e. two or more missed days), is "none".
+ */
+export function streakStatus(
+  currentStreak: number,
   lastPlayedKey: string | null | undefined,
   todayKey: string,
-  yesterdayKey: string
-) => lastPlayedKey === todayKey || lastPlayedKey === yesterdayKey;
+  yesterdayKey: string,
+  graceKey: string
+): StreakStatus {
+  if (currentStreak <= 0 || !lastPlayedKey) return "none";
+  if (lastPlayedKey === todayKey) return "played-today";
+  if (lastPlayedKey === yesterdayKey) return "safe";
+  if (lastPlayedKey === graceKey) return "at-risk";
+  return "none"; // last play is two+ days ago: the freeze is spent, streak dead
+}
+
+/**
+ * A day-streak is "alive" (displayable) if it's in any non-"none" state — today,
+ * yesterday, or bridged by the one-day freeze (`graceKey`). Derived from
+ * `streakStatus` so the alive window and the status states can never disagree.
+ */
+export const isStreakAlive = (
+  currentStreak: number,
+  lastPlayedKey: string | null | undefined,
+  todayKey: string,
+  yesterdayKey: string,
+  graceKey: string
+) => streakStatus(currentStreak, lastPlayedKey, todayKey, yesterdayKey, graceKey) !== "none";
 
 export interface RoundTally {
   birdiesOrBetter: number;
@@ -118,6 +158,30 @@ export interface StreakState {
   maxStreak: number; // longest day-streak ever
   underParStreak: number; // consecutive days under par
   bestScore: number; // best (lowest) relative-to-par score, comparable across courses
+}
+
+/**
+ * Roll a finished DAILY round into the player's streak, applying the one-day
+ * freeze. The single source of truth for streak continuity — the finish route
+ * and the tests both go through here so the rule can't drift.
+ *
+ * FREEZE: the run continues if the last played day was the day before this
+ * round (`previousKey(key)`) OR the day before that (`graceKey`) — one missed
+ * day is bridged. Crucially it still only `+1`s via `updateStreak`, so the
+ * skipped day is SPANNED, never credited; the streak never grows on a day not
+ * played. Two missed days leaves `lastPlayedKey` older than `graceKey`, so the
+ * run resets to 1. All gap math is `previousKey` (pure civil arithmetic) —
+ * DST-safe by construction.
+ */
+export function nextStreak(
+  prev: (StreakState & { lastPlayedKey?: string | null }) | null,
+  key: string,
+  relativeToPar: number
+): StreakState {
+  const yesterdayKey = previousKey(key);
+  const graceKey = previousKey(yesterdayKey);
+  const consecutive = prev?.lastPlayedKey === yesterdayKey || prev?.lastPlayedKey === graceKey;
+  return updateStreak(prev, relativeToPar, consecutive);
 }
 
 export function updateStreak(

@@ -16,6 +16,7 @@ import { topBoard, fieldStats } from "@/lib/leaderboard";
 import { xHandleLabel, xHandleUrl } from "@/lib/xHandle";
 import { type Outcome } from "@/lib/engine/probabilities";
 import { getCurrentUser } from "@/lib/user";
+import { getStreakBadge } from "@/lib/streak";
 import { type RoundMeta } from "@/lib/analytics";
 import { ShareButton } from "./ShareButton";
 import { ResultTracker } from "./ResultTracker";
@@ -88,6 +89,11 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   const made = brokePar(round.score, par);
   const grid = shareGrid(outcomes);
 
+  // Triumph-moment streak reinforcement: only for the player's OWN daily round,
+  // and only when a live streak exists (null otherwise -> renders nothing, so a
+  // brand-new / streak-less player never sees "🔥 0-day").
+  const streakBadge = ownRound && isDaily ? await getStreakBadge(round.userId) : null;
+
   // Daily-only: the ranked ladder + REAL standing in today's field. The field
   // is scoped by dateKey + completed, which means: only FINISHED, DAILY rounds
   // for today's daily course (practice rounds carry dateKey = null, so they're
@@ -133,6 +139,15 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
         {made ? "You broke par. 🔥" : isDaily ? "So close — run it back tomorrow." : "So close — go again."}
       </div>
       {standing && <span className="pct">{standingLabel(standing)}</span>}
+      {streakBadge && (
+        <div className="streak-line">
+          {streakBadge.streak === 1
+            ? "🔥 Streak started — come back tomorrow to keep it going."
+            : streakBadge.isBest
+              ? `🔥 ${streakBadge.streak}-day streak — your best yet!`
+              : `🔥 ${streakBadge.streak}-day streak`}
+        </div>
+      )}
 
       <div className="breakdown">
         <div className="bd"><div className="n">{counts.birdiesOrBetter}</div><div className="k">Birdies+</div></div>
