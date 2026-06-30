@@ -21,6 +21,7 @@ model User {
   guestId   String?  @unique // anonymous cookie identity for zero-login play
   username  String            // display only — not unique (guests share patterns)
   email     String?  @unique  // null for guests / providers without email
+  xHandle   String?           // X/Twitter handle ONLY (no @, no URL); optional
   createdAt DateTime @default(now())
 
   rounds  Round[]
