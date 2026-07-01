@@ -190,7 +190,9 @@ function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
       )}
 
       {CATEGORY_ORDER.map((cat) => {
-        const items = byCat(cat);
+        // Special/manual badges only appear once actually awarded — no locked
+        // "Creator" tile for everyone.
+        const items = cat === "special" ? byCat(cat).filter((s) => s.earned) : byCat(cat);
         if (items.length === 0) return null;
         // earned first, then by tier rank descending (rarer goals first)
         const sorted = [...items].sort(
@@ -249,7 +251,7 @@ function TrophyTile({
         <div className="trophy-crit">{t.criteria}</div>
       ) : t.earned ? (
         <>
-          <div className="trophy-tier-label">{TIER_META[t.tier].label}</div>
+          <div className="trophy-tier-label">{t.special ? "Special · Awarded" : TIER_META[t.tier].label}</div>
           {t.unlockedAt && (
             <div className="trophy-date">
               {new Date(t.unlockedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
@@ -285,4 +287,5 @@ const TIER_ICON: Record<TrophyState["tier"], string> = {
   rare: "🏅",
   elite: "🏆",
   legendary: "👑",
+  special: "✦",
 };

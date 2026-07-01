@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   evaluateTrophies,
+  buildTrophyBoard,
   summarizeRounds,
   newlyUnlocked,
   validateFeatured,
@@ -216,14 +217,66 @@ describe("trophies — validateFeatured (featured-5 picker guard)", () => {
   });
 });
 
+describe("trophies — special/manual badges (Creator)", () => {
+  const creatorState = (states: ReturnType<typeof evaluateTrophies>) =>
+    states.find((s) => s.id === "creator")!;
+
+  it("the catalogue has a special 'creator' trophy with no measure", () => {
+    const c = TROPHIES.find((t) => t.id === "creator")!;
+    expect(c.special).toBe(true);
+    expect(c.category).toBe("special");
+    expect(c.measure).toBeUndefined();
+  });
+
+  it("is NEVER auto-earned by the derived pass, even with maxed stats", () => {
+    const maxed = evaluateTrophies({
+      ...ZERO, roundsPlayed: 999, brokePar: true, bestUnderPar: 20, subParCourses: 18,
+      playedCourses: 18, hasBirdie: true, hasEagle: true, maxStreak: 999,
+      maxBirdiesInRound: 18, bestHolesAtOrUnderPar: 18,
+    });
+    const c = creatorState(maxed);
+    expect(c.special).toBe(true);
+    expect(c.comingSoon).toBe(false);
+    expect(c.earned).toBe(false); // only an award row can earn it
+  });
+
+  it("becomes earned only when an award row exists (buildTrophyBoard)", () => {
+    const withAward = buildTrophyBoard(ZERO, true, new Map([["creator", "2026-07-01T00:00:00.000Z"]]));
+    const c = withAward.states.find((s) => s.id === "creator")!;
+    expect(c.earned).toBe(true);
+    expect(c.unlockedAt).toBe("2026-07-01T00:00:00.000Z");
+
+    const without = buildTrophyBoard(ZERO, true, new Map());
+    expect(without.states.find((s) => s.id === "creator")!.earned).toBe(false);
+  });
+
+  it("is excluded from the earned count and rarity tally (honest stats)", () => {
+    const board = buildTrophyBoard(ZERO, true, new Map([["creator", null]]));
+    // No playable trophies earned on ZERO stats, so earnedCount stays 0 despite
+    // the Creator badge being present + earned.
+    expect(board.earnedCount).toBe(0);
+    expect(board.tierTally.special).toBe(0);
+    // And 'special' is not counted in the playable total.
+    expect(board.states.some((s) => s.id === "creator" && s.earned)).toBe(true);
+    expect(board.totalCount).toBe(TROPHIES.filter((t) => !t.special && !t.comingSoon).length);
+  });
+
+  it("an awarded special trophy is feature-able (in the earned set)", () => {
+    const board = buildTrophyBoard(ZERO, true, new Map([["creator", null]]));
+    const earned = new Set(board.states.filter((s) => s.earned).map((s) => s.id));
+    expect(validateFeatured(["creator"], earned)).toEqual({ ok: true, ids: ["creator"] });
+  });
+});
+
 describe("trophies — catalogue integrity", () => {
   it("ids are unique", () => {
     const ids = TROPHIES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
-  it("every non-coming-soon trophy has a measure", () => {
+  it("every playable (non-coming-soon, non-special) trophy has a measure", () => {
     for (const t of TROPHIES) {
-      if (!t.comingSoon) expect(t.measure, t.id).toBeTypeOf("function");
+      if (!t.comingSoon && !t.special) expect(t.measure, t.id).toBeTypeOf("function");
+      if (t.special) expect(t.measure, t.id).toBeUndefined(); // special = awarded, not measured
     }
   });
   it("omits albatross (engine can't produce one)", () => {
