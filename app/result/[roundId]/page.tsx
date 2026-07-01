@@ -20,6 +20,7 @@ import { getStreakBadge } from "@/lib/streak";
 import { type RoundMeta } from "@/lib/analytics";
 import { ShareButton } from "./ShareButton";
 import { ResultTracker } from "./ResultTracker";
+import { ConvertPrompt } from "./ConvertPrompt";
 
 // Per-round share metadata. The link-preview IMAGE is wired automatically by
 // the opengraph-image.tsx file in this segment; here we just give it a title +
@@ -94,6 +95,11 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   // brand-new / streak-less player never sees "🔥 0-day").
   const streakBadge = ownRound && isDaily ? await getStreakBadge(round.userId) : null;
 
+  // Guest → account nudge: ONLY for a signed-out guest viewing their OWN round.
+  // Logged-in users have a clerkId, so this block never renders for them (hard
+  // server gate). Streak-anchored on daily, Hall-of-Fame-anchored on practice.
+  const showConvert = ownRound && !viewer?.clerkId;
+
   // Daily-only: the ranked ladder + REAL standing in today's field. The field
   // is scoped by dateKey + completed, which means: only FINISHED, DAILY rounds
   // for today's daily course (practice rounds carry dateKey = null, so they're
@@ -147,6 +153,12 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
               ? `🔥 ${streakBadge.streak}-day streak — your best yet!`
               : `🔥 ${streakBadge.streak}-day streak`}
         </div>
+      )}
+      {showConvert && (
+        <ConvertPrompt
+          variant={isDaily ? "daily" : "practice"}
+          streak={streakBadge?.streak ?? 1}
+        />
       )}
 
       <div className="breakdown">
