@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { getHallOfFame } from "@/lib/hallOfFame";
-import { getTrophies } from "@/lib/trophies";
+import { getTrophies } from "@/lib/trophies.server";
 import { HallTabs } from "./HallTabs";
 
 // Server component — the player's Hall of Fame: their best card on every course

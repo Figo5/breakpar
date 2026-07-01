@@ -16,9 +16,9 @@
  * migration) — NOT here. B1 is derive + display only.
  */
 
-import { prisma } from "@/lib/db";
-import { getCurrentUser } from "@/lib/user";
-import { COURSES } from "@/data/courses";
+// Pure + client-safe: NO prisma / next/headers imports here, so this module can
+// be pulled into a client component (HallTabs) for its types + metadata. The DB
+// fetch (getTrophies) lives in lib/trophies.server.ts.
 
 export type TrophyTier = "common" | "rare" | "elite" | "legendary";
 export type TrophyCategory = "breaking-par" | "scoring" | "dedication" | "conquer" | "competition";
@@ -224,40 +224,14 @@ export function summarizeRounds(rows: RoundLite[], coursesTotal: number, maxStre
   };
 }
 
-export async function getTrophies(): Promise<TrophyBoard | null> {
-  const user = await getCurrentUser();
-  if (!user) return null;
-
-  // One pull of the user's own completed rounds + their hole outcomes, reduced
-  // in JS (same pattern as hallOfFame). Bounded by one player's play; fine at
-  // current scale. Plus the streak row for the day-ladders.
-  const [rows, streak] = await Promise.all([
-    prisma.round.findMany({
-      where: { userId: user.id, completed: true },
-      select: {
-        relativeToPar: true,
-        courseId: true,
-        holeResults: { select: { outcome: true, scoreChange: true } },
-      },
-    }),
-    prisma.streak.findUnique({ where: { userId: user.id } }),
-  ]);
-
-  const lite: RoundLite[] = rows.map((r) => ({
-    relativeToPar: r.relativeToPar,
-    courseKey: r.courseId,
-    holes: r.holeResults,
-  }));
-
-  const stats = summarizeRounds(lite, COURSES.length, streak?.maxStreak ?? 0);
+/** Pure: build the TrophyBoard from derived stats + auth flag. */
+export function buildTrophyBoard(stats: TrophyStats, signedIn: boolean): TrophyBoard {
   const states = evaluateTrophies(stats);
-
   const active = states.filter((s) => !s.comingSoon);
   const tierTally: Record<TrophyTier, number> = { common: 0, rare: 0, elite: 0, legendary: 0 };
   for (const s of states) if (s.earned) tierTally[s.tier]++;
-
   return {
-    signedIn: !!user.clerkId,
+    signedIn,
     earnedCount: active.filter((s) => s.earned).length,
     totalCount: active.length,
     tierTally,
