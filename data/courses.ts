@@ -484,6 +484,97 @@ export const COURSES: Course[] = [
       [5, 568, 18, "S", "water", "A risk-reward par 5 over the pond to the 72nd green"],
     ]),
   },
+  {
+    // Par 71 verified (3 par-5s / 4 par-3s / 11 par-4s); yardage = championship
+    // (2025 Open) back tees; strokeIndex derived (odd front / even back). Links:
+    // sand/dunes throughout, with the ocean feel on the clifftop 5th & 6th.
+    // Hole names are the real Dunluce hole names, carried as signatures.
+    slug: "royal-portrush-dunluce",
+    name: "Royal Portrush — Dunluce Links",
+    location: "Portrush, Northern Ireland",
+    rating: 76.0, slope: 141, difficulty: 9, wind: 20, windDir: 315, greens: "Firm",
+    blurb: "The 2019 & 2025 Open host — dramatic clifftop links with the fewest bunkers on the rota, defended by dunes, elevation and Atlantic wind. Calamity Corner waits at 16.",
+    holes: holes([
+      [4, 420, 7, "S", "sand", "Hughie's"],
+      [5, 575, 11, "R", "sand", "Giant's Grave"],
+      [3, 176, 15, "S", "sand", "Islay"],
+      [4, 502, 1, "L", "sand", "Fred Daly's — the card's hardest hole"],
+      [4, 372, 13, "R", "ocean", "White Rocks — along the clifftop"],
+      [3, 193, 9, "S", "ocean", "Harry Colt's"],
+      [5, 607, 5, "L", "sand", "Curran Point"],
+      [4, 434, 3, "S", "sand", "Dunluce"],
+      [4, 432, 17, "R", "sand", "Darren Clarke's"],
+      [4, 373, 12, "S", "sand", "Himalayas"],
+      [4, 475, 2, "L", "sand", "Tavern"],
+      [5, 532, 16, "R", "sand", "Dhu Varren"],
+      [3, 199, 14, "S", "sand", "Feather Bed"],
+      [4, 466, 4, "S", "sand", "Causeway"],
+      [4, 429, 8, "L", "sand", "Skerries"],
+      [3, 236, 6, "S", "sand", "Calamity Corner — 236 yds over a chasm"],
+      [4, 409, 10, "R", "sand", "Purgatory"],
+      [4, 474, 18, "S", "sand", "Babington's"],
+    ]),
+  },
+  {
+    // Par 70 verified (2 par-5s at 5/12; 4 par-3s at 3/7/10/13; 12 par-4s);
+    // yardage = 2020 US Open back tees; strokeIndex derived (odd front / even
+    // back). Tillinghast parkland — bunkers throughout, so hazard = sand.
+    slug: "winged-foot-west",
+    name: "Winged Foot — West",
+    location: "Mamaroneck, New York",
+    rating: 77.0, slope: 140, difficulty: 9, wind: 8, windDir: 270, greens: "Fast",
+    blurb: "A.W. Tillinghast's brute — small, fiercely contoured greens and a punishing par-4 finish. At the 2020 US Open only one man broke par all week.",
+    holes: holes([
+      [4, 450, 9, "S", "sand"],
+      [4, 453, 7, "R", "sand"],
+      [3, 243, 15, "S", "sand"],
+      [4, 469, 5, "L", "sand"],
+      [5, 515, 13, "R", "sand"],
+      [4, 321, 17, "S", "sand", "A short, tempting par 4 to a tiny green"],
+      [3, 162, 11, "S", "sand"],
+      [4, 475, 3, "L", "sand"],
+      [4, 514, 1, "R", "sand", "A long par 4 — the card's hardest"],
+      [3, 188, 16, "S", "sand"],
+      [4, 397, 12, "S", "sand"],
+      [5, 640, 8, "R", "sand", "A mammoth par 5 stretching to 640 yds"],
+      [3, 214, 14, "S", "sand"],
+      [4, 458, 6, "L", "sand"],
+      [4, 416, 10, "S", "sand"],
+      [4, 478, 2, "R", "sand"],
+      [4, 504, 4, "L", "sand"],
+      [4, 469, 18, "S", "sand", "Tillinghast's brutal closing par 4"],
+    ]),
+  },
+  {
+    // Par 72 verified (4 par-5s at 2/7/11/16; 4 par-3s at 5/8/14/17; 10 par-4s);
+    // yardage = 2021 PGA back tees; strokeIndex derived (odd front / even back).
+    // Pete Dye ocean links — ocean/water on the seaside holes, sand elsewhere.
+    slug: "kiawah-ocean",
+    name: "Kiawah Island — Ocean Course",
+    location: "Kiawah Island, South Carolina",
+    rating: 79.0, slope: 144, difficulty: 10, wind: 18, windDir: 135, greens: "Firm",
+    blurb: "Pete Dye's wind-lashed masterpiece — host of 'War by the Shore' and two PGA Championships, with more seaside holes than any course in the northern hemisphere.",
+    holes: holes([
+      [4, 395, 11, "S", "sand"],
+      [5, 543, 9, "R", "ocean"],
+      [4, 390, 13, "S", "sand"],
+      [4, 453, 5, "L", "water"],
+      [3, 207, 15, "S", "ocean"],
+      [4, 455, 3, "R", "sand"],
+      [5, 579, 7, "L", "ocean", "A reachable par 5 hugging the dunes"],
+      [3, 197, 17, "S", "water"],
+      [4, 464, 1, "R", "sand", "The card's hardest — a long par 4 into the wind"],
+      [4, 439, 8, "S", "sand"],
+      [5, 593, 10, "L", "water"],
+      [4, 466, 4, "R", "sand"],
+      [4, 404, 12, "S", "ocean"],
+      [3, 194, 16, "S", "ocean"],
+      [4, 470, 2, "L", "sand"],
+      [5, 579, 14, "R", "ocean"],
+      [3, 221, 6, "S", "ocean", "A long par 3 fully exposed to the sea wind"],
+      [4, 439, 18, "S", "ocean", "A dramatic ocean-side closing hole"],
+    ]),
+  },
 ];
 
 export const coursePar = (c: Course) =>

@@ -11,6 +11,10 @@ const EXPECTED_PAR: Record<string, number> = {
   "whistling-straits": 72,
   "erin-hills": 72,
   "torrey-pines-south": 72,
+  // Batch 3 (verified):
+  "royal-portrush-dunluce": 71,
+  "winged-foot-west": 70,
+  "kiawah-ocean": 72,
 };
 
 describe("course catalogue integrity", () => {
