@@ -295,6 +295,11 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .trophy.earned.t-elite .trophy-tier-label{color:var(--gold)}
 .trophy.earned.t-legendary{border:none;background:linear-gradient(160deg,var(--fairway-2),var(--fairway));color:var(--cream)}
 .trophy.earned.t-legendary .trophy-tier-label{color:var(--sand)}
+/* special = manually-awarded role badge: distinct indigo/violet, NOT the rarity
+   ladder, so it never reads as a played achievement */
+.trophy.earned.t-special{border:none;background:linear-gradient(160deg,#4c3a8f,#2f2566);color:var(--cream)}
+.trophy.earned.t-special .trophy-badge{color:#e7deff}
+.trophy.earned.t-special .trophy-tier-label{color:#c7b9ff;letter-spacing:.08em}
 
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

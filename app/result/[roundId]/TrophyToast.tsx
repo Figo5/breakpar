@@ -66,4 +66,5 @@ const TIER_ICON: Record<TrophyTier, string> = {
   rare: "🏅",
   elite: "🏆",
   legendary: "👑",
+  special: "✦",
 };

@@ -3,7 +3,7 @@ import { pickFeatured } from "@/lib/publicProfile";
 import type { TrophyState, TrophyTier } from "@/lib/trophies";
 
 const earnedTrophy = (id: string, tier: TrophyTier, unlockedAt: string | null = null): TrophyState => ({
-  id, label: id, category: "scoring", tier, criteria: "", comingSoon: false,
+  id, label: id, category: "scoring", tier, criteria: "", comingSoon: false, special: false,
   earned: true, current: 1, target: 1, progressPct: 100, unlockedAt,
 });
 

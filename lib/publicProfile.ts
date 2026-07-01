@@ -19,7 +19,7 @@ import { COURSES } from "@/data/courses";
 import { bestByCourse, buildRecords, type RoundLite as HofRound, type CourseRecord } from "@/lib/hallOfFame";
 import {
   summarizeRounds,
-  evaluateTrophies,
+  buildTrophyBoard,
   TIER_META,
   type RoundLite as TrophyRound,
   type TrophyState,
@@ -128,15 +128,15 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
   const records = buildRecords(bestByCourse(hofRounds));
   const conquered = records.filter((r) => r.played);
 
-  // Trophies (reuse the trophy derivation), with unlock dates attached.
+  // Trophies via buildTrophyBoard so award-driven SPECIAL badges (e.g. Creator)
+  // are flipped to earned from their award row — evaluateTrophies alone leaves
+  // them earned:false and they'd never be featured.
   const dates = new Map(awards.map((a) => [a.trophyId, a.unlockedAt ? a.unlockedAt.toISOString() : null]));
   const trophyRounds: TrophyRound[] = rows.map((r) => ({
     relativeToPar: r.relativeToPar, courseKey: r.course.slug, holes: r.holeResults,
   }));
   const stats = summarizeRounds(trophyRounds, COURSES.length, streak?.maxStreak ?? 0);
-  const earned = evaluateTrophies(stats)
-    .filter((s) => s.earned)
-    .map((s) => (dates.has(s.id) ? { ...s, unlockedAt: dates.get(s.id) ?? null } : s));
+  const earned = buildTrophyBoard(stats, true, dates).states.filter((s) => s.earned);
   const featured = pickFeatured(profileUser.featuredTrophies, earned);
 
   // Live streak (0 if the run is dead).

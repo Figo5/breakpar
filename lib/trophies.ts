@@ -20,8 +20,8 @@
 // be pulled into a client component (HallTabs) for its types + metadata. The DB
 // fetch (getTrophies) lives in lib/trophies.server.ts.
 
-export type TrophyTier = "common" | "rare" | "elite" | "legendary";
-export type TrophyCategory = "breaking-par" | "scoring" | "dedication" | "conquer" | "competition";
+export type TrophyTier = "common" | "rare" | "elite" | "legendary" | "special";
+export type TrophyCategory = "special" | "breaking-par" | "scoring" | "dedication" | "conquer" | "competition";
 
 /** Aggregates every trophy predicate reads. Fully derived, cheap. */
 export interface TrophyStats {
@@ -46,6 +46,10 @@ export interface Trophy {
   tier: TrophyTier;
   criteria: string; // shown on the locked/goal tile
   comingSoon?: boolean;
+  // Special = manually AWARDED (role/event badge), never derived from play. It
+  // has no measure(); "earned" comes solely from a TrophyAward row. Kept
+  // visually + categorically distinct so it never reads as a played achievement.
+  special?: boolean;
   measure?: (s: TrophyStats) => { current: number; target: number };
 }
 
@@ -57,6 +61,7 @@ export interface TrophyState {
   tier: TrophyTier;
   criteria: string;
   comingSoon: boolean;
+  special: boolean;
   earned: boolean;
   current: number;
   target: number;
@@ -74,6 +79,7 @@ export interface TrophyBoard {
 }
 
 export const CATEGORY_META: Record<TrophyCategory, { label: string; emoji: string }> = {
+  special: { label: "Special", emoji: "✦" },
   "breaking-par": { label: "Breaking Par", emoji: "🏌️" },
   scoring: { label: "Scoring Feats", emoji: "⛳" },
   dedication: { label: "Dedication", emoji: "🔥" },
@@ -82,6 +88,7 @@ export const CATEGORY_META: Record<TrophyCategory, { label: string; emoji: strin
 };
 
 export const CATEGORY_ORDER: TrophyCategory[] = [
+  "special", // role/event badges lead the case
   "breaking-par",
   "scoring",
   "dedication",
@@ -94,10 +101,16 @@ export const TIER_META: Record<TrophyTier, { label: string; rank: number }> = {
   rare: { label: "Rare", rank: 1 },
   elite: { label: "Elite", rank: 2 },
   legendary: { label: "Legendary", rank: 3 },
+  special: { label: "Special", rank: 4 }, // not a rarity — an awarded role badge
 };
 
 /** The catalogue. Predicates only read TrophyStats — all derived, no I/O. */
 export const TROPHIES: Trophy[] = [
+  // ✦ Special — manually awarded role/event badges (see award-special.ts). No
+  // measure(): earned solely via a TrophyAward row, never through play.
+  { id: "creator", label: "Creator", category: "special", tier: "special", special: true,
+    criteria: "Break Par's creator" },
+
   // 🏌️ Breaking Par
   { id: "broke-par", label: "Broke Par", category: "breaking-par", tier: "common",
     criteria: "Shoot under par in any round", measure: (s) => ({ current: s.brokePar ? 1 : 0, target: 1 }) },
@@ -160,17 +173,19 @@ const clampPct = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
 /** Pure: evaluate the whole catalogue against derived stats. */
 export function evaluateTrophies(stats: TrophyStats): TrophyState[] {
   return TROPHIES.map((t) => {
+    const base = { id: t.id, label: t.label, category: t.category, tier: t.tier, criteria: t.criteria };
+    // Special: never auto-earned here. earned is set later from award rows in
+    // buildTrophyBoard; the derived pass leaves it false with no progress.
+    if (t.special) {
+      return { ...base, comingSoon: false, special: true, earned: false, current: 0, target: 1, progressPct: 0 };
+    }
     if (t.comingSoon || !t.measure) {
-      return {
-        id: t.id, label: t.label, category: t.category, tier: t.tier, criteria: t.criteria,
-        comingSoon: true, earned: false, current: 0, target: 1, progressPct: 0,
-      };
+      return { ...base, comingSoon: true, special: false, earned: false, current: 0, target: 1, progressPct: 0 };
     }
     const { current, target } = t.measure(stats);
     const earned = target > 0 && current >= target;
     return {
-      id: t.id, label: t.label, category: t.category, tier: t.tier, criteria: t.criteria,
-      comingSoon: false, earned, current, target,
+      ...base, comingSoon: false, special: false, earned, current, target,
       progressPct: earned ? 100 : clampPct((current / target) * 100),
     };
   });
@@ -264,12 +279,19 @@ export function buildTrophyBoard(
   awardDates?: Map<string, string | null>,
   featured: string[] = []
 ): TrophyBoard {
-  const states = evaluateTrophies(stats).map((s) =>
-    s.earned && awardDates?.has(s.id) ? { ...s, unlockedAt: awardDates.get(s.id) ?? null } : s
-  );
-  const active = states.filter((s) => !s.comingSoon);
-  const tierTally: Record<TrophyTier, number> = { common: 0, rare: 0, elite: 0, legendary: 0 };
-  for (const s of states) if (s.earned) tierTally[s.tier]++;
+  const states = evaluateTrophies(stats).map((s) => {
+    // Special trophies are earned ONLY by having an award row (manually granted).
+    if (s.special) {
+      const awarded = awardDates?.has(s.id) ?? false;
+      return { ...s, earned: awarded, unlockedAt: awarded ? awardDates!.get(s.id) ?? null : undefined };
+    }
+    return s.earned && awardDates?.has(s.id) ? { ...s, unlockedAt: awardDates.get(s.id) ?? null } : s;
+  });
+  // "X of Y earned" + rarity tally cover only PLAYABLE trophies — special/manual
+  // badges can't be earned by play, so they're excluded to keep stats honest.
+  const active = states.filter((s) => !s.comingSoon && !s.special);
+  const tierTally: Record<TrophyTier, number> = { common: 0, rare: 0, elite: 0, legendary: 0, special: 0 };
+  for (const s of active) if (s.earned) tierTally[s.tier]++;
   return {
     signedIn,
     earnedCount: active.filter((s) => s.earned).length,
