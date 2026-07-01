@@ -6,6 +6,7 @@ import { getPublicProfile, type PublicProfile } from "@/lib/publicProfile";
 import { relativeLabel } from "@/lib/scoring";
 import { TIER_META, type TrophyState } from "@/lib/trophies";
 import { xHandleLabel, xHandleUrl } from "@/lib/xHandle";
+import { Avatar } from "@/components/Avatar";
 
 // Public profile at /u/[username] — account-only, read-only for strangers.
 // Guests have no profile (resolution targets accounts). Private profiles show a
@@ -59,7 +60,7 @@ function PrivateState({ username }: { username: string }) {
   return (
     <>
       <div className="profile-head">
-        <div className="avatar">{(username[0] ?? "P").toUpperCase()}</div>
+        <Avatar src={null} name={username} />
         <div className="who"><h2>{username}</h2><div className="sub">Profile is private</div></div>
       </div>
       <div className="profile-empty">This player keeps their profile private.</div>
@@ -72,7 +73,7 @@ function ProfileBody({ p }: { p: PublicProfile }) {
   return (
     <>
       <div className="profile-head">
-        <div className="avatar">{(p.username[0] ?? "P").toUpperCase()}</div>
+        <Avatar src={p.imageUrl} name={p.username} />
         <div className="who">
           <h2>{p.username}</h2>
           <div className="sub">

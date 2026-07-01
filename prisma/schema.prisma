@@ -22,6 +22,7 @@ model User {
   username  String            // display only — not unique (guests share patterns)
   email     String?  @unique  // null for guests / providers without email
   xHandle   String?           // X/Twitter handle ONLY (no @, no URL); optional
+  imageUrl  String?           // Clerk profile image (imageUrl), synced on login; null = show initial
   createdAt DateTime @default(now())
 
   // Public profile (accounts only; guests never get one). Default PUBLIC with an

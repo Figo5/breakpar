@@ -41,6 +41,7 @@ export interface PublicRound {
 export interface PublicProfile {
   username: string;
   xHandle: string | null;
+  imageUrl: string | null;
   memberSince: string; // ISO
   isOwner: boolean;
   isPublic: boolean;
@@ -89,7 +90,7 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
   const profileUser = await prisma.user.findFirst({
     where: { username, clerkId: { not: null } },
     select: {
-      id: true, username: true, xHandle: true, createdAt: true,
+      id: true, username: true, xHandle: true, imageUrl: true, createdAt: true,
       profilePublic: true, featuredTrophies: true,
     },
   });
@@ -165,6 +166,7 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
     profile: {
       username: profileUser.username,
       xHandle: profileUser.xHandle,
+      imageUrl: profileUser.imageUrl,
       memberSince: profileUser.createdAt.toISOString(),
       isOwner,
       isPublic: profileUser.profilePublic,

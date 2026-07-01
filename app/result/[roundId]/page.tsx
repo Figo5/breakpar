@@ -14,6 +14,7 @@ import {
 } from "@/lib/scoring";
 import { topBoard, fieldStats } from "@/lib/leaderboard";
 import { xHandleLabel, xHandleUrl } from "@/lib/xHandle";
+import { Avatar } from "@/components/Avatar";
 import { type Outcome } from "@/lib/engine/probabilities";
 import { getCurrentUser } from "@/lib/user";
 import { getStreakBadge } from "@/lib/streak";
@@ -185,7 +186,10 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
               <div key={r.id} className={`lb-row ${r.userId === round.userId ? "you" : ""}`}>
                 <span className="rank">{r.rank}</span>
                 <span className="nm">
-                  {r.userId === round.userId ? "You" : r.username}
+                  <span className="nm-row">
+                    <Avatar src={r.imageUrl} name={r.username} className="lb-av" />
+                    <span>{r.userId === round.userId ? "You" : r.username}</span>
+                  </span>
                   {r.xHandle && (
                     <a className="xh" href={xHandleUrl(r.xHandle)} target="_blank" rel="noopener noreferrer">
                       {xHandleLabel(r.xHandle)}

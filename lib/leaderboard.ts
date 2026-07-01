@@ -11,6 +11,7 @@ export interface BoardEntry {
   userId: string;
   username: string;
   xHandle: string | null; // optional X handle; null renders unchanged
+  imageUrl: string | null; // Clerk avatar; null -> initial placeholder
   score: number;
   durationMs: number | null;
   rank: number;
@@ -22,13 +23,14 @@ export async function topBoard(dateKey: string, limit: number): Promise<BoardEnt
     where: { dateKey, completed: true },
     orderBy: [{ score: "asc" }, { durationMs: "asc" }],
     take: limit,
-    include: { user: { select: { username: true, xHandle: true } } },
+    include: { user: { select: { username: true, xHandle: true, imageUrl: true } } },
   });
   return rows.map((r, i) => ({
     id: r.id,
     userId: r.userId,
     username: r.user.username,
     xHandle: r.user.xHandle,
+    imageUrl: r.user.imageUrl,
     score: r.score,
     durationMs: r.durationMs,
     rank: i + 1,
