@@ -44,7 +44,7 @@ export default async function Profile() {
             No rounds yet. Play your first round to start your card.
           </div>
           <div className="btn-stack">
-            <Link href="/play" className="cta">Tee off ⛳</Link>
+            <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
           {!me?.signedIn && (
@@ -74,13 +74,6 @@ export default async function Profile() {
             {me.dayStreak > 0 ? `🔥 ${me.dayStreak}-day streak` : "No active streak"} · best run {me.bestStreak}
           </div>
 
-          <div className="section-title">Best Rounds</div>
-          <div className="lb">
-            {me.bestRounds.map((r) => (
-              <RoundRow key={r.id} r={r} />
-            ))}
-          </div>
-
           <div className="section-title">Recent Games</div>
           <div className="lb">
             {me.recentRounds.map((r) => (
@@ -89,8 +82,7 @@ export default async function Profile() {
           </div>
 
           <div className="btn-stack">
-            <Link href="/play" className="cta">Play today&apos;s round ⛳</Link>
-            <Link href="/courses" className="cta ghost">Play unlimited · Browse courses</Link>
+            <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
 
