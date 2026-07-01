@@ -17,6 +17,8 @@ export const GET = route(async () => {
     username: r.username,
     xHandle: r.xHandle,
     imageUrl: r.imageUrl,
+    isAccount: r.isAccount,
+    profilePublic: r.profilePublic,
     score: r.score,
     durationMs: r.durationMs,
   }));

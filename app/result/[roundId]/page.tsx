@@ -188,7 +188,18 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
                 <span className="nm">
                   <span className="nm-row">
                     <Avatar src={r.imageUrl} name={r.username} className="lb-av" />
-                    <span>{r.userId === round.userId ? "You" : r.username}</span>
+                    {r.isAccount && r.profilePublic ? (
+                      // Account + public -> link to their profile. Guests and
+                      // private accounts render as plain (muted) text: the
+                      // asymmetry nudges signups, and private avoids a dead wall.
+                      <Link className="lb-name-link" href={`/u/${r.username}`}>
+                        {r.userId === round.userId ? "You" : r.username}
+                      </Link>
+                    ) : (
+                      <span className={r.isAccount ? undefined : "lb-name-guest"}>
+                        {r.userId === round.userId ? "You" : r.username}
+                      </span>
+                    )}
                   </span>
                   {r.xHandle && (
                     <a className="xh" href={xHandleUrl(r.xHandle)} target="_blank" rel="noopener noreferrer">

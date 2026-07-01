@@ -12,6 +12,8 @@ export interface BoardEntry {
   username: string;
   xHandle: string | null; // optional X handle; null renders unchanged
   imageUrl: string | null; // Clerk avatar; null -> initial placeholder
+  isAccount: boolean; // clerkId set -> has a public profile (guests don't)
+  profilePublic: boolean; // false -> name renders non-linked (no dead private wall)
   score: number;
   durationMs: number | null;
   rank: number;
@@ -23,7 +25,7 @@ export async function topBoard(dateKey: string, limit: number): Promise<BoardEnt
     where: { dateKey, completed: true },
     orderBy: [{ score: "asc" }, { durationMs: "asc" }],
     take: limit,
-    include: { user: { select: { username: true, xHandle: true, imageUrl: true } } },
+    include: { user: { select: { username: true, xHandle: true, imageUrl: true, clerkId: true, profilePublic: true } } },
   });
   return rows.map((r, i) => ({
     id: r.id,
@@ -31,6 +33,8 @@ export async function topBoard(dateKey: string, limit: number): Promise<BoardEnt
     username: r.user.username,
     xHandle: r.user.xHandle,
     imageUrl: r.user.imageUrl,
+    isAccount: !!r.user.clerkId,
+    profilePublic: r.user.profilePublic,
     score: r.score,
     durationMs: r.durationMs,
     rank: i + 1,
