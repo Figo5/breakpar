@@ -319,7 +319,7 @@ export function resolveHoleChain(
     const outcome = composeOutcome(reachedInTwo, { kind: "scramble", result: sres });
     shots.push({
       index: fIdx, stage: "scramble", decision: fDec, scrambleResult: sres, event: sEv?.instance ?? null,
-      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777)) : "",
+      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777), fDec) : "",
     });
     return finalize(hole, shots, fIdx + 1, lie, green, outcome);
   }
