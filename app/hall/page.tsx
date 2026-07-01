@@ -33,7 +33,7 @@ export default async function Hall() {
         Hall of Fame
       </div>
       <div className="tagline">
-        Your best card on every course — daily or practice. Chase the open slots and beat your records.
+        Every course conquered, every trophy earned. This is your golf résumé.
       </div>
 
       {!hof || hof.coursesPlayed === 0 ? (
