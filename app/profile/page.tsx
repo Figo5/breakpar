@@ -3,6 +3,7 @@ import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@cl
 import { getProfile, type ProfileRound } from "@/lib/profile";
 import { relativeLabel } from "@/lib/scoring";
 import { Avatar } from "@/components/Avatar";
+import { PrivacyToggle } from "./PrivacyToggle";
 
 // Server component — the player's profile: lifetime stats, their personal
 // best-rounds leaderboard, and recent games. Modeled on the 82-0 profile.
@@ -81,8 +82,16 @@ export default async function Profile() {
             ))}
           </div>
 
+          {me.signedIn && (
+            <>
+              <div className="section-title">Public Profile</div>
+              <PrivacyToggle username={me.username} isPublic={me.profilePublic} />
+            </>
+          )}
+
           <div className="btn-stack">
             <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
+            {me.signedIn && <Link href={`/u/${me.username}`} className="cta ghost">View public profile ↗</Link>}
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
 

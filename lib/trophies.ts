@@ -70,6 +70,7 @@ export interface TrophyBoard {
   totalCount: number; // active (non-coming-soon) trophies
   tierTally: Record<TrophyTier, number>; // earned counts by tier
   states: TrophyState[];
+  featured: string[]; // the owner's pinned trophy ids (ordered), for the picker
 }
 
 export const CATEGORY_META: Record<TrophyCategory, { label: string; emoji: string }> = {
@@ -235,13 +236,33 @@ export function newlyUnlocked(before: TrophyState[], after: TrophyState[]): Trop
   return after.filter((s) => s.earned && !had.has(s.id));
 }
 
+export const FEATURED_MAX = 5;
+
+/**
+ * Pure: validate a featured-trophies request. Dedupes (preserving order) and
+ * requires every id to be a currently-earned trophy within the cap. Used by
+ * PATCH /api/profile/featured so the server never trusts the client to send
+ * only legit picks.
+ */
+export function validateFeatured(
+  ids: string[],
+  earned: Set<string>,
+  max = FEATURED_MAX
+): { ok: true; ids: string[] } | { ok: false; error: "too-many" | "not-earned" } {
+  const deduped = [...new Set(ids)];
+  if (deduped.length > max) return { ok: false, error: "too-many" };
+  if (deduped.some((id) => !earned.has(id))) return { ok: false, error: "not-earned" };
+  return { ok: true, ids: deduped };
+}
+
 /** Pure: build the TrophyBoard from derived stats + auth flag. `awardDates` maps
  * trophyId -> ISO unlock time (or null when backfilled/unknown); dates show only
  * when truthful. */
 export function buildTrophyBoard(
   stats: TrophyStats,
   signedIn: boolean,
-  awardDates?: Map<string, string | null>
+  awardDates?: Map<string, string | null>,
+  featured: string[] = []
 ): TrophyBoard {
   const states = evaluateTrophies(stats).map((s) =>
     s.earned && awardDates?.has(s.id) ? { ...s, unlockedAt: awardDates.get(s.id) ?? null } : s
@@ -255,5 +276,6 @@ export function buildTrophyBoard(
     totalCount: active.length,
     tierTally,
     states,
+    featured,
   };
 }

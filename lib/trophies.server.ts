@@ -53,7 +53,7 @@ export async function getTrophies(): Promise<TrophyBoard | null> {
   const dates = new Map<string, string | null>(
     awards.map((a) => [a.trophyId, a.unlockedAt ? a.unlockedAt.toISOString() : null])
   );
-  return buildTrophyBoard(stats, !!user.clerkId, dates);
+  return buildTrophyBoard(stats, !!user.clerkId, dates, user.featuredTrophies);
 }
 
 /** A completed round reduced to RoundLite, fetched from the DB for a user. */

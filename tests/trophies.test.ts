@@ -3,6 +3,7 @@ import {
   evaluateTrophies,
   summarizeRounds,
   newlyUnlocked,
+  validateFeatured,
   TROPHIES,
   type TrophyStats,
   type RoundLite,
@@ -183,6 +184,35 @@ describe("trophies — newlyUnlocked (before/after diff, the anti-spam core)", (
     const fresh = newlyUnlocked(before, after).map((t) => t.id);
     expect(fresh).toContain("first-birdie");
     expect(fresh).toContain("broke-par");
+  });
+});
+
+describe("trophies — validateFeatured (featured-5 picker guard)", () => {
+  const earned = new Set(["a", "b", "c", "d", "e", "f"]);
+
+  it("accepts <=5 earned ids and preserves order", () => {
+    const r = validateFeatured(["c", "a", "e"], earned);
+    expect(r).toEqual({ ok: true, ids: ["c", "a", "e"] });
+  });
+
+  it("dedupes before counting", () => {
+    const r = validateFeatured(["a", "a", "b"], earned);
+    expect(r).toEqual({ ok: true, ids: ["a", "b"] });
+  });
+
+  it("rejects more than 5", () => {
+    expect(validateFeatured(["a", "b", "c", "d", "e", "f"], earned)).toEqual({
+      ok: false,
+      error: "too-many",
+    });
+  });
+
+  it("rejects an id the user hasn't earned", () => {
+    expect(validateFeatured(["a", "ghost"], earned)).toEqual({ ok: false, error: "not-earned" });
+  });
+
+  it("allows an empty selection (clear featured)", () => {
+    expect(validateFeatured([], earned)).toEqual({ ok: true, ids: [] });
   });
 });
 
