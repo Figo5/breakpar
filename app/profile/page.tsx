@@ -45,6 +45,7 @@ export default async function Profile() {
           </div>
           <div className="btn-stack">
             <Link href="/play" className="cta">Tee off ⛳</Link>
+            <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
           {!me?.signedIn && (
@@ -90,6 +91,7 @@ export default async function Profile() {
 
           <div className="btn-stack">
             <Link href="/play" className="cta">Play today&apos;s round ⛳</Link>
+            <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
             <Link href="/courses" className="cta ghost">Play unlimited · Browse courses</Link>
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
