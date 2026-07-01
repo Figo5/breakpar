@@ -2,12 +2,12 @@ import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { getProfile, type ProfileRound } from "@/lib/profile";
 import { relativeLabel } from "@/lib/scoring";
+import { Avatar } from "@/components/Avatar";
 
 // Server component — the player's profile: lifetime stats, their personal
 // best-rounds leaderboard, and recent games. Modeled on the 82-0 profile.
 export default async function Profile() {
   const me = await getProfile();
-  const initial = (me?.username?.[0] ?? "G").toUpperCase();
 
   return (
     <div className="screen">
@@ -29,7 +29,7 @@ export default async function Profile() {
       </div>
 
       <div className="profile-head">
-        <div className="avatar">{initial}</div>
+        <Avatar src={me?.imageUrl} name={me?.username ?? "Guest"} />
         <div className="who">
           <h2>{me?.username ?? "Guest"}</h2>
           <div className="sub">

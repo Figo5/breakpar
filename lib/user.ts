@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { normalizeXHandle } from "@/lib/xHandle";
+import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
 export const GUEST_COOKIE = "bp_guest";
@@ -62,18 +63,39 @@ async function upsertClerkUser(clerkId: string, guestId?: string | null): Promis
     cu?.externalAccounts?.find((e) => e.provider === "oauth_x")?.username
   );
 
+  // Clerk is the source of truth for the display identity. Only take a username
+  // when Clerk actually has one — never clobber a real name with the fallback.
+  const clerkUsername = cu?.username ?? null;
+  const imageUrl = cu?.imageUrl ?? null;
+
   const existing = await prisma.user.findUnique({ where: { clerkId } });
   if (existing) {
-    // Backfill / refresh the handle if Clerk now has one and we don't (or it
-    // changed). Cheap no-op write avoided when nothing's different.
-    if (xHandle && existing.xHandle !== xHandle) {
-      return prisma.user.update({ where: { id: existing.id }, data: { xHandle } });
+    // Re-sync the display identity from Clerk on login (username + avatar +
+    // handle). Without this the DB keeps whatever was stamped at signup, so a
+    // later Clerk rename/avatar change never shows. Only write what changed, and
+    // only overwrite username when Clerk has a real one (differing from ours).
+    const data: { username?: string; imageUrl?: string | null; xHandle?: string } = {};
+    if (clerkUsername && clerkUsername !== existing.username) data.username = clerkUsername;
+    if (imageUrl !== existing.imageUrl) data.imageUrl = imageUrl;
+    if (xHandle && existing.xHandle !== xHandle) data.xHandle = xHandle;
+    if (Object.keys(data).length === 0) return existing; // nothing changed
+    try {
+      return await prisma.user.update({ where: { id: existing.id }, data });
+    } catch (e) {
+      // The partial-unique index on account usernames could reject a rename that
+      // collides (near-impossible — Clerk enforces username uniqueness). Don't
+      // 500 the hot path: keep the current row, still applying avatar/handle.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const { username: _drop, ...safe } = data;
+        if (Object.keys(safe).length === 0) return existing;
+        return prisma.user.update({ where: { id: existing.id }, data: safe });
+      }
+      throw e;
     }
-    return existing;
   }
 
   const email = cu?.emailAddresses[0]?.emailAddress ?? null;
-  const username = cu?.username ?? `${cu?.firstName ?? "golfer"}-${clerkId.slice(-6)}`;
+  const username = clerkUsername ?? `${cu?.firstName ?? "golfer"}-${clerkId.slice(-6)}`;
 
   // Upgrade an existing guest into this account.
   if (guestId) {
@@ -81,7 +103,7 @@ async function upsertClerkUser(clerkId: string, guestId?: string | null): Promis
     if (guest && !guest.clerkId) {
       return prisma.user.update({
         where: { id: guest.id },
-        data: { clerkId, username: cu?.username ?? guest.username, email, xHandle },
+        data: { clerkId, username: clerkUsername ?? guest.username, email, xHandle, imageUrl },
       });
     }
   }
@@ -89,7 +111,7 @@ async function upsertClerkUser(clerkId: string, guestId?: string | null): Promis
   // Otherwise create (atomically, to dodge the find-then-create race).
   return prisma.user.upsert({
     where: { clerkId },
-    update: xHandle ? { xHandle } : {},
-    create: { clerkId, username, email, xHandle },
+    update: { ...(xHandle ? { xHandle } : {}), ...(imageUrl ? { imageUrl } : {}) },
+    create: { clerkId, username, email, xHandle, imageUrl },
   });
 }

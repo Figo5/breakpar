@@ -25,6 +25,7 @@ export interface ProfileRound {
 
 export interface ProfileData {
   username: string;
+  imageUrl: string | null;
   signedIn: boolean;
   roundsPlayed: number;
   bestToPar: number | null;
@@ -114,6 +115,7 @@ export async function getProfile(): Promise<ProfileData | null> {
 
   return {
     username: user.username,
+    imageUrl: user.imageUrl,
     signedIn: !!user.clerkId,
     roundsPlayed,
     bestToPar: bestRounds.length ? bestRounds[0].relativeToPar : null,
