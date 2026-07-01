@@ -169,7 +169,7 @@ function FeaturedTrophy({ t }: { t: TrophyState }) {
     <div className={`trophy earned t-${t.tier}`}>
       <div className="trophy-badge">{TIER_ICON[t.tier]}</div>
       <div className="trophy-name">{t.label}</div>
-      <div className="trophy-tier-label">{t.special ? "Special · Awarded" : TIER_META[t.tier].label}</div>
+      {!t.special && <div className="trophy-tier-label">{TIER_META[t.tier].label}</div>}
     </div>
   );
 }
