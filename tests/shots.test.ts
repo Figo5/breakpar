@@ -178,6 +178,39 @@ describe("par-5 layup birdie lean", () => {
   });
 });
 
+describe("PuttContext.puttFor — display label reflects what the putt is FOR", () => {
+  // Find a seed that lands on a putt-decision preview under a fixed policy, and
+  // return that preview's PuttContext.
+  const firstPuttPreview = (hole: HoleSpec, policy: (s: ChainResult) => Decision) => {
+    for (let base = 1; base <= 6000; base++) {
+      const opts = seeds(base);
+      const decisions: Decision[] = [];
+      let res = resolveHoleChain(decisions, hole, conditions, opts);
+      let guard = 0;
+      while (!res.complete && res.next !== "putt" && guard++ < 6) {
+        decisions.push(policy(res));
+        res = resolveHoleChain(decisions, hole, conditions, opts);
+      }
+      if (!res.complete && res.next === "putt") return res.putt!;
+    }
+    return null;
+  };
+  const approach = (d: Decision) => (s: ChainResult) => (s.next === "approach" ? d : "normal") as Decision;
+
+  it("par 3 putt is FOR birdie", () => {
+    expect(firstPuttPreview(par3, () => "normal")!.puttFor).toBe("birdie");
+  });
+  it("par 4 putt is FOR birdie", () => {
+    expect(firstPuttPreview(par4, () => "normal")!.puttFor).toBe("birdie");
+  });
+  it("par 5 laid-up (on in three) putt is FOR birdie", () => {
+    expect(firstPuttPreview(par5, approach("normal"))!.puttFor).toBe("birdie");
+  });
+  it("par 5 reached in two putt is FOR eagle (the reported bug)", () => {
+    expect(firstPuttPreview(par5, approach("aggressive"))!.puttFor).toBe("eagle");
+  });
+});
+
 describe("stagePrompt", () => {
   it("labels each stage distinctly", () => {
     expect(stagePrompt("tee", 4)).toMatch(/tee/i);

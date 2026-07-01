@@ -5,6 +5,9 @@ import {
   lieRiskRead,
   situationRead,
   difficultyBucket,
+  greenRead,
+  puttRead,
+  puttForLabel,
   AGGRESSIVE_BUDGET,
 } from "@/lib/holeRead";
 import type { CourseHole } from "@/data/courses";
@@ -14,6 +17,31 @@ const brutal: CourseHole = { number: 8, par: 4, yardage: 470, strokeIndex: 1, do
 
 const easyConds = { difficulty: 3, wind: 5 };
 const hardConds = { difficulty: 9, wind: 22 };
+
+describe("putt labels reflect what the putt is FOR (not the distance bucket)", () => {
+  it("puttForLabel maps outcome -> label per the eagle/birdie/par/bogey spec", () => {
+    expect(puttForLabel("eagle")).toBe("Eagle look");
+    expect(puttForLabel("birdie")).toBe("Birdie look");
+    expect(puttForLabel("par")).toBe("Par putt");
+    expect(puttForLabel("bogey")).toBe("Bogey putt");
+  });
+
+  it("greenRead('makeable') reads Eagle for an eagle putt, Birdie otherwise", () => {
+    expect(greenRead("makeable", "eagle").text).toBe("Eagle look");
+    expect(greenRead("makeable", "birdie").text).toBe("Birdie look");
+    // back-compat: no puttFor supplied -> old birdie default
+    expect(greenRead("makeable").text).toBe("Birdie look");
+  });
+
+  it("puttRead short cue names the putt by what it's FOR", () => {
+    const eagle = puttRead("short", 8, "L", "flat", "Medium", "eagle");
+    expect(eagle.cues[0].text).toMatch(/Eagle look/);
+    const birdie = puttRead("short", 8, "L", "flat", "Medium", "birdie");
+    expect(birdie.cues[0].text).toMatch(/Birdie look/);
+    // long putts stay neutral (no birdie/eagle claim) regardless of puttFor
+    expect(puttRead("long", 40, "L", "flat", "Medium", "eagle").cues[0].text).toMatch(/Long putt/);
+  });
+});
 
 describe("difficultyBucket", () => {
   it("rates an easy hole lower than a brutal one", () => {
