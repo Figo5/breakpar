@@ -70,6 +70,7 @@ export interface TrophyBoard {
   totalCount: number; // active (non-coming-soon) trophies
   tierTally: Record<TrophyTier, number>; // earned counts by tier
   states: TrophyState[];
+  featured: string[]; // the owner's pinned trophy ids (ordered), for the picker
 }
 
 export const CATEGORY_META: Record<TrophyCategory, { label: string; emoji: string }> = {
@@ -241,7 +242,8 @@ export function newlyUnlocked(before: TrophyState[], after: TrophyState[]): Trop
 export function buildTrophyBoard(
   stats: TrophyStats,
   signedIn: boolean,
-  awardDates?: Map<string, string | null>
+  awardDates?: Map<string, string | null>,
+  featured: string[] = []
 ): TrophyBoard {
   const states = evaluateTrophies(stats).map((s) =>
     s.earned && awardDates?.has(s.id) ? { ...s, unlockedAt: awardDates.get(s.id) ?? null } : s
@@ -255,5 +257,6 @@ export function buildTrophyBoard(
     totalCount: active.length,
     tierTally,
     states,
+    featured,
   };
 }

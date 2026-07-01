@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { relativeLabel } from "@/lib/scoring";
 import type { CourseRecord } from "@/lib/hallOfFame";
@@ -115,6 +116,12 @@ function RecordRow({ r }: { r: CourseRecord }) {
 }
 
 function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<string[]>(trophies?.featured ?? []);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(false);
+
   if (!trophies) {
     return (
       <div className="profile-empty">
@@ -124,6 +131,32 @@ function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
   }
 
   const byCat = (cat: TrophyCategory) => trophies.states.filter((s) => s.category === cat);
+
+  // Toggle a trophy in/out of the featured selection (max 5, preserve order).
+  const toggle = (id: string) =>
+    setSelected((cur) =>
+      cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 5 ? cur : [...cur, id]
+    );
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setErr(false);
+    try {
+      const res = await fetch("/api/profile/featured", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ trophyIds: selected }),
+      });
+      if (!res.ok) throw new Error("featured");
+      setEditing(false);
+      router.refresh();
+    } catch {
+      setErr(true);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <>
@@ -138,6 +171,23 @@ function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
           </span>
         )}
       </div>
+
+      {trophies.earnedCount > 0 && (
+        <div className="featured-edit">
+          {editing ? (
+            <>
+              <span className="fe-count">Pick up to 5 · {selected.length}/5 chosen</span>
+              <div className="fe-actions">
+                <button className="cta ghost fe-btn" onClick={() => { setSelected(trophies.featured); setEditing(false); setErr(false); }} disabled={saving}>Cancel</button>
+                <button className="cta fe-btn" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save featured"}</button>
+              </div>
+            </>
+          ) : (
+            <button className="cta ghost fe-btn" onClick={() => setEditing(true)}>⭐ Edit featured</button>
+          )}
+          {err && <div className="fb-err">Couldn&apos;t save. Try again.</div>}
+        </div>
+      )}
 
       {CATEGORY_ORDER.map((cat) => {
         const items = byCat(cat);
@@ -155,7 +205,13 @@ function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
             </div>
             <div className="trophy-grid">
               {sorted.map((t) => (
-                <TrophyTile key={t.id} t={t} />
+                <TrophyTile
+                  key={t.id}
+                  t={t}
+                  editing={editing}
+                  featuredRank={selected.indexOf(t.id)}
+                  onToggle={() => toggle(t.id)}
+                />
               ))}
             </div>
           </div>
@@ -165,16 +221,29 @@ function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
   );
 }
 
-function TrophyTile({ t }: { t: TrophyState }) {
-  const cls = t.comingSoon
-    ? "trophy soon"
-    : t.earned
-      ? `trophy earned t-${t.tier}`
-      : "trophy locked";
+function TrophyTile({
+  t,
+  editing = false,
+  featuredRank = -1,
+  onToggle,
+}: {
+  t: TrophyState;
+  editing?: boolean;
+  featuredRank?: number;
+  onToggle?: () => void;
+}) {
+  const selectable = editing && t.earned;
+  const isFeatured = featuredRank >= 0;
+  const cls =
+    (t.comingSoon ? "trophy soon" : t.earned ? `trophy earned t-${t.tier}` : "trophy locked") +
+    (selectable ? " selectable" : "") +
+    (isFeatured ? " featured-pick" : "");
 
-  return (
-    <div className={cls}>
-      <div className="trophy-badge">{t.earned ? TIER_ICON[t.tier] : t.comingSoon ? "🔒" : "🔒"}</div>
+  const inner = (
+    <>
+      <div className="trophy-badge">{t.earned ? TIER_ICON[t.tier] : "🔒"}</div>
+      {isFeatured && <span className="fe-rank">{featuredRank + 1}</span>}
+      {!editing && isFeatured && <span className="fe-star" title="Featured">⭐</span>}
       <div className="trophy-name">{t.label}</div>
       {t.comingSoon ? (
         <div className="trophy-crit">{t.criteria}</div>
@@ -198,7 +267,16 @@ function TrophyTile({ t }: { t: TrophyState }) {
           </div>
         </>
       )}
-    </div>
+    </>
+  );
+
+  // In edit mode, earned tiles become selectable buttons; otherwise a plain tile.
+  return selectable ? (
+    <button type="button" className={cls} aria-pressed={isFeatured} onClick={onToggle}>
+      {inner}
+    </button>
+  ) : (
+    <div className={cls}>{inner}</div>
   );
 }
 
