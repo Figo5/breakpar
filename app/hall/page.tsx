@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
-import { getHallOfFame, type CourseRecord } from "@/lib/hallOfFame";
-import { relativeLabel } from "@/lib/scoring";
+import { getHallOfFame } from "@/lib/hallOfFame";
+import { getTrophies } from "@/lib/trophies.server";
+import { HallTabs } from "./HallTabs";
 
 // Server component — the player's Hall of Fame: their best card on every course
-// (daily or unlimited), with unplayed courses shown as open slots to chase.
-// Read-only; works for guests (their records carry over on sign-up).
+// (daily or unlimited) + a derived trophy case, switched by a header toggle.
+// Read-only; works for guests (their records + trophies carry over on sign-up).
 export default async function Hall() {
-  const hof = await getHallOfFame();
+  const [hof, trophies] = await Promise.all([getHallOfFame(), getTrophies()]);
 
   return (
     <div className="screen">
@@ -32,7 +33,7 @@ export default async function Hall() {
         Hall of Fame
       </div>
       <div className="tagline">
-        Your best card on every course — daily or practice. Chase the open slots and beat your records.
+        Every course conquered, every trophy earned. This is your golf résumé.
       </div>
 
       {!hof || hof.coursesPlayed === 0 ? (
@@ -53,27 +54,14 @@ export default async function Hall() {
         </>
       ) : (
         <>
-          <div className="start-stats">
-            <div className="stat-card">
-              <div className="n">{hof.coursesPlayed}<span style={{ fontSize: 14, opacity: 0.6 }}>/{hof.coursesTotal}</span></div>
-              <div className="k">Courses conquered</div>
-            </div>
-            <div className="stat-card">
-              <div className="n">{hof.recordsUnderPar || "—"}</div>
-              <div className="k">Records under par</div>
-            </div>
-            <div className="stat-card">
-              <div className="n">{hof.bestOverall !== null ? relativeLabel(hof.bestOverall) : "—"}</div>
-              <div className="k">Best card</div>
-            </div>
-          </div>
-
-          <div className="section-title">Course Records</div>
-          <div className="lb">
-            {hof.records.map((r) => (
-              <RecordRow key={r.slug} r={r} />
-            ))}
-          </div>
+          <HallTabs
+            records={hof.records}
+            coursesPlayed={hof.coursesPlayed}
+            coursesTotal={hof.coursesTotal}
+            recordsUnderPar={hof.recordsUnderPar}
+            bestOverall={hof.bestOverall}
+            trophies={trophies}
+          />
 
           <div className="btn-stack">
             <Link href="/courses" className="cta ghost">Play unlimited · Browse courses</Link>
@@ -89,36 +77,5 @@ export default async function Hall() {
         </>
       )}
     </div>
-  );
-}
-
-function RecordRow({ r }: { r: CourseRecord }) {
-  // Conquered course → best card, links to that round's result.
-  if (r.played) {
-    const tag = r.mode === "daily" ? (r.puzzleNo ? `#${r.puzzleNo}` : "Daily") : "Practice";
-    const badge = r.relativeToPar! < 0 ? "🏆" : "";
-    return (
-      <Link href={`/result/${r.roundId}`} className="lb-row prow">
-        <span className="rank">{badge}</span>
-        <span className="nm">
-          {r.courseName}
-          <span className="prow-tag">{tag}</span>
-        </span>
-        <span className="tm">Par {r.par}</span>
-        <span className="sc">{relativeLabel(r.relativeToPar!)}</span>
-      </Link>
-    );
-  }
-  // Open slot → not played yet, links to start a practice round on it.
-  return (
-    <Link href={`/play?course=${r.slug}`} className="lb-row prow" style={{ opacity: 0.72 }}>
-      <span className="rank">＋</span>
-      <span className="nm">
-        {r.courseName}
-        <span className="prow-tag">Open</span>
-      </span>
-      <span className="tm">Par {r.par}</span>
-      <span className="sc" style={{ fontSize: 12, color: "var(--ink-soft)" }}>Play</span>
-    </Link>
   );
 }

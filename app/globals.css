@@ -232,5 +232,34 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .al-card .fb-email{margin-top:0;text-align:center}
 .al-card .cta{margin-top:12px}
 .al-card .fb-err{margin-top:10px}
+/* Hall of Fame — header toggle + trophy case */
+.hall-toggle{display:flex;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px;margin:16px 0 4px}
+.hall-tab{flex:1;border:none;cursor:pointer;background:transparent;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:12.5px;color:var(--ink-soft);padding:10px 8px;border-radius:9px;transition:background .12s,color .12s}
+.hall-tab.on{background:var(--fairway);color:var(--cream)}
+
+.trophy-summary{margin:16px 0 2px;font-family:'Oswald',sans-serif;font-size:14px;color:var(--ink-soft)}
+.trophy-summary strong{font-family:'Anton',sans-serif;font-size:20px;color:var(--fairway)}
+.trophy-tally{display:block;font-size:11px;letter-spacing:.04em;margin-top:2px}
+.trophy-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.trophy{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 13px;position:relative;overflow:hidden}
+.trophy-badge{font-size:22px;line-height:1}
+.trophy-name{font-family:'Oswald',sans-serif;font-weight:700;font-size:13.5px;margin-top:6px;line-height:1.15}
+.trophy-crit{font-size:11px;color:var(--ink-soft);margin-top:3px;line-height:1.35}
+.trophy-tier-label{font-family:'Oswald',sans-serif;font-weight:700;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-top:5px;color:var(--turf)}
+.trophy-bar{height:5px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0 4px}
+.trophy-bar>i{display:block;height:100%;background:var(--turf);border-radius:99px}
+.trophy-prog{font-family:'Oswald',sans-serif;font-weight:600;font-size:10.5px;color:var(--ink-soft)}
+/* locked = greyed goal; earned tiers escalate visual weight */
+.trophy.locked{opacity:.72}
+.trophy.soon{opacity:.6;border-style:dashed}
+.trophy.earned{border-width:1.5px}
+.trophy.earned.t-common{border-color:var(--line-strong)}
+.trophy.earned.t-rare{border-color:var(--turf);background:rgba(45,106,79,.06)}
+.trophy.earned.t-rare .trophy-tier-label{color:var(--turf)}
+.trophy.earned.t-elite{border-color:var(--gold);background:rgba(224,160,43,.09)}
+.trophy.earned.t-elite .trophy-tier-label{color:var(--gold)}
+.trophy.earned.t-legendary{border:none;background:linear-gradient(160deg,var(--fairway-2),var(--fairway));color:var(--cream)}
+.trophy.earned.t-legendary .trophy-tier-label{color:var(--sand)}
+
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
