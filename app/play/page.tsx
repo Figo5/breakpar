@@ -10,6 +10,7 @@ import {
   riskRead,
   lieRiskRead,
   puttRead,
+  puttForLabel,
   puttRiskRead,
   shortGameRiskRead,
   greenRead,
@@ -405,13 +406,16 @@ function positionBanner(
   }
   // Putt -> green banner + distance/break/speed cues.
   if (stage === "putt" && green && puttCtx) {
-    const gr = greenRead(green);
-    const pr = puttRead(puttCtx.bucket, puttCtx.distanceFt, puttCtx.breakDir, puttCtx.slope, greens);
+    const gr = greenRead(green, puttCtx.puttFor);
+    const pr = puttRead(puttCtx.bucket, puttCtx.distanceFt, puttCtx.breakDir, puttCtx.slope, greens, puttCtx.puttFor);
+    // Bold banner title: for a makeable putt, label by what it's FOR (eagle on a
+    // par-5 reached in two) instead of the static "Birdie look" in GREEN_META.
+    const puttTitle = green === "makeable" ? puttForLabel(puttCtx.puttFor) : GREEN_META[green].label;
     return (
       <>
         <div className={`lie-banner l-${GREEN_META[green].tone === "even" ? "even" : GREEN_META[green].tone === "good" ? "good" : "bad"}`}>
           <span className="le">{GREEN_META[green].emoji}</span>
-          <span className="lt"><b>{GREEN_META[green].label}</b><span>{gr.text}</span></span>
+          <span className="lt"><b>{puttTitle}</b><span>{gr.text}</span></span>
         </div>
         <div className="cues" style={{ marginTop: 10 }}>
           {pr.cues.map((c, i) => (

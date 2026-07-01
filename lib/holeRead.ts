@@ -9,7 +9,7 @@
 
 import { holeDifficulty, type HoleSpec } from "@/lib/engine/resolveHole";
 import type { Lie, BreakDir, Slope } from "@/lib/engine/shots";
-import type { Decision } from "@/lib/engine/probabilities";
+import type { Decision, Outcome } from "@/lib/engine/probabilities";
 import type { GreenResult, GreenSpeed, PuttBucket } from "@/lib/engine/putting";
 import type { CourseHole } from "@/data/courses";
 
@@ -115,6 +115,25 @@ export function lieRiskRead(lie: Lie, decision: Decision): { tone: Tone; text: s
 }
 
 /**
+ * Label for what a putt is FOR, from the outcome of holing it now (a one-putt).
+ * Single source of truth is the engine's composeOutcome (attached to PuttContext
+ * as `puttFor`), so this label can never drift from the actual score: eagle on a
+ * par-5 reached in two, birdie on a par 3/4 or laid-up par 5, etc.
+ */
+export function puttForLabel(puttFor: Outcome): string {
+  switch (puttFor) {
+    case "eagle":
+      return "Eagle look";
+    case "birdie":
+      return "Birdie look";
+    case "par":
+      return "Par putt";
+    default:
+      return "Bogey putt"; // bogey or worse; a makeable one-putt won't reach here
+  }
+}
+
+/**
  * Putt reads — qualitative cues for the green, never the exact make %. The
  * distance/break/speed are computed server-side from the shot seed (so they're
  * stable on replay) and passed in here; we just turn them into glanceable cues.
@@ -124,12 +143,13 @@ export function puttRead(
   distanceFt: number,
   breakDir: BreakDir,
   slope: Slope,
-  speed: GreenSpeed
+  speed: GreenSpeed,
+  puttFor: Outcome
 ): { cues: Cue[] } {
   const cues: Cue[] = [];
   cues.push(
     bucket === "short"
-      ? { icon: "🎯", text: `Birdie look · ~${distanceFt} ft` }
+      ? { icon: "🎯", text: `${puttForLabel(puttFor)} · ~${distanceFt} ft` }
       : { icon: "📏", text: `Long putt · ~${distanceFt} ft` }
   );
 
@@ -171,12 +191,14 @@ export function shortGameRiskRead(decision: Decision): { tone: Tone; text: strin
 }
 
 /** Headline for the green position (used in the putt/scramble banner). */
-export function greenRead(green: GreenResult): { tone: Tone; text: string } {
+export function greenRead(green: GreenResult, puttFor?: Outcome): { tone: Tone; text: string } {
   switch (green) {
     case "kickin":
       return { tone: "good", text: "Kick-in — gimme" };
     case "makeable":
-      return { tone: "good", text: "Birdie look" };
+      // Label from what the putt is actually FOR, not the distance bucket, so a
+      // par-5 reached in two reads "Eagle look" rather than "Birdie look".
+      return { tone: "good", text: puttFor ? puttForLabel(puttFor) : "Birdie look" };
     case "lag":
       // Don't promise a two-putt the green can't guarantee — frame the intent.
       return { tone: "warn", text: "Long putt — lag it close" };

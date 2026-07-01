@@ -187,6 +187,11 @@ export interface PuttContext {
   breakDir: BreakDir;
   slope: Slope;
   speed: GreenSpeed;
+  // Display-only: what this putt is FOR if holed now (eagle on a par-5 reached
+  // in two, birdie on a par 3/4 or laid-up par 5, etc). Derived from the same
+  // composeOutcome the scorer uses, so the label can't drift from the score.
+  // Not read by scoring/pick()/calibration.
+  puttFor: Outcome;
 }
 
 export interface ChainResult {
@@ -335,7 +340,11 @@ export function resolveHoleChain(
   if (decisions.length <= fIdx)
     return {
       complete: false, used: fIdx, shots, next: "putt", lie, green,
-      putt: { bucket, distanceFt, breakDir, slope, speed: greens },
+      putt: {
+        bucket, distanceFt, breakDir, slope, speed: greens,
+        // Display label source: outcome of holing this putt now (a one-putt).
+        puttFor: composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" }),
+      },
       ballT: ballProgress("putt", green, drive, holeYards),
     };
 
