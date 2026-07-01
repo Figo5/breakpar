@@ -244,10 +244,17 @@ function PlayInner() {
         if (!res.ok) throw new Error("finish");
         // round_finished: server-authoritative score; toPar/brokePar from the
         // running relative-to-par (final after hole 18). Suppress abandoned.
-        const fin = await res.json().catch(() => ({} as { score?: number }));
+        const fin = await res.json().catch(() => ({} as { score?: number; newTrophies?: unknown[] }));
         finishedRef.current = true;
         if (metaRef.current)
           track.roundFinished(metaRef.current, fin.score ?? course!.par + rel, rel, rel < 0);
+        // Hand any newly-unlocked trophies to the result screen for a one-time
+        // celebration (keyed by round so shares/re-visits never re-fire).
+        if (Array.isArray(fin.newTrophies) && fin.newTrophies.length) {
+          try {
+            sessionStorage.setItem(`bp_new_trophies_${roundId}`, JSON.stringify(fin.newTrophies));
+          } catch {}
+        }
         router.push(`/result/${roundId}`);
       } catch {
         setError("Couldn't post your card. Tap to retry.");

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { nextStreak, type StreakState } from "@/lib/scoring";
+import { awardTrophiesOnFinish } from "@/lib/trophies.server";
 import { route } from "@/lib/api";
 
 // POST: finalize the round and roll up streak + best-score stats.
@@ -45,20 +46,29 @@ export const POST = route(async (
     const current = (await prisma.streak.findUnique({
       where: { userId: user.id },
     })) as (StreakState & { lastPlayedKey: string | null }) | null;
-    return NextResponse.json({ score: round.score, streak: current, replayed: true });
+    return NextResponse.json({ score: round.score, streak: current, replayed: true, newTrophies: [] });
   }
 
-  // Unlimited (practice) rounds don't count toward streaks or the daily ladder.
-  if (round.mode !== "daily" || !round.dateKey)
-    return NextResponse.json({ score: round.score, streak: null });
+  // Prior streak — needed for the daily roll-up AND as the trophy maxStreak
+  // "before" value (the day-ladder trophies read it).
+  const prev = (await prisma.streak.findUnique({ where: { userId: user.id } })) as
+    | (StreakState & { lastPlayedKey: string | null })
+    | null;
+
+  // Unlimited (practice) rounds don't count toward streaks or the daily ladder,
+  // but they DO count toward trophies (rounds played, birdies, conquer, …).
+  if (round.mode !== "daily" || !round.dateKey) {
+    const maxStreak = prev?.maxStreak ?? 0;
+    const newTrophies = await awardTrophiesOnFinish({
+      userId: user.id, roundId, beforeMaxStreak: maxStreak, afterMaxStreak: maxStreak,
+    });
+    return NextResponse.json({ score: round.score, streak: null, newTrophies });
+  }
 
   // We own the finalize transition — safe to roll up the streak exactly once.
   // Anchor streak days to the round's own puzzle day (round.dateKey), matching
   // the one-round-per-day model, so finishing just after midnight still counts
   // for the day the puzzle belongs to rather than wall-clock "today".
-  const prev = (await prisma.streak.findUnique({ where: { userId: user.id } })) as
-    | (StreakState & { lastPlayedKey: string | null })
-    | null;
   // relativeToPar is course-agnostic, so streak stats compare fairly day to day.
   // nextStreak owns the one-day-freeze continuity rule (DST-safe, see lib/scoring).
   const next = nextStreak(prev, round.dateKey, round.relativeToPar);
@@ -73,5 +83,11 @@ export const POST = route(async (
     create: { userId: user.id, ...next, underParTotal, lastPlayedKey: round.dateKey },
   });
 
-  return NextResponse.json({ score: round.score, streak: next });
+  // Award trophies AFTER the streak roll-up so the day-ladder trophies see this
+  // round's new maxStreak. Only genuine new unlocks come back (see helper).
+  const newTrophies = await awardTrophiesOnFinish({
+    userId: user.id, roundId, beforeMaxStreak: prev?.maxStreak ?? 0, afterMaxStreak: next.maxStreak,
+  });
+
+  return NextResponse.json({ score: round.score, streak: next, newTrophies });
 });

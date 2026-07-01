@@ -24,8 +24,9 @@ model User {
   xHandle   String?           // X/Twitter handle ONLY (no @, no URL); optional
   createdAt DateTime @default(now())
 
-  rounds  Round[]
-  streak  Streak?
+  rounds       Round[]
+  streak       Streak?
+  trophyAwards TrophyAward[]
 }
 
 model Course {
@@ -105,6 +106,24 @@ model Feedback {
 
   @@index([kind, createdAt])
   @@index([resolved, createdAt])
+}
+
+// A trophy awarded to a user, recorded once (idempotent via the unique). B1
+// derives the trophy set live; this table only persists WHEN each was first
+// unlocked, so the result screen can celebrate genuinely-new unlocks.
+// unlockedAt is NULLABLE on purpose: rows backfilled for trophies earned BEFORE
+// B2 shipped have no real date (null), while trophies unlocked by an actual
+// round get a real timestamp. So the UI shows a date only when it's truthful.
+model TrophyAward {
+  id         String    @id @default(cuid())
+  userId     String
+  trophyId   String    // matches the lib/trophies catalogue id (e.g. "first-eagle")
+  unlockedAt DateTime? // real time for a genuine unlock; null = backfilled (unknown)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trophyId]) // a trophy is awarded once, ever
+  @@index([userId])
 }
 
 model Streak {

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateTrophies,
   summarizeRounds,
+  newlyUnlocked,
   TROPHIES,
   type TrophyStats,
   type RoundLite,
@@ -149,6 +150,39 @@ describe("trophies — summarizeRounds reducer", () => {
     expect(s.bestUnderPar).toBe(3);
     expect(s.brokePar).toBe(true);
     expect(s.maxStreak).toBe(42);
+  });
+});
+
+describe("trophies — newlyUnlocked (before/after diff, the anti-spam core)", () => {
+  const evalWith = (s: Partial<TrophyStats>) => evaluateTrophies({ ...ZERO, ...s });
+
+  it("returns only trophies earned in after but not before", () => {
+    const before = evalWith({ roundsPlayed: 9 });
+    const after = evalWith({ roundsPlayed: 10 }); // crosses the 10-rounds line
+    const fresh = newlyUnlocked(before, after).map((t) => t.id);
+    expect(fresh).toContain("rounds-10");
+    expect(fresh).not.toContain("broke-par");
+  });
+
+  it("is empty when nothing changed (replayed finish)", () => {
+    const states = evalWith({ roundsPlayed: 10, brokePar: true, bestUnderPar: 2 });
+    expect(newlyUnlocked(states, states)).toEqual([]);
+  });
+
+  it("does NOT re-fire an existing player's history (before already had them)", () => {
+    // Existing player: before this round they already had broke-par + first-birdie.
+    const before = evalWith({ brokePar: true, bestUnderPar: 3, hasBirdie: true, roundsPlayed: 40 });
+    // This round adds a 41st round but unlocks nothing new.
+    const after = evalWith({ brokePar: true, bestUnderPar: 3, hasBirdie: true, roundsPlayed: 41 });
+    expect(newlyUnlocked(before, after)).toEqual([]);
+  });
+
+  it("celebrates a brand-new player's first trophy (before empty)", () => {
+    const before = evaluateTrophies(ZERO); // no rounds yet
+    const after = evalWith({ hasBirdie: true, brokePar: true, bestUnderPar: 1, roundsPlayed: 1 });
+    const fresh = newlyUnlocked(before, after).map((t) => t.id);
+    expect(fresh).toContain("first-birdie");
+    expect(fresh).toContain("broke-par");
   });
 });
 

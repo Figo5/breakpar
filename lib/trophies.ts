@@ -61,6 +61,7 @@ export interface TrophyState {
   current: number;
   target: number;
   progressPct: number; // 0..100
+  unlockedAt?: string | null; // ISO when known (genuine unlock); null/undefined = date unknown
 }
 
 export interface TrophyBoard {
@@ -224,9 +225,27 @@ export function summarizeRounds(rows: RoundLite[], coursesTotal: number, maxStre
   };
 }
 
-/** Pure: build the TrophyBoard from derived stats + auth flag. */
-export function buildTrophyBoard(stats: TrophyStats, signedIn: boolean): TrophyBoard {
-  const states = evaluateTrophies(stats);
+/**
+ * Pure: newly-unlocked trophies = earned in `after` but not in `before`. Drives
+ * the result-screen celebration; empty when nothing changed (e.g. a replayed
+ * finish, or an existing player whose history already had them all).
+ */
+export function newlyUnlocked(before: TrophyState[], after: TrophyState[]): TrophyState[] {
+  const had = new Set(before.filter((s) => s.earned).map((s) => s.id));
+  return after.filter((s) => s.earned && !had.has(s.id));
+}
+
+/** Pure: build the TrophyBoard from derived stats + auth flag. `awardDates` maps
+ * trophyId -> ISO unlock time (or null when backfilled/unknown); dates show only
+ * when truthful. */
+export function buildTrophyBoard(
+  stats: TrophyStats,
+  signedIn: boolean,
+  awardDates?: Map<string, string | null>
+): TrophyBoard {
+  const states = evaluateTrophies(stats).map((s) =>
+    s.earned && awardDates?.has(s.id) ? { ...s, unlockedAt: awardDates.get(s.id) ?? null } : s
+  );
   const active = states.filter((s) => !s.comingSoon);
   const tierTally: Record<TrophyTier, number> = { common: 0, rare: 0, elite: 0, legendary: 0 };
   for (const s of states) if (s.earned) tierTally[s.tier]++;
