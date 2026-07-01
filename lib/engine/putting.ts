@@ -247,9 +247,17 @@ export const SHORT_DECISION_LABEL: Record<Decision, string> = {
 /**
  * Neutral short-game odds by decision. Punch is the bogey-protector; Flop
  * chases the save but blows up more often.
+ *
+ * Punch (safe) is deliberately the LOW-VARIANCE choice, and a genuinely rewarded
+ * one — same "safe play should be rewarded" principle we applied to putting (Lag)
+ * and approaches. Its blow-up/disaster share is the smallest by a wide margin
+ * (8% double+ vs 17% Chip / 22% Flop) and its up-and-down is nudged up (28->33)
+ * so conservative recovery protects a good round instead of being a thin hedge.
+ * Flop still makes the most par-saves (48%), so it stays the play when you need
+ * to make up ground — the choice is protect-the-card vs chase-the-save.
  */
 const SCRAMBLE_BASE: Record<Decision, Partial<Record<ScrambleResult, number>>> = {
-  safe: { updown: 28, twochip: 58, blowup: 11, disaster: 3 },
+  safe: { updown: 33, twochip: 59, blowup: 7, disaster: 1 },
   normal: { updown: 38, twochip: 45, blowup: 14, disaster: 3 },
   aggressive: { updown: 48, twochip: 30, blowup: 17, disaster: 5 },
 };

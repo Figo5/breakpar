@@ -162,9 +162,12 @@ export function puttRiskRead(
 
 /** Risk read for a SHORT-GAME decision (Punch / Chip / Flop) from off the green. */
 export function shortGameRiskRead(decision: Decision): { tone: Tone; text: string } {
-  if (decision === "safe") return { tone: "good", text: "Safe — limit the damage" };
+  // Make the trade explicit: Punch usually takes bogey but almost never blows up;
+  // Flop chases par at the cost of big numbers. So the safe choice is a knowing
+  // card-protection call, not a promise of a save.
+  if (decision === "safe") return { tone: "good", text: "Punch — take bogey, kill the blow-up" };
   if (decision === "normal") return { tone: "good", text: "Get it close" };
-  return { tone: "warn", text: "Go for the save" };
+  return { tone: "warn", text: "Go for the save — blow-up risk" };
 }
 
 /** Headline for the green position (used in the putt/scramble banner). */
@@ -178,7 +181,9 @@ export function greenRead(green: GreenResult): { tone: Tone; text: string } {
       // Don't promise a two-putt the green can't guarantee — frame the intent.
       return { tone: "warn", text: "Long putt — lag it close" };
     case "scramble":
-      return { tone: "bad", text: "Missed green — get up & down" };
+      // Set expectation going in: a greenside miss is bogey-heavy (up-and-down is
+      // the SAVE, not the default), so a routine bogey doesn't read as unfair.
+      return { tone: "bad", text: "Missed green — bogey likely, up & down to save" };
   }
 }
 

@@ -38,7 +38,7 @@ const PUTT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
   { id: "aggressive", label: "Charge", blurb: "Ram it in — three-jack risk" },
 ];
 const SHORT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Punch", blurb: "Safe out, limit the damage" },
+  { id: "safe", label: "Punch", blurb: "Take bogey, kill the blow-up" },
   { id: "normal", label: "Chip", blurb: "Standard chip at it" },
   { id: "aggressive", label: "Flop", blurb: "High flop, go for the save" },
 ];

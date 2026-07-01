@@ -84,6 +84,17 @@ const SCRAMBLE_NOTES: Record<ScrambleResult, string[]> = {
   disaster: ["Total mess from there 🌋", "Chip-chip-putt disaster", "It all unravelled — big number"],
 };
 
+// A SAFE punch that still blows up is the rare (~8%) variance tail, not a chunk
+// you caused — these read as bad luck so the "kill the blow-up" framing on the
+// safe choice doesn't feel like a lie when it occasionally drops two. Mirrors
+// LAG_THREEPUTT_NOTES. Only used when the player chose safe (Punch).
+const SAFE_SCRAMBLE_UNLUCKY = [
+  "Played the safe punch and still caught a flyer — double 😵",
+  "Bump-and-run took a wicked bounce, double from nowhere",
+  "Did the smart thing; a brutal lie beat you — double",
+  "Safe play, cruel kick off the slope — dropped two",
+];
+
 function fmt(s: string, ft?: number): string {
   return ft == null ? s.replace(" from {ft} feet", "").replace("{ft}-footer", "long-range putt").replace("{ft}", "distance") : s.replaceAll("{ft}", String(ft));
 }
@@ -114,7 +125,10 @@ export function puttNote(
   return fmt(pick(pool, rng), ft);
 }
 
-export function scrambleNote(result: ScrambleResult, rng: () => number): string {
+export function scrambleNote(result: ScrambleResult, rng: () => number, decision?: Decision): string {
+  // Bad-luck framing when a SAFE punch blows up: variance, not a bad call.
+  if (decision === "safe" && (result === "blowup" || result === "disaster"))
+    return pick(SAFE_SCRAMBLE_UNLUCKY, rng);
   return pick(SCRAMBLE_NOTES[result], rng);
 }
 
