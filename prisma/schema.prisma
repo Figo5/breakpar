@@ -24,6 +24,16 @@ model User {
   xHandle   String?           // X/Twitter handle ONLY (no @, no URL); optional
   createdAt DateTime @default(now())
 
+  // Public profile (accounts only; guests never get one). Default PUBLIC with an
+  // opt-out. featuredTrophies is an ordered list of up to 5 catalogue trophy ids
+  // the owner pins to their public profile (validated earned on write).
+  profilePublic    Boolean  @default(true)
+  featuredTrophies String[] @default([])
+  // NOTE: a PARTIAL UNIQUE INDEX on (username) WHERE clerkId IS NOT NULL is added
+  // via raw SQL in the migration — it guarantees account usernames resolve
+  // uniquely for /u/[username] while guests keep sharing display names. Prisma
+  // can't express a filtered unique in-schema, so it lives in migration SQL.
+
   rounds       Round[]
   streak       Streak?
   trophyAwards TrophyAward[]
