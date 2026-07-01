@@ -232,6 +232,15 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .al-card .fb-email{margin-top:0;text-align:center}
 .al-card .cta{margin-top:12px}
 .al-card .fb-err{margin-top:10px}
+/* Result screen — "you just earned it" trophy celebration */
+.trophy-toast{position:relative;margin:14px 0 2px;background:linear-gradient(160deg,var(--fairway-2),var(--fairway));color:var(--cream);border-radius:16px;padding:15px 16px 16px;overflow:hidden}
+.tt-head{font-family:'Anton',sans-serif;font-size:19px;letter-spacing:.01em}
+.tt-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.tt-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(247,243,232,.14);border:1px solid rgba(247,243,232,.28);border-radius:999px;padding:6px 11px;font-family:'Oswald',sans-serif;font-weight:700;font-size:12.5px}
+.tt-badge em{font-style:normal;font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
+.tt-badge.t-elite{border-color:var(--gold)} .tt-badge.t-legendary{border-color:var(--sand);background:rgba(231,210,154,.2)}
+.trophy-toast .convert-cta{margin-top:12px}
+
 /* Hall of Fame — header toggle + trophy case */
 .hall-toggle{display:flex;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px;margin:16px 0 4px}
 .hall-tab{flex:1;border:none;cursor:pointer;background:transparent;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:12.5px;color:var(--ink-soft);padding:10px 8px;border-radius:9px;transition:background .12s,color .12s}
@@ -246,6 +255,8 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .trophy-name{font-family:'Oswald',sans-serif;font-weight:700;font-size:13.5px;margin-top:6px;line-height:1.15}
 .trophy-crit{font-size:11px;color:var(--ink-soft);margin-top:3px;line-height:1.35}
 .trophy-tier-label{font-family:'Oswald',sans-serif;font-weight:700;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-top:5px;color:var(--turf)}
+.trophy-date{font-size:10px;color:var(--ink-soft);margin-top:2px;font-family:'Oswald',sans-serif}
+.trophy.earned.t-legendary .trophy-date{color:var(--sand)}
 .trophy-bar{height:5px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0 4px}
 .trophy-bar>i{display:block;height:100%;background:var(--turf);border-radius:99px}
 .trophy-prog{font-family:'Oswald',sans-serif;font-weight:600;font-size:10.5px;color:var(--ink-soft)}

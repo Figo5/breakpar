@@ -21,6 +21,7 @@ import { type RoundMeta } from "@/lib/analytics";
 import { ShareButton } from "./ShareButton";
 import { ResultTracker } from "./ResultTracker";
 import { ConvertPrompt } from "./ConvertPrompt";
+import { TrophyToast } from "./TrophyToast";
 
 // Per-round share metadata. The link-preview IMAGE is wired automatically by
 // the opengraph-image.tsx file in this segment; here we just give it a title +
@@ -134,6 +135,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
   return (
     <div className="screen">
       <ResultTracker meta={analyticsMeta} ownRound={ownRound} userId={viewer?.id ?? null} />
+      {ownRound && <TrophyToast roundId={round.id} signedIn={!!viewer?.clerkId} />}
       <div className="final-course">
         {isDaily ? `Break Par · No. ${puzzleNo} · ` : "Practice · "}{course.name}
       </div>
