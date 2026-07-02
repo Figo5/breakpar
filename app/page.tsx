@@ -23,6 +23,10 @@ export default async function Home() {
         <div className="eyebrow">Daily Challenge · No. {puzzleNumber()}</div>
         <div className="acct">
           <Link href="/profile" className="acct-link">Profile</Link>
+          {/* Account-only nav, gated on server-known status (clerkId) so it renders
+              in SSR immediately for accounts and never for guests — no dependency
+              on Clerk client hydration (which had hidden it inside <SignedIn>). */}
+          {me.isAccount && <Link href="/friends" className="acct-link">Friends</Link>}
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
           </SignedIn>

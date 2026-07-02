@@ -38,6 +38,29 @@ model User {
   rounds       Round[]
   streak       Streak?
   trophyAwards TrophyAward[]
+
+  // Social graph (accounts only; gated in the app layer). Follows are directed;
+  // a "friend" is a MUTUAL follow (both directions exist). Request/accept can be
+  // layered later as an additive status column without reworking these.
+  following Follow[] @relation("following") // edges where this user is the follower
+  followers Follow[] @relation("followers") // edges where this user is the followee
+}
+
+// A directed follow edge. Both endpoints must be accounts (enforced in
+// lib/friends + routes; guests have no social graph). "Friends" = a pair of
+// edges in both directions. Unique prevents double-follows; self-follows are
+// rejected in code.
+model Follow {
+  id         String   @id @default(cuid())
+  followerId String // who follows
+  followeeId String // who is followed
+  createdAt  DateTime @default(now())
+
+  follower User @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  followee User @relation("followers", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followeeId])
+  @@index([followeeId])
 }
 
 model Course {

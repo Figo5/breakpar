@@ -91,6 +91,7 @@ export default async function Profile() {
 
           <div className="btn-stack">
             <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
+            {me.signedIn && <Link href="/friends" className="cta ghost">Friends 👥</Link>}
             {me.signedIn && <Link href={`/u/${me.username}`} className="cta ghost">View public profile ↗</Link>}
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
