@@ -30,6 +30,13 @@ export function deriveMutuals(followingIds: string[], followerIds: string[]): Se
   return new Set(followingIds.filter((id) => followers.has(id)));
 }
 
+/** Followers you DON'T follow back = followerIds − followingIds. These are the
+ * "Follow back" candidates; following one makes you mutual (a friend). Pure. */
+export function nonMutualFollowerIds(followingIds: string[], followerIds: string[]): string[] {
+  const iFollow = new Set(followingIds);
+  return followerIds.filter((id) => !iFollow.has(id));
+}
+
 /** Normalise a search query: trim, drop a leading @, collapse to a bounded
  * token. Empty/whitespace -> null (caller returns no results without a query).
  * Pure. */
@@ -39,7 +46,8 @@ export function normalizeQuery(raw: unknown): string | null {
   return q.length ? q : null;
 }
 
-export type FriendState = "friend" | "following"; // mutual vs one-way (you -> them)
+// mutual (both follow) · following (you -> them only) · follower (them -> you only)
+export type FriendState = "friend" | "following" | "follower";
 
 export interface FriendResult {
   score: string | null; // null when hidden or not played
@@ -142,6 +150,48 @@ export async function searchAccounts(meId: string, q: string): Promise<SearchHit
  * (one-way), with their today's daily result (privacy-applied). Friends sorted
  * first, then by username.
  */
+/**
+ * Hydrate a set of account ids into FriendEntry rows: today's daily result
+ * (privacy-applied) + the caller-supplied relationship state. Shared by the
+ * friends + followers lists so the row shape/privacy stays in one place.
+ */
+async function hydrateEntries(
+  userIds: string[],
+  stateOf: (id: string) => FriendState,
+  label: (rel: number) => string
+): Promise<FriendEntry[]> {
+  if (userIds.length === 0) return [];
+  const key = dateKey();
+  const puzzleNo = puzzleNumber();
+  const todayCourseSlug = dailyCourse().slug;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true, username: true, imageUrl: true, profilePublic: true,
+      rounds: {
+        where: { dateKey: key, mode: "daily", completed: true, course: { slug: todayCourseSlug } },
+        select: { relativeToPar: true },
+        take: 1,
+      },
+    },
+  });
+
+  return users
+    .map((u): FriendEntry => ({
+      username: u.username,
+      imageUrl: u.imageUrl,
+      isPublic: u.profilePublic,
+      state: stateOf(u.id),
+      today: applyFriendPrivacy(u.profilePublic, u.rounds[0]?.relativeToPar ?? null, puzzleNo, label),
+    }))
+    .sort((a, b) => a.username.localeCompare(b.username));
+}
+
+/**
+ * The friends view: everyone you follow, marked friend (mutual) vs following
+ * (one-way). Friends sorted first, then by username.
+ */
 export async function listFriends(
   meId: string,
   label: (rel: number) => string
@@ -154,38 +204,26 @@ export async function listFriends(
   if (followeeIds.length === 0) return [];
   const mutuals = deriveMutuals(followeeIds, followers.map((f) => f.followerId));
 
-  const key = dateKey();
-  const puzzleNo = puzzleNumber();
-  const todayCourseSlug = dailyCourse().slug;
+  const entries = await hydrateEntries(followeeIds, (id) => (mutuals.has(id) ? "friend" : "following"), label);
+  // Friends (mutual) first, then following; each already username-sorted.
+  return entries.sort((a, b) => (a.state === "friend" ? 0 : 1) - (b.state === "friend" ? 0 : 1));
+}
 
-  const users = await prisma.user.findMany({
-    where: { id: { in: followeeIds } },
-    select: {
-      id: true, username: true, imageUrl: true, profilePublic: true,
-      rounds: {
-        where: { dateKey: key, mode: "daily", completed: true, course: { slug: todayCourseSlug } },
-        select: { relativeToPar: true },
-        take: 1,
-      },
-    },
-  });
-
-  return users
-    .map((u): FriendEntry => {
-      const rel = u.rounds[0]?.relativeToPar ?? null;
-      return {
-        username: u.username,
-        imageUrl: u.imageUrl,
-        isPublic: u.profilePublic,
-        state: mutuals.has(u.id) ? "friend" : "following",
-        today: applyFriendPrivacy(u.profilePublic, rel, puzzleNo, label),
-      };
-    })
-    .sort(
-      (a, b) =>
-        (a.state === "friend" ? 0 : 1) - (b.state === "friend" ? 0 : 1) ||
-        a.username.localeCompare(b.username)
-    );
+/**
+ * Your NON-MUTUAL followers: accounts that follow you but you don't follow back.
+ * These are the ones to "Follow back" to become friends. Mutual followers are
+ * already surfaced as friends by listFriends, so they're excluded here (no dupes).
+ */
+export async function listFollowers(
+  meId: string,
+  label: (rel: number) => string
+): Promise<FriendEntry[]> {
+  const [following, followers] = await Promise.all([
+    prisma.follow.findMany({ where: { followerId: meId }, select: { followeeId: true } }),
+    prisma.follow.findMany({ where: { followeeId: meId }, select: { followerId: true } }),
+  ]);
+  const nonMutual = nonMutualFollowerIds(following.map((f) => f.followeeId), followers.map((f) => f.followerId));
+  return hydrateEntries(nonMutual, () => "follower", label);
 }
 
 /** Count of accounts who follow you (mutual or not). Cheap headline for the

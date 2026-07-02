@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveMutuals, normalizeQuery, applyFriendPrivacy } from "@/lib/friends";
+import { deriveMutuals, nonMutualFollowerIds, normalizeQuery, applyFriendPrivacy } from "@/lib/friends";
 
 const label = (rel: number) => (rel === 0 ? "E" : rel > 0 ? `+${rel}` : `${rel}`);
 
@@ -13,6 +13,27 @@ describe("deriveMutuals — a friend is a mutual follow", () => {
   });
   it("empty when you follow no one", () => {
     expect([...deriveMutuals([], ["a"])]).toEqual([]);
+  });
+});
+
+describe("nonMutualFollowerIds — followers you don't follow back (Follow-back list)", () => {
+  it("returns followers minus the people you already follow", () => {
+    // you follow [a,b]; followers are [b,c,d] -> c,d follow you but you don't
+    // follow back (b is mutual -> excluded, it's a friend).
+    expect(nonMutualFollowerIds(["a", "b"], ["b", "c", "d"]).sort()).toEqual(["c", "d"]);
+  });
+  it("empty when every follower is already mutual (all in Friends)", () => {
+    expect(nonMutualFollowerIds(["a", "b"], ["a", "b"])).toEqual([]);
+  });
+  it("empty when you have no followers", () => {
+    expect(nonMutualFollowerIds(["a"], [])).toEqual([]);
+  });
+  it("is disjoint from mutuals (no duplication across Friends/Followers sections)", () => {
+    const following = ["a", "b"];
+    const followers = ["b", "c"];
+    const mutual = deriveMutuals(following, followers); // {b}
+    const backable = nonMutualFollowerIds(following, followers); // [c]
+    expect(backable.some((id) => mutual.has(id))).toBe(false);
   });
 });
 
