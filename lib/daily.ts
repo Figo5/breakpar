@@ -70,6 +70,29 @@ export function nextRollover(now = new Date()): Date {
   return new Date(wallAsUTC - easternOffsetMs(new Date(wallAsUTC)));
 }
 
+/** Midnight America/New_York on `civil`, as a real UTC instant — DST-safe.
+ * Same wall-clock->UTC correction as nextRollover, factored for reuse. Accepts
+ * out-of-range day-of-month (e.g. d + 7); Date.UTC normalizes it. */
+function easternMidnight({ y, m, d }: CivilDate): Date {
+  const wallAsUTC = Date.UTC(y, m - 1, d);
+  return new Date(wallAsUTC - easternOffsetMs(new Date(wallAsUTC)));
+}
+
+/**
+ * The first Monday 00:00 America/New_York strictly after `now`, as a real UTC
+ * instant. DST-safe (reuses easternOffsetMs, the same machinery as
+ * nextRollover) and lands exactly on the Eastern-midnight daily boundary, so a
+ * countdown to it is consistent with the daily course rollover. If `now` is
+ * already a Monday, it points at the NEXT Monday (a full week out) rather than
+ * today's already-past midnight. Used by the Tournaments teaser countdown.
+ */
+export function nextMonday(now = new Date()): Date {
+  const { y, m, d } = easternCivilDate(now);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat, civil
+  const delta = ((1 - dow + 7) % 7) || 7; // days until the next Monday (never 0)
+  return easternMidnight({ y, m, d: d + delta });
+}
+
 const keyOf = ({ y, m, d }: CivilDate): string => `${y}-${pad(m)}-${pad(d)}`;
 
 /** Parse a "YYYY-MM-DD" dateKey into its civil-date parts. */

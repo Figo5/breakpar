@@ -5,6 +5,7 @@ import { coursePar } from "@/data/courses";
 import { relativeLabel } from "@/lib/scoring";
 import { getHomeState } from "@/lib/streak";
 import { NextCourseTimer } from "./NextCourseTimer";
+import { TournamentTeaser } from "./TournamentTeaser";
 
 // Server component — the start screen. Shows today's course plus the signed-in
 // player's streak/best once they've played.
@@ -103,6 +104,8 @@ export default async function Home() {
           <Link href="/courses" className="cta ghost" style={{ marginTop: 10 }}>Play unlimited · Browse courses</Link>
         </>
       )}
+
+      <TournamentTeaser isAccount={me.isAccount} />
 
       <div className="footnote">
         New course every day at midnight Eastern (ET). Course names are trademarks of their
