@@ -111,10 +111,6 @@ function Topbar() {
 }
 
 function FriendRow({ f }: { f: FriendEntry }) {
-  // A real to-par score renders emphasised; "Private"/"Not played" are muted so
-  // they read as state, not a result — and never crowd the name (own track).
-  const scored = !f.today.private && f.today.played;
-  const result = f.today.private ? "Private" : f.today.played ? f.today.score : "Not played";
   // A follower is someone you DON'T follow back yet -> the action is Follow back
   // (a follow), which makes you mutual and moves them to Friends on refresh.
   // Friends/Following are people you already follow -> the action is Unfollow.
@@ -131,7 +127,6 @@ function FriendRow({ f }: { f: FriendEntry }) {
           <span className="prow-tag">{tag}</span>
         </span>
       </span>
-      <span className={`sc${scored ? "" : " muted"}`}>{result}</span>
       <span className="frow-actions">
         <Link href={`/challenges?to=${encodeURIComponent(f.username)}`} className="cta ghost fs-btn">Challenge</Link>
         {isFollower ? (
