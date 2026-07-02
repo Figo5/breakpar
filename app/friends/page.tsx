@@ -73,6 +73,7 @@ export default async function FriendsPage() {
       )}
 
       <div className="btn-stack">
+        <Link href="/challenges" className="cta ghost">Challenges ⚔️</Link>
         <Link href="/leaderboard" className="cta ghost">Today&apos;s leaderboard 🏆</Link>
         <Link href="/" className="cta ghost">Back to today</Link>
       </div>
@@ -114,7 +115,10 @@ function FriendRow({ f }: { f: FriendEntry }) {
         </span>
       </span>
       <span className={`sc${scored ? "" : " muted"}`}>{result}</span>
-      <FollowButton username={f.username} following label="Unfollow" />
+      <span className="frow-actions">
+        <Link href={`/challenges?to=${encodeURIComponent(f.username)}`} className="cta ghost fs-btn">Challenge</Link>
+        <FollowButton username={f.username} following label="Unfollow" />
+      </span>
     </div>
   );
 }

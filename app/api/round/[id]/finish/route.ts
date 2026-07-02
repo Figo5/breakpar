@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { nextStreak, type StreakState } from "@/lib/scoring";
 import { awardTrophiesOnFinish } from "@/lib/trophies.server";
+import { settleChallengeOnFinish } from "@/lib/challenge";
 import { route } from "@/lib/api";
 
 // POST: finalize the round and roll up streak + best-score stats.
@@ -54,6 +55,14 @@ export const POST = route(async (
   const prev = (await prisma.streak.findUnique({ where: { userId: user.id } })) as
     | (StreakState & { lastPlayedKey: string | null })
     | null;
+
+  // Challenge rounds are a separate head-to-head mode: NO streak, NO leaderboard,
+  // and NO trophies/HoF (a chosen seed must not farm records). Just settle the
+  // challenge (flips to "complete" once both sides finish) and return.
+  if (round.mode === "challenge") {
+    await settleChallengeOnFinish(roundId);
+    return NextResponse.json({ score: round.score, streak: null, newTrophies: [] });
+  }
 
   // Unlimited (practice) rounds don't count toward streaks or the daily ladder,
   // but they DO count toward trophies (rounds played, birdies, conquer, …).

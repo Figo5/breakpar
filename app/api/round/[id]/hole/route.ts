@@ -109,10 +109,14 @@ export const PATCH = route(async (
     .sort((a, b) => a.holeNumber - b.holeNumber)
     .map((h) => h.outcome as Outcome);
 
-  // Deterministic per (server secret, round, hole, shot) — tamper-proof.
+  // Deterministic per (server secret, seedRef, hole, shot) — tamper-proof.
+  // seedRef = round.seedKey ?? round.id: challenge rounds share a seedKey so both
+  // players face IDENTICAL hole conditions; daily/unlimited have seedKey=null and
+  // seed from round.id exactly as before (byte-identical, calibration untouched).
+  const seedRef = round.seedKey ?? roundId;
   const step = resolveHoleChain(decisions, spec, { difficulty: course.difficulty, wind: course.wind }, {
-    shotSeed: (shot) => holeShotSeed(roundId, holeNumber, shot),
-    eventSeed: (shot) => eventSeed(roundId, holeNumber, shot),
+    shotSeed: (shot) => holeShotSeed(seedRef, holeNumber, shot),
+    eventSeed: (shot) => eventSeed(seedRef, holeNumber, shot),
     greens: course.greens as GreenSpeed,
     recent,
     holeYards: holeData.yardage, // display-only: drives yards-to-target + tee distance

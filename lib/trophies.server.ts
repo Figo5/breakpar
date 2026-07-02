@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
+import { NON_CHALLENGE } from "@/lib/challenge";
 import { COURSES } from "@/data/courses";
 import {
   summarizeRounds,
@@ -26,7 +27,8 @@ export async function getTrophies(): Promise<TrophyBoard | null> {
   // current scale. Plus the streak row for the day-ladders.
   const [rows, streak] = await Promise.all([
     prisma.round.findMany({
-      where: { userId: user.id, completed: true },
+      // Challenge rounds excluded from trophies (no seed-shopping for badges).
+      where: { userId: user.id, completed: true, ...NON_CHALLENGE },
       select: {
         relativeToPar: true,
         courseId: true,
@@ -59,7 +61,7 @@ export async function getTrophies(): Promise<TrophyBoard | null> {
 /** A completed round reduced to RoundLite, fetched from the DB for a user. */
 async function completedRounds(userId: string): Promise<{ id: string; lite: RoundLite }[]> {
   const rows = await prisma.round.findMany({
-    where: { userId, completed: true },
+    where: { userId, completed: true, ...NON_CHALLENGE }, // exclude challenge rounds
     select: {
       id: true,
       relativeToPar: true,

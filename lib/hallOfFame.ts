@@ -18,6 +18,7 @@
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
+import { NON_CHALLENGE } from "@/lib/challenge";
 import { puzzleNumberForKey } from "@/lib/daily";
 import { COURSES, coursePar, courseBySlug } from "@/data/courses";
 
@@ -135,7 +136,9 @@ export async function getHallOfFame(): Promise<HallOfFame | null> {
   // the query simple and the winning round's metadata (id/mode/date/time) in
   // hand without a second fetch. Index @@index([userId, mode]) already exists.
   const rows = await prisma.round.findMany({
-    where: { userId: user.id, completed: true },
+    // Challenge rounds are excluded from the Hall of Fame (shared-seed head-to-
+    // head must not farm course records). See lib/challenge NON_CHALLENGE.
+    where: { userId: user.id, completed: true, ...NON_CHALLENGE },
     select: {
       id: true,
       mode: true,

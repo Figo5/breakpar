@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
+import { NON_CHALLENGE } from "@/lib/challenge";
 import { isStreakAlive } from "@/lib/scoring";
 import { dateKey, previousKey, puzzleNumberForKey } from "@/lib/daily";
 import { coursePar, courseBySlug } from "@/data/courses";
@@ -82,19 +83,21 @@ export async function getProfile(): Promise<ProfileData | null> {
     course: { select: { slug: true } },
   } as const;
 
+  // Challenge rounds are excluded from lifetime stats (NON_CHALLENGE); they're a
+  // separate head-to-head mode, not part of your daily/practice record.
   const [roundsPlayed, underParRounds, streak, bestRows, recentRows] = await Promise.all([
-    prisma.round.count({ where: { userId: user.id, completed: true } }),
-    prisma.round.count({ where: { userId: user.id, completed: true, relativeToPar: { lt: 0 } } }),
+    prisma.round.count({ where: { userId: user.id, completed: true, ...NON_CHALLENGE } }),
+    prisma.round.count({ where: { userId: user.id, completed: true, relativeToPar: { lt: 0 }, ...NON_CHALLENGE } }),
     prisma.streak.findUnique({ where: { userId: user.id } }),
     // Personal leaderboard: best (lowest) relative-to-par, fastest as tiebreak.
     prisma.round.findMany({
-      where: { userId: user.id, completed: true },
+      where: { userId: user.id, completed: true, ...NON_CHALLENGE },
       orderBy: [{ relativeToPar: "asc" }, { durationMs: "asc" }],
       take: 10,
       select,
     }),
     prisma.round.findMany({
-      where: { userId: user.id, completed: true },
+      where: { userId: user.id, completed: true, ...NON_CHALLENGE },
       orderBy: { playedAt: "desc" },
       take: 8,
       select,

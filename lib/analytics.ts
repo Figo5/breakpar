@@ -31,7 +31,7 @@ export function identifyUser(userId: string) {
   posthog.identify(userId);
 }
 
-export type Mode = "daily" | "practice";
+export type Mode = "daily" | "practice" | "challenge";
 export interface RoundMeta {
   roundId: string;
   slug: string;

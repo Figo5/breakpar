@@ -213,8 +213,46 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
    exactly like the leaderboard. .frow only tweaks the avatar cell + result pill. */
 .frow .frow-av{display:flex;align-items:center;justify-content:center}
 .frow .sc.muted{font-family:'Oswald',sans-serif;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft)}
-.fs-btn{flex:none;padding:6px 13px;font-size:12px;white-space:nowrap}
+/* Small inline pill button. Must override .cta's display:block;width:100% so it
+   never expands to full width and pushes sibling controls off-screen. */
+.fs-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:auto;padding:6px 13px;font-size:12px;white-space:nowrap}
 .fs-btn.following{color:var(--ink-soft)}
+.frow-actions,.ch-actions{display:flex;align-items:center;gap:6px;flex:none}
+/* Challenges */
+.ch-create{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.ch-select{appearance:none;-webkit-appearance:none}
+.ch-create-actions{display:flex;gap:8px}
+.ch-create-actions .cta{margin-top:0}
+/* Challenge row: self-contained flex (not the .lb-row grid) so it never
+   overflows — avatar + text flex-grow (ellipsis), actions pinned right. */
+.chrow{display:flex;align-items:center;gap:11px;padding:11px 13px}
+.chrow+.chrow{border-top:1px solid var(--line)}
+.chrow .lb-av{flex:none}
+.chrow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.chrow-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chrow-sub{font-size:11px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chrow-end{flex:none;display:flex;align-items:center;gap:6px;margin-left:auto}
+.chrow-status{font-family:'Oswald',sans-serif;font-weight:700;font-size:12px;letter-spacing:.03em;white-space:nowrap}
+.chrow-status.muted{color:var(--ink-soft);font-weight:600;text-transform:uppercase;font-size:11px}
+.chrow-status.v-win{color:var(--fairway)}
+.chrow-status.v-loss{color:var(--flag)}
+.chrow-status.v-draw{color:var(--ink-soft)}
+.ch-play{flex:none;padding:6px 16px;font-size:12px}
+.ch-decline{flex:none;width:28px;height:28px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink-soft);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ch-decline:hover{color:var(--flag);border-color:var(--flag)}
+.ch-decline:disabled{opacity:.5;cursor:default}
+.ch-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:18px 0 6px}
+.ch-course{font-family:'Oswald',sans-serif;font-weight:700;font-size:16px}
+.ch-status{font-size:12px;color:var(--ink-soft)}
+.ch-versus{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:8px 0 16px}
+.ch-side{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
+.ch-side.you{border-color:var(--fairway)}
+.ch-side .avatar{width:48px;height:48px}
+.ch-side-name{font-weight:600;font-size:14px;text-align:center}
+.ch-side-score{font-family:'Anton',sans-serif;font-size:24px;color:var(--fairway)}
+.ch-vs{font-family:'Oswald',sans-serif;font-weight:700;color:var(--ink-soft);text-transform:uppercase;font-size:12px}
+.ch-detail-actions{display:flex;justify-content:center;margin-bottom:12px}
+.ch-detail-actions .fs-btn{padding:9px 22px;font-size:14px}
 .btn-stack{display:flex;flex-direction:column;gap:10px;margin-top:20px}
 .footnote{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:16px;line-height:1.5}
 .fb-fab{position:fixed;right:max(16px,calc(50% - 220px + 16px));bottom:18px;z-index:40;width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;background:var(--flag);color:var(--cream);font-size:21px;line-height:1;box-shadow:0 6px 18px rgba(19,32,26,.28);transition:transform .12s,filter .12s}
