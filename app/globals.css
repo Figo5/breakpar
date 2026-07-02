@@ -9,13 +9,16 @@
   --cream:#F7F3E8; --paper:#FBF8EF; --sand:#E7D29A; --ink:#13201A; --ink-soft:#475a50;
   --flag:#D7402F; --gold:#E0A02B; --safe:#2D6A4F;
   --line:rgba(19,32,26,.12); --line-strong:rgba(19,32,26,.22);
+  /* Shell width — single knob for the whole app. Phone-first; the media queries
+     near the bottom widen it on tablet/desktop so lists stop feeling cramped. */
+  --app-w:440px;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   background:radial-gradient(120% 80% at 50% -10%,#1f5b3f 0%,var(--fairway) 55%,#0e2a1d 100%);
   min-height:100vh;display:flex;justify-content:center;-webkit-font-smoothing:antialiased}
 
-.app{width:100%;max-width:440px;min-height:100vh;background:var(--cream);position:relative;
+.app{width:100%;max-width:var(--app-w);min-height:100vh;background:var(--cream);position:relative;
   overflow:hidden;box-shadow:0 10px 40px rgba(8,25,16,.28);display:flex;flex-direction:column}
 .screen{flex:1;display:flex;flex-direction:column;padding:22px 20px 24px}
 
@@ -257,10 +260,10 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .ch-detail-actions .fs-btn{padding:9px 22px;font-size:14px}
 .btn-stack{display:flex;flex-direction:column;gap:10px;margin-top:20px}
 .footnote{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:16px;line-height:1.5}
-.fb-fab{position:fixed;right:max(16px,calc(50% - 220px + 16px));bottom:18px;z-index:40;width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;background:var(--flag);color:var(--cream);font-size:21px;line-height:1;box-shadow:0 6px 18px rgba(19,32,26,.28);transition:transform .12s,filter .12s}
+.fb-fab{position:fixed;right:max(16px,calc(50% - (var(--app-w) / 2) + 16px));bottom:18px;z-index:40;width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;background:var(--flag);color:var(--cream);font-size:21px;line-height:1;box-shadow:0 6px 18px rgba(19,32,26,.28);transition:transform .12s,filter .12s}
 .fb-fab:hover{filter:brightness(1.06)} .fb-fab:active{transform:translateY(2px)}
 .fb-overlay{position:fixed;inset:0;z-index:50;background:rgba(10,24,17,.5);display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fbFade .15s ease}
-.fb-sheet{width:100%;max-width:440px;background:var(--cream);border-radius:18px 18px 0 0;padding:20px 20px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(10,24,17,.3);animation:fbUp .18s ease}
+.fb-sheet{width:100%;max-width:var(--app-w);background:var(--cream);border-radius:18px 18px 0 0;padding:20px 20px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(10,24,17,.3);animation:fbUp .18s ease}
 @media(min-width:480px){.fb-overlay{align-items:center;padding:20px}.fb-sheet{border-radius:18px}}
 .fb-head{display:flex;align-items:center;justify-content:space-between}
 .fb-head h3{font-family:'Oswald',sans-serif;font-weight:700;font-size:20px;margin:0}
@@ -359,3 +362,22 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ── Responsive shell ─────────────────────────────────────────────────────
+   Phone-first everywhere above; here we let the app breathe on bigger screens.
+   Only the shell width, padding, and a couple of grids change — every screen
+   stays single-column and legible, lists just stop feeling cramped. */
+@media (min-width:680px){
+  body{padding:24px 20px;align-items:flex-start}
+  :root{--app-w:600px}
+  .app{min-height:calc(100vh - 48px);border-radius:24px}
+  .screen{padding:30px 34px 34px}
+  /* Use the extra width where a grid actually helps. */
+  .course-list{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .trophy-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media (min-width:1024px){
+  :root{--app-w:760px}
+  .screen{padding:36px 44px 40px}
+  .trophy-grid{grid-template-columns:repeat(4,1fr)}
+}
