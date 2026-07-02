@@ -107,6 +107,10 @@ export default async function Home() {
 
       <TournamentTeaser isAccount={me.isAccount} />
 
+      <div style={{ textAlign: "center", marginTop: 16 }}>
+        <Link href="/how-it-works" className="acct-link">How it works · Fair play</Link>
+      </div>
+
       <div className="footnote">
         New course every day at midnight Eastern (ET). Course names are trademarks of their
         owners; Break Par is unaffiliated and layouts/yardages are stylized for play.

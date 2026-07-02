@@ -21,6 +21,7 @@ import { LIE_META, stagePrompt, type Lie, type PuttContext, type ShotRecord } fr
 import { GREEN_META, type GreenResult } from "@/lib/engine/putting";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
+import { teeOddsReveal, teeOddsTakeaway } from "@/lib/oddsReveal";
 import { track, identifyUser, type RoundMeta } from "@/lib/analytics";
 import type { Course } from "@/data/courses";
 
@@ -257,7 +258,7 @@ function PlayInner() {
         if (Array.isArray(fin.newTrophies) && fin.newTrophies.length) {
           try {
             sessionStorage.setItem(`bp_new_trophies_${roundId}`, JSON.stringify(fin.newTrophies));
-          } catch {}
+          } catch { }
         }
         // Challenge rounds land on the side-by-side challenge view (not the
         // daily result screen, which has no standing for a seedKey round).
@@ -363,6 +364,13 @@ function PlayInner() {
           <div className="name">{OUTCOME_META[pending].label}</div>
           {shotLog.length > 0 && <div className="result-note">“{shotLog[shotLog.length - 1].note}”</div>}
           <div className="delta">running {relativeLabel(rel)}</div>
+          {hole.par !== 3 && holeDecisions[0] && (
+            <OddsReveal
+              chosen={holeDecisions[0]}
+              hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
+              conditions={conditions}
+            />
+          )}
           <button className={`cta ${holeIdx >= 17 ? "" : "green"}`} style={{ marginTop: 18 }} onClick={next}>
             {holeIdx >= 17 ? "See your card" : "Next hole"}
           </button>
@@ -442,6 +450,56 @@ function positionBanner(
   }
   return null;
 }
+
+function OddsReveal({
+  chosen,
+  hole,
+  conditions,
+}: {
+  chosen: Decision;
+  hole: { number: number; par: number; strokeIndex: number };
+  conditions: { difficulty: number; wind: number };
+}) {
+  const [open, setOpen] = useState(false);
+  const rows = teeOddsReveal(hole, conditions);
+  const order: Decision[] = ["safe", "normal", "aggressive"];
+
+  if (!open) {
+    return (
+      <button className="odds-toggle" onClick={() => setOpen(true)} aria-expanded="false">
+        📊 See the odds you faced
+      </button>
+    );
+  }
+
+  return (
+    <div className="odds-reveal" role="region" aria-label="Odds you faced off the tee">
+      <div className="odds-reveal-h">📊 Your tee shot · odds you faced</div>
+      {order.map((d) => {
+        const r = rows[d];
+        return (
+          <div className={`odds-row ${d === chosen ? "mine" : ""}`} key={d}>
+            <span className="odds-name">{r.label}{d === chosen ? " ✓" : ""}</span>
+            <span className="odds-bar" aria-hidden="true">
+              <span className="odds-seg good" style={{ width: `${r.pct.dialed + r.pct.fairway}%` }} />
+              <span className="odds-seg rough" style={{ width: `${r.pct.rough}%` }} />
+              <span className="odds-seg trouble" style={{ width: `${r.pct.trouble}%` }} />
+            </span>
+            <span className="odds-good-lbl">{r.goodPct}%</span>
+          </div>
+        );
+      })}
+      <div className="odds-legend">
+        <span><i className="good" /> short grass</span>
+        <span><i className="rough" /> rough</span>
+        <span><i className="trouble" /> trouble</span>
+      </div>
+      <div className="odds-take">{teeOddsTakeaway(chosen, hole, conditions)}</div>
+    </div>
+  );
+}
+
+
 
 /** Per-stage risk read shown on each choice button. */
 function riskFor(
