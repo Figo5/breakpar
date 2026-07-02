@@ -575,6 +575,158 @@ export const COURSES: Course[] = [
       [4, 439, 18, "S", "ocean", "A dramatic ocean-side closing hole"],
     ]),
   },
+  // ---- Batch 4 (appended; rotation stays append-stable) --------------------
+  {
+    // Par 70 verified (par-3s at 3/6/8/14; par-5s at 9/16; 12 par-4s); yardage
+    // verified; strokeIndex derived (odd front / even back). Ross parkland, so
+    // hazard defaults to sand. ⚠️ hole-level pars/positions partly derived.
+    slug: "aronimink",
+    name: "Aronimink Golf Club",
+    location: "Newtown Square, Pennsylvania",
+    rating: 74.5, slope: 145, difficulty: 8, wind: 6, windDir: 200, greens: "Fast",
+    blurb: "A Donald Ross parkland classic — crowned greens and demanding par 4s on a par-70 that has tested BMW Championship fields.",
+    holes: holes([
+      [4, 448, 7, "R", "sand"],
+      [4, 405, 13, "S", "sand"],
+      [3, 191, 15, "S", "sand"],
+      [4, 480, 1, "L", "sand", "The card's sternest — a 480-yd par 4 to a crowned Ross green"],
+      [4, 435, 9, "R", "sand"],
+      [3, 232, 11, "S", "sand"],
+      [4, 446, 5, "L", "sand"],
+      [3, 172, 17, "S", "sand"],
+      [5, 578, 3, "R", "sand"],
+      [4, 405, 12, "S", "sand"],
+      [4, 400, 14, "L", "sand"],
+      [4, 460, 2, "R", "sand"],
+      [4, 452, 6, "S", "sand"],
+      [3, 200, 16, "S", "sand"],
+      [4, 421, 10, "L", "sand"],
+      [5, 542, 8, "R", "sand", "A reachable par 5 to tempt a birdie run"],
+      [4, 440, 4, "S", "sand"],
+      [4, 460, 18, "L", "sand"],
+    ]),
+  },
+  {
+    // Par 71 verified (par-3s at 4/6/13/17; par-5s at 7/10/15; 11 par-4s); layout
+    // confirmed; strokeIndex derived (odd front / even back). Water on the
+    // closing "Green Mile" (16-17-18); sand elsewhere.
+    slug: "quail-hollow",
+    name: "Quail Hollow Club",
+    location: "Charlotte, North Carolina",
+    rating: 75.5, slope: 148, difficulty: 8, wind: 7, windDir: 220, greens: "Fast",
+    blurb: "A modern PGA Championship venue closing with the fearsome water-lined 'Green Mile' — holes 16, 17 and 18.",
+    holes: holes([
+      [4, 460, 7, "L", "sand"],
+      [4, 452, 9, "R", "sand"],
+      [4, 483, 3, "S", "sand"],
+      [3, 184, 15, "S", "sand"],
+      [4, 449, 11, "R", "sand"],
+      [3, 249, 13, "S", "sand"],
+      [5, 546, 5, "L", "sand"],
+      [4, 346, 17, "S", "sand"],
+      [4, 458, 1, "R", "sand", "The card's hardest — a long par 4 to a guarded green"],
+      [5, 592, 8, "L", "sand"],
+      [4, 462, 6, "S", "sand"],
+      [4, 456, 10, "R", "sand"],
+      [3, 210, 14, "S", "sand"],
+      [4, 344, 16, "L", "sand"],
+      [5, 577, 12, "R", "sand"],
+      [4, 505, 2, "L", "water", "Start of the Green Mile — a brute of a par 4 to a water-guarded green"],
+      [3, 223, 18, "S", "water", "A long par 3 over water"],
+      [4, 494, 4, "R", "water", "The Green Mile's closing test, water down the left"],
+    ]),
+  },
+  {
+    // Par 71 verified (par-3s at 4/7/14/17; par-5s at 2/5/15; 11 par-4s); yardage
+    // verified; strokeIndex derived (odd front / even back). Pete Dye — lagoons
+    // and pot bunkers; Calibogue Sound alongside the closing hole.
+    slug: "harbour-town",
+    name: "Harbour Town Golf Links",
+    location: "Hilton Head Island, South Carolina",
+    rating: 74.0, slope: 148, difficulty: 7, wind: 12, windDir: 110, greens: "Firm",
+    blurb: "Pete Dye's short, strategic gem through tight Lowcountry oaks, closing at the iconic lighthouse on Calibogue Sound.",
+    holes: holes([
+      [4, 414, 11, "R", "sand"],
+      [5, 505, 9, "S", "water"],
+      [4, 436, 7, "L", "sand"],
+      [3, 200, 15, "S", "water"],
+      [5, 535, 5, "R", "sand"],
+      [4, 419, 3, "L", "water"],
+      [3, 192, 17, "S", "water"],
+      [4, 470, 1, "R", "sand", "The card's hardest — a long, tree-pinched par 4"],
+      [4, 337, 13, "S", "sand"],
+      [4, 439, 8, "L", "water"],
+      [4, 436, 6, "S", "sand"],
+      [4, 451, 4, "R", "sand"],
+      [4, 375, 12, "L", "water"],
+      [3, 192, 16, "S", "water"],
+      [5, 575, 10, "R", "water"],
+      [4, 439, 2, "L", "sand"],
+      [3, 185, 14, "S", "water"],
+      [4, 472, 18, "L", "ocean", "The iconic lighthouse hole along Calibogue Sound"],
+    ]),
+  },
+  {
+    // Par 72 verified (par-3s at 4/9/13/15; par-5s at 1/8/10/12; 10 par-4s);
+    // yardage verified; strokeIndex derived (odd front / even back). Gil Hanse
+    // redesign — water-heavy with sand. ⚠️ exact hole positions partly derived.
+    slug: "doral-blue-monster",
+    name: "Trump National Doral — Blue Monster",
+    location: "Miami, Florida",
+    rating: 76.5, slope: 150, difficulty: 9, wind: 12, windDir: 130, greens: "Firm",
+    blurb: "The Blue Monster — a long, firm, water-heavy Florida test with a brutal closing par 4 hugging the lake all the way home.",
+    holes: holes([
+      [5, 562, 9, "S", "water"],
+      [4, 407, 11, "R", "sand"],
+      [4, 434, 7, "L", "water"],
+      [3, 234, 13, "S", "sand"],
+      [4, 473, 3, "R", "water"],
+      [4, 447, 5, "L", "sand"],
+      [4, 430, 15, "S", "water"],
+      [5, 599, 1, "R", "water", "The card's hardest — a 599-yd par 5 flanked by water"],
+      [3, 178, 17, "S", "water"],
+      [5, 564, 8, "L", "water"],
+      [4, 440, 6, "R", "sand"],
+      [5, 603, 10, "S", "water"],
+      [3, 245, 12, "S", "sand"],
+      [4, 483, 2, "L", "water"],
+      [3, 175, 16, "S", "water"],
+      [4, 280, 14, "R", "sand", "A drivable par 4 daring you to go for it"],
+      [4, 436, 4, "L", "water"],
+      [4, 473, 18, "L", "water", "Water down the entire left of the famous closing par 4"],
+    ]),
+  },
+  {
+    // Par 70 verified (par-3s at 4/7/12/14; par-5s at 15/17; 12 par-4s); front
+    // nine + par total verified from the official 2026 Open guide; strokeIndex
+    // derived (odd front / even back). ⚠️ some back-nine yardages derived. Links
+    // sand/dunes throughout; OB tight right on 1.
+    slug: "royal-birkdale",
+    name: "Royal Birkdale",
+    location: "Southport, England",
+    rating: 74.8, slope: 143, difficulty: 9, wind: 20, windDir: 245, greens: "Firm",
+    blurb: "A classic Southport links through towering dunes — an Open Championship venue where the wind off the Irish Sea decides the card.",
+    holes: holes([
+      [4, 447, 5, "R", "sand", "Out-of-bounds tight down the right off the first tee"],
+      [4, 419, 11, "S", "sand"],
+      [4, 450, 7, "L", "sand"],
+      [3, 219, 13, "S", "sand"],
+      [4, 321, 17, "S", "sand"],
+      [4, 514, 1, "R", "sand", "The card's toughest — a brute of a par 4 through the dunes"],
+      [3, 151, 15, "S", "sand"],
+      [4, 459, 3, "L", "sand"],
+      [4, 411, 9, "R", "sand"],
+      [4, 408, 8, "S", "sand"],
+      [4, 436, 6, "L", "sand"],
+      [3, 184, 14, "S", "sand"],
+      [4, 499, 2, "R", "sand"],
+      [3, 201, 16, "S", "sand"],
+      [5, 544, 10, "L", "sand"],
+      [4, 439, 4, "R", "sand"],
+      [5, 572, 12, "S", "sand", "A reachable par 5 among the closing dunes"],
+      [4, 508, 18, "L", "sand", "A long closing par 4 to the grandstands"],
+    ]),
+  },
 ];
 
 export const coursePar = (c: Course) =>
