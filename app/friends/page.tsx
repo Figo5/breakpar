@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { relativeLabel } from "@/lib/scoring";
 import { Avatar } from "@/components/Avatar";
-import { getAccountUser, listFriends, countFollowers, type FriendEntry } from "@/lib/friends";
+import { getAccountUser, listFriends, listFollowers, type FriendEntry } from "@/lib/friends";
 import { FriendSearch } from "./FriendSearch";
 import { FollowButton } from "./FollowButton";
 
@@ -35,7 +35,7 @@ export default async function FriendsPage() {
 
   const [entries, followers] = await Promise.all([
     listFriends(me.id, relativeLabel),
-    countFollowers(me.id),
+    listFollowers(me.id, relativeLabel), // non-mutual followers (to follow back)
   ]);
   const friends = entries.filter((e) => e.state === "friend");
   const following = entries.filter((e) => e.state === "following");
@@ -48,13 +48,13 @@ export default async function FriendsPage() {
 
       <div className="friends-meta">
         {friends.length} {friends.length === 1 ? "friend" : "friends"} ·{" "}
-        {following.length} following · {followers} {followers === 1 ? "follower" : "followers"}
+        {following.length} following · {followers.length} {followers.length === 1 ? "follower" : "followers"}
       </div>
 
       <div className="section-title">Friends</div>
       {friends.length === 0 ? (
         <div className="profile-empty">
-          No friends yet. When someone you follow follows you back, they show up here.
+          No friends yet. Follow back someone who follows you, or search for players.
         </div>
       ) : (
         <div className="lb">
@@ -62,12 +62,24 @@ export default async function FriendsPage() {
         </div>
       )}
 
+      {/* Followers you don't follow back — the path to more friends, so it sits
+          above Following. Follow back -> mutual -> moves to Friends. */}
+      {followers.length > 0 && (
+        <>
+          <div className="section-title">Followers</div>
+          <div className="section-sub">They follow you — follow back to become friends.</div>
+          <div className="lb">
+            {followers.map((f) => <FriendRow key={`fol-${f.username}`} f={f} />)}
+          </div>
+        </>
+      )}
+
       {following.length > 0 && (
         <>
           <div className="section-title">Following</div>
           <div className="section-sub">You follow them — they haven&apos;t followed back yet.</div>
           <div className="lb">
-            {following.map((f) => <FriendRow key={f.username} f={f} />)}
+            {following.map((f) => <FriendRow key={`flw-${f.username}`} f={f} />)}
           </div>
         </>
       )}
@@ -103,6 +115,11 @@ function FriendRow({ f }: { f: FriendEntry }) {
   // they read as state, not a result — and never crowd the name (own track).
   const scored = !f.today.private && f.today.played;
   const result = f.today.private ? "Private" : f.today.played ? f.today.score : "Not played";
+  // A follower is someone you DON'T follow back yet -> the action is Follow back
+  // (a follow), which makes you mutual and moves them to Friends on refresh.
+  // Friends/Following are people you already follow -> the action is Unfollow.
+  const isFollower = f.state === "follower";
+  const tag = f.state === "friend" ? "Friends" : f.state === "follower" ? "Follows you" : "Following";
   return (
     <div className="lb-row frow">
       <span className="rank frow-av">
@@ -111,13 +128,17 @@ function FriendRow({ f }: { f: FriendEntry }) {
       <span className="nm">
         <span className="nm-row">
           <Link href={`/u/${f.username}`} className="lb-name-link">{f.username}</Link>
-          <span className="prow-tag">{f.state === "friend" ? "Friends" : "Following"}</span>
+          <span className="prow-tag">{tag}</span>
         </span>
       </span>
       <span className={`sc${scored ? "" : " muted"}`}>{result}</span>
       <span className="frow-actions">
         <Link href={`/challenges?to=${encodeURIComponent(f.username)}`} className="cta ghost fs-btn">Challenge</Link>
-        <FollowButton username={f.username} following label="Unfollow" />
+        {isFollower ? (
+          <FollowButton username={f.username} following={false} label="Follow back" />
+        ) : (
+          <FollowButton username={f.username} following label="Unfollow" />
+        )}
       </span>
     </div>
   );
