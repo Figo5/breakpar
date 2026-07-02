@@ -21,7 +21,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 
 .eyebrow{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.22em;text-transform:uppercase;font-size:11px;color:var(--ink-soft)}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.acct{display:flex;align-items:center}
+.acct{display:flex;align-items:center;gap:10px}
 .acct-link{background:none;border:none;cursor:pointer;font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--turf-light);text-decoration:underline;padding:4px}
 .stats-line{text-align:center;font-family:'Oswald',sans-serif;font-weight:500;font-size:12.5px;color:var(--ink-soft);margin-top:12px}
 .wordmark{font-family:'Anton',sans-serif;font-size:clamp(56px,18vw,76px);line-height:.86;color:var(--fairway);margin:6px 0 2px;text-transform:uppercase}
@@ -199,6 +199,22 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .prow .nm{display:flex;align-items:center;gap:8px;min-width:0}
 .prow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prow-tag{flex:none;font-family:'Oswald',sans-serif;font-weight:600;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);background:var(--cream);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+/* Friends (Stage 1) */
+.avatar.sm{width:30px;height:30px;font-size:14px;border-radius:50%;background:var(--fairway);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Anton',sans-serif;overflow:hidden;flex:none}
+.friend-search{margin:14px 0 6px}
+.fs-input{width:100%;box-sizing:border-box;padding:11px 13px;font-size:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink)}
+.fs-input:focus{outline:none;border-color:var(--fairway)}
+.fs-results{margin-top:8px}
+.fs-empty{padding:14px;font-size:13px;color:var(--ink-soft);text-align:center;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.friends-meta{font-size:12px;color:var(--ink-soft);font-family:'Oswald',sans-serif;letter-spacing:.04em;margin:12px 0 2px}
+.section-sub{font-size:12px;color:var(--ink-soft);margin:-6px 0 8px;line-height:1.4}
+/* Friends/search rows REUSE the leaderboard's proven .lb-row grid
+   (34px avatar | 1fr name | auto result | auto action) so avatar + name render
+   exactly like the leaderboard. .frow only tweaks the avatar cell + result pill. */
+.frow .frow-av{display:flex;align-items:center;justify-content:center}
+.frow .sc.muted{font-family:'Oswald',sans-serif;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft)}
+.fs-btn{flex:none;padding:6px 13px;font-size:12px;white-space:nowrap}
+.fs-btn.following{color:var(--ink-soft)}
 .btn-stack{display:flex;flex-direction:column;gap:10px;margin-top:20px}
 .footnote{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:16px;line-height:1.5}
 .fb-fab{position:fixed;right:max(16px,calc(50% - 220px + 16px));bottom:18px;z-index:40;width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;background:var(--flag);color:var(--cream);font-size:21px;line-height:1;box-shadow:0 6px 18px rgba(19,32,26,.28);transition:transform .12s,filter .12s}

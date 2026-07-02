@@ -15,6 +15,7 @@ function streakKeys(today = dateKey()) {
 
 export interface HomeState {
   signedIn: boolean;
+  isAccount: boolean; // clerkId set (true account, not a guest) — gates account-only nav
   streak: number; // effective current day-streak (0 if broken or none)
   streakStatus: StreakStatus; // played-today | safe | at-risk | none
   maxStreak: number; // longest day-streak ever (persists through a miss)
@@ -29,6 +30,7 @@ export interface HomeState {
 
 const EMPTY: HomeState = {
   signedIn: false,
+  isAccount: false,
   streak: 0,
   streakStatus: "none",
   maxStreak: 0,
@@ -69,6 +71,7 @@ export async function getHomeState(): Promise<HomeState> {
 
   return {
     signedIn: true,
+    isAccount: !!user.clerkId, // guests have a User row too; only accounts get friends
     streak: alive ? s!.currentStreak : 0,
     streakStatus: status,
     maxStreak: s?.maxStreak ?? 0, // headline stat — never reset by a miss
