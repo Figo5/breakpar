@@ -194,6 +194,16 @@ export async function countFollowers(meId: string): Promise<number> {
   return prisma.follow.count({ where: { followeeId: meId } });
 }
 
+/** Whether `followerId` currently follows `followeeId`. Used to seed the follow
+ * button on a public profile (accounts only; the caller gates guests/self). */
+export async function isFollowing(followerId: string, followeeId: string): Promise<boolean> {
+  const edge = await prisma.follow.findUnique({
+    where: { followerId_followeeId: { followerId, followeeId } },
+    select: { id: true },
+  });
+  return !!edge;
+}
+
 // --- mutations -------------------------------------------------------------
 
 export type FollowResult =

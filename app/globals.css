@@ -193,6 +193,8 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .lb-name-guest{color:var(--ink-soft)}
 .profile-head .who h2{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;margin:0;line-height:1.1}
 .profile-head .who .sub{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-family:'Oswald',sans-serif;margin-top:3px}
+/* Follow button on a public profile: compact, inline, doesn't stretch full width. */
+.profile-follow{display:inline-flex;align-items:center;width:auto;margin-top:9px;padding:8px 20px;font-size:13px}
 .profile-empty{text-align:center;font-size:13.5px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px 16px;margin:18px 0 4px;line-height:1.5}
 .lb-row.prow{text-decoration:none;color:var(--ink);transition:background .12s}
 .lb-row.prow:hover{background:rgba(20,55,40,.05)}
