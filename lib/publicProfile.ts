@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { NON_CHALLENGE } from "@/lib/challenge";
+import { isFollowing } from "@/lib/friends";
 import { COURSES } from "@/data/courses";
 import { bestByCourse, buildRecords, type RoundLite as HofRound, type CourseRecord } from "@/lib/hallOfFame";
 import {
@@ -57,10 +58,20 @@ export interface PublicProfile {
   recent: PublicRound[];
 }
 
+/** Viewer's follow relationship to the profile, driving the follow button.
+ * Guests get a sign-up CTA; the owner gets no button; otherwise Follow/Following.
+ * A private profile is still followable (results stay hidden per the privacy
+ * rule) — so this rides on both the private and profile results. */
+export interface FollowContext {
+  isGuest: boolean; // viewer is not a signed-in account (no clerkId)
+  isSelf: boolean; // viewer is the profile owner (no self-follow)
+  isFollowing: boolean;
+}
+
 export type PublicProfileResult =
   | { kind: "not-found" }
-  | { kind: "private"; username: string }
-  | { kind: "profile"; profile: PublicProfile };
+  | { kind: "private"; username: string; follow: FollowContext }
+  | { kind: "profile"; profile: PublicProfile; follow: FollowContext };
 
 const CONDENSED_RECORDS = 6;
 const RECENT = 8;
@@ -100,8 +111,17 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
   const viewer = await getCurrentUser();
   const isOwner = !!viewer && viewer.id === profileUser.id;
 
+  // Follow context for the profile's follow button. Only query the edge when the
+  // viewer is an account who isn't the owner (guests/self never follow).
+  const viewerIsAccount = !!viewer?.clerkId;
+  const follow: FollowContext = {
+    isGuest: !viewerIsAccount,
+    isSelf: isOwner,
+    isFollowing: viewerIsAccount && !isOwner ? await isFollowing(viewer!.id, profileUser.id) : false,
+  };
+
   if (!profileUser.profilePublic && !isOwner)
-    return { kind: "private", username: profileUser.username };
+    return { kind: "private", username: profileUser.username, follow };
 
   const [rows, streak, awards] = await Promise.all([
     prisma.round.findMany({
@@ -165,6 +185,7 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
 
   return {
     kind: "profile",
+    follow,
     profile: {
       username: profileUser.username,
       xHandle: profileUser.xHandle,

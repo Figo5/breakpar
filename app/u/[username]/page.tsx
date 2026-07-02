@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
-import { getPublicProfile, type PublicProfile } from "@/lib/publicProfile";
+import { getPublicProfile, type PublicProfile, type FollowContext } from "@/lib/publicProfile";
+import { ProfileFollow } from "./ProfileFollow";
 import { relativeLabel } from "@/lib/scoring";
 import { TIER_META, type TrophyState } from "@/lib/trophies";
 import { xHandleLabel, xHandleUrl } from "@/lib/xHandle";
@@ -44,9 +45,9 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       </div>
 
       {res.kind === "private" ? (
-        <PrivateState username={res.username} />
+        <PrivateState username={res.username} follow={res.follow} />
       ) : (
-        <ProfileBody p={res.profile} />
+        <ProfileBody p={res.profile} follow={res.follow} />
       )}
 
       <div className="btn-stack">
@@ -56,19 +57,23 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   );
 }
 
-function PrivateState({ username }: { username: string }) {
+function PrivateState({ username, follow }: { username: string; follow: FollowContext }) {
   return (
     <>
       <div className="profile-head">
         <Avatar src={null} name={username} />
-        <div className="who"><h2>{username}</h2><div className="sub">Profile is private</div></div>
+        <div className="who">
+          <h2>{username}</h2>
+          <div className="sub">Profile is private</div>
+          <ProfileFollow username={username} follow={follow} />
+        </div>
       </div>
       <div className="profile-empty">This player keeps their profile private.</div>
     </>
   );
 }
 
-function ProfileBody({ p }: { p: PublicProfile }) {
+function ProfileBody({ p, follow }: { p: PublicProfile; follow: FollowContext }) {
   const since = new Date(p.memberSince).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   return (
     <>
@@ -84,6 +89,7 @@ function ProfileBody({ p }: { p: PublicProfile }) {
             )}
             {p.xHandle ? " · " : ""}Member since {since}
           </div>
+          <ProfileFollow username={p.username} follow={follow} />
         </div>
       </div>
 
