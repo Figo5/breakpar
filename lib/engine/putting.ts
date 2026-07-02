@@ -59,9 +59,12 @@ export const PUTT_META: Record<PuttResult, { label: string }> = {
   threeputt: { label: "Three-putt" },
 };
 
+// Labels describe the SHOT (strokes taken), never the score-vs-par — a score
+// word here would mislabel a par-5 reached in two (twochip = par, not bogey),
+// the same blind spot as the narration. "Chip & two-putt" stays true on any par.
 export const SCRAMBLE_META: Record<ScrambleResult, { label: string }> = {
   updown: { label: "Up & down" },
-  twochip: { label: "Bogey save" },
+  twochip: { label: "Chip & two-putt" },
   blowup: { label: "Blow-up" },
   disaster: { label: "Disaster" },
 };

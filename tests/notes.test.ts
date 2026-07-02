@@ -1,38 +1,100 @@
 import { describe, it, expect } from "vitest";
-import { puttNote } from "@/lib/engine/notes";
+import { approachNote, puttNote, scrambleNote } from "@/lib/engine/notes";
+import { resolveHoleChain, type ChainResult } from "@/lib/engine/shots";
+import type { HoleSpec } from "@/lib/engine/resolveHole";
+import type { Decision, Outcome } from "@/lib/engine/probabilities";
 
-describe("puttNote — conservative three-putt reads as bad luck", () => {
-  const at0 = () => 0; // deterministic: always picks index 0 of the pool
+// The narration score word must always match the engine's actual Outcome, on
+// any par and via any path — the "read engine truth" principle. These tests
+// pin the reached-in-two par-5 cases (the blind spot that caused two bugs) and
+// the par-independent safe+disaster bug.
 
-  it("a Lag (safe) three-putt emits a bad-luck note distinct from a charged one", () => {
-    const safe = puttNote("threeputt", "long", 20, at0, "safe");
-    const charged = puttNote("threeputt", "long", 20, at0, "aggressive");
-    expect(safe).not.toBe(charged); // the special-case pool fired
-    expect(safe).toMatch(/safe|wicked|tough|right/i); // reads as variance, not a yip
-    expect(safe).toContain("20"); // footage woven in
+const SCORE_WORDS = ["eagle", "birdie", "par", "bogey", "double", "triple"] as const;
+// rng that deterministically selects pool index `i` out of `len`.
+const rngFor = (i: number, len: number) => () => (i + 0.5) / len;
+
+describe("note {score} token is filled from the engine Outcome (never re-derived)", () => {
+  it("one-putt short reads eagle on a par-5 reached in two, birdie otherwise", () => {
+    // index 1 of the 3-string pool ("Buried the {score} putt from {ft}")
+    expect(puttNote("oneputt", "short", 8, rngFor(1, 3), "normal", "eagle")).toMatch(/\beagle\b/);
+    expect(puttNote("oneputt", "short", 8, rngFor(1, 3), "normal", "eagle")).not.toMatch(/\bbirdie\b/);
+    expect(puttNote("oneputt", "short", 8, rngFor(1, 3), "normal", "birdie")).toMatch(/\bbirdie\b/);
   });
 
-  it("a lag-position (long) Roll three-putt also reads as bad luck (framed as a two-putt)", () => {
-    const normalLong = puttNote("threeputt", "long", 20, at0, "normal");
-    const safeLong = puttNote("threeputt", "long", 20, at0, "safe");
-    expect(normalLong).toBe(safeLong); // the conservative-framing pool fired for Roll too
+  it("twochip scramble reads par on a par-5 reached in two, bogey otherwise (the reported bug)", () => {
+    // index 2 ("On in three, walked off with {score}")
+    expect(scrambleNote("twochip", rngFor(2, 3), "normal", "par")).toMatch(/\bpar\b/);
+    expect(scrambleNote("twochip", rngFor(2, 3), "normal", "par")).not.toMatch(/\bbogey\b/);
+    expect(scrambleNote("twochip", rngFor(2, 3), "normal", "bogey")).toMatch(/\bbogey\b/);
   });
 
-  it("Charge (aggressive) three-putts stay on you (standard note)", () => {
-    const aggressive = puttNote("threeputt", "long", 20, at0, "aggressive");
-    const safe = puttNote("threeputt", "long", 20, at0, "safe");
-    expect(aggressive).not.toBe(safe); // charging's three-jack is not excused
+  it("blowup scramble reads bogey on a par-5 reached in two, double otherwise", () => {
+    // index 1 ("Chunked it — scrambling for {score}")
+    expect(scrambleNote("blowup", rngFor(1, 3), "normal", "bogey")).toMatch(/\bbogey\b/);
+    expect(scrambleNote("blowup", rngFor(1, 3), "normal", "bogey")).not.toMatch(/\bdouble\b/);
+    expect(scrambleNote("blowup", rngFor(1, 3), "normal", "double")).toMatch(/\bdouble\b/);
   });
 
-  it("a SHORT Roll three-putt is a yip, not bad luck (no two-putt framing there)", () => {
-    const normalShort = puttNote("threeputt", "short", 8, at0, "normal");
-    const safeShort = puttNote("threeputt", "short", 8, at0, "safe");
-    expect(normalShort).not.toBe(safeShort); // only safe is excused at short range
+  it("safe+disaster reads triple, not the old hardcoded 'double' (par-independent bug)", () => {
+    // safe blow-up/disaster routes to SAFE_SCRAMBLE_UNLUCKY (4 strings)
+    for (let i = 0; i < 4; i++) {
+      const note = scrambleNote("disaster", rngFor(i, 4), "safe", "triple");
+      expect(note).toMatch(/\btriple\b/);
+      expect(note).not.toMatch(/\bdouble\b/);
+    }
   });
 
-  it("only three-putts trigger it — a safe two-putt is unaffected", () => {
-    const safeTwo = puttNote("twoputt", "long", 20, at0, "safe");
-    const normalTwo = puttNote("twoputt", "long", 20, at0, "normal");
-    expect(safeTwo).toBe(normalTwo);
+  it("makeable approach reads eagle look on a par-5 reached in two, birdie otherwise", () => {
+    // index 1 ("On the dance floor, {score} chance")
+    expect(approachNote("makeable", false, rngFor(1, 3), "eagle")).toMatch(/\beagle\b/);
+    expect(approachNote("makeable", false, rngFor(1, 3), "birdie")).toMatch(/\bbirdie\b/);
+  });
+});
+
+// End-to-end invariant: play holes to completion across par 3/4/5 under every
+// policy and assert the TERMINAL shot's note never contains a score word that
+// contradicts the actual outcome. This catches any future note that hardcodes
+// a score word instead of the {score} token.
+describe("terminal note never contradicts the scored outcome (par 3/4/5)", () => {
+  const par3: HoleSpec = { number: 7, par: 3, strokeIndex: 14 };
+  const par4: HoleSpec = { number: 1, par: 4, strokeIndex: 9 };
+  const par5: HoleSpec = { number: 18, par: 5, strokeIndex: 11 };
+  const conditions = { difficulty: 6, wind: 10 };
+  const seeds = (base: number) => ({
+    shotSeed: (i: number) => ((base * 2654435761 + i * 40503 + 1) >>> 0) || 1,
+    eventSeed: (i: number) => ((base * 374761393 + i * 668265263 + 7) >>> 0) || 1,
+    greens: "Medium" as const,
+  });
+  const play = (hole: HoleSpec, base: number, d: Decision): ChainResult => {
+    const opts = seeds(base);
+    const decisions: Decision[] = [];
+    let res = resolveHoleChain(decisions, hole, conditions, opts);
+    let guard = 0;
+    while (!res.complete && guard++ < 6) {
+      decisions.push(d);
+      res = resolveHoleChain(decisions, hole, conditions, opts);
+    }
+    return res;
+  };
+
+  it("holds over many seeds, holes and policies", () => {
+    let terminalNotesChecked = 0;
+    for (const hole of [par3, par4, par5]) {
+      for (const d of ["safe", "normal", "aggressive"] as Decision[]) {
+        for (let base = 1; base <= 400; base++) {
+          const res = play(hole, base, d);
+          if (!res.complete) continue;
+          const outcome = res.outcome as Outcome;
+          const note = res.shots[res.shots.length - 1].note.toLowerCase();
+          for (const w of SCORE_WORDS) {
+            if (new RegExp(`\\b${w}\\b`).test(note)) {
+              expect(w, `hole par ${hole.par}, seed ${base}, ${d}: "${note}" vs ${outcome}`).toBe(outcome);
+            }
+          }
+          terminalNotesChecked++;
+        }
+      }
+    }
+    expect(terminalNotesChecked).toBeGreaterThan(1000);
   });
 });

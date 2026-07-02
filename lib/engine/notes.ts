@@ -9,11 +9,26 @@
 
 import type { Lie } from "./shots";
 import type { GreenResult, PuttResult, ScrambleResult, PuttBucket } from "./putting";
-import type { Decision } from "./probabilities";
+import type { Decision, Outcome } from "./probabilities";
+import { OUTCOME_META } from "./probabilities";
 
 function pick(pool: string[], rng: () => number): string {
   return pool[Math.floor(rng() * pool.length) % pool.length];
 }
+
+// Score words for the {score} / {se} narration tokens. Derived from the
+// engine's Outcome (composeOutcome) so a note's score word can NEVER disagree
+// with the actual score — the same "read engine truth" principle as the
+// putt-label fix. A par-5 reached in two shifts every outcome one notch better
+// (oneputt=eagle, twochip=par, blowup=bogey), and the words follow automatically.
+const SCORE_WORD: Record<Outcome, string> = {
+  eagle: "eagle",
+  birdie: "birdie",
+  par: "par",
+  bogey: "bogey",
+  double: "double",
+  triple: "triple",
+};
 
 const TEE_NOTES: Record<Lie, string[]> = {
   dialed: ["Striped it right down the middle 🎯", "Bombed it — perfect position", "Flushed the drive, prime spot"],
@@ -24,7 +39,7 @@ const TEE_NOTES: Record<Lie, string[]> = {
 
 const APPROACH_NOTES: Record<GreenResult, string[]> = {
   kickin: ["Stuffed it to a foot 🎯", "Dialed the approach — kick-in range", "Threw a dart, gimme left"],
-  makeable: ["Hit the green with a real look", "On the dance floor, birdie chance", "Nice approach — makeable for birdie"],
+  makeable: ["Hit the green with a real look", "On the dance floor, {score} chance", "Nice approach — makeable for {score}"],
   lag: ["On in reg, but miles away", "Found the green, long lag left", "Safely on — long two-putt territory"],
   scramble: ["Missed the green 😬", "Short-sided yourself", "Sailed it — chipping for par now"],
 };
@@ -62,7 +77,7 @@ const LAG_THREEPUTT_NOTES = [
 
 const PUTT_NOTES: Record<PuttResult, Partial<Record<PuttBucket, string[]>>> = {
   oneputt: {
-    short: ["Drained it from {ft} feet 🐦", "Buried the birdie putt from {ft}", "Centre cup from {ft} feet"],
+    short: ["Drained the {score} from {ft} feet {se}", "Buried the {score} putt from {ft}", "Centre cup from {ft} feet"],
     long: ["Snaked in a {ft}-footer! 😮", "Bombed the long one from {ft} feet", "Holed it from {ft} — unreal"],
   },
   twoputt: {
@@ -79,8 +94,8 @@ const KICKIN_NOTES = ["Tapped it in 🎯", "Kick-in, no sweat", "Knocked in the 
 
 const SCRAMBLE_NOTES: Record<ScrambleResult, string[]> = {
   updown: ["Flopped it stiff — easy save 👏", "Chipped it close, up and down", "Got it up and down like a pro"],
-  twochip: ["Chipped on, two-putt bogey", "Couldn't get up and down", "On in three, walked off with bogey"],
-  blowup: ["Bladed the chip across the green 😬", "Chunked it — scrambling for double", "Caught it heavy, double on the way"],
+  twochip: ["Chipped on, two-putt {score}", "Couldn't get up and down", "On in three, walked off with {score}"],
+  blowup: ["Bladed the chip across the green 😬", "Chunked it — scrambling for {score}", "Caught it heavy, {score} on the way"],
   disaster: ["Total mess from there 🌋", "Chip-chip-putt disaster", "It all unravelled — big number"],
 };
 
@@ -89,22 +104,34 @@ const SCRAMBLE_NOTES: Record<ScrambleResult, string[]> = {
 // safe choice doesn't feel like a lie when it occasionally drops two. Mirrors
 // LAG_THREEPUTT_NOTES. Only used when the player chose safe (Punch).
 const SAFE_SCRAMBLE_UNLUCKY = [
-  "Played the safe punch and still caught a flyer — double 😵",
-  "Bump-and-run took a wicked bounce, double from nowhere",
-  "Did the smart thing; a brutal lie beat you — double",
-  "Safe play, cruel kick off the slope — dropped two",
+  "Played the safe punch and still caught a flyer — {score} 😵",
+  "Bump-and-run took a wicked bounce, {score} from nowhere",
+  "Did the smart thing; a brutal lie beat you — {score}",
+  "Safe play, cruel kick off the slope — {score} anyway",
 ];
 
-function fmt(s: string, ft?: number): string {
-  return ft == null ? s.replace(" from {ft} feet", "").replace("{ft}-footer", "long-range putt").replace("{ft}", "distance") : s.replaceAll("{ft}", String(ft));
+function fmt(s: string, ft?: number, outcome?: Outcome): string {
+  let out = ft == null
+    ? s.replace(" from {ft} feet", "").replace("{ft}-footer", "long-range putt").replace("{ft}", "distance")
+    : s.replaceAll("{ft}", String(ft));
+  // {score}/{se} are filled from the engine's Outcome (never re-derived here).
+  if (outcome) out = out.replaceAll("{score}", SCORE_WORD[outcome]).replaceAll("{se}", OUTCOME_META[outcome].emoji);
+  return out;
 }
 
 export function teeNote(lie: Lie, rng: () => number): string {
   return pick(TEE_NOTES[lie], rng);
 }
 
-export function approachNote(green: GreenResult, isPar3: boolean, rng: () => number): string {
-  return pick(isPar3 ? PAR3_TEE_NOTES[green] : APPROACH_NOTES[green], rng);
+export function approachNote(
+  green: GreenResult,
+  isPar3: boolean,
+  rng: () => number,
+  // The look a makeable approach is FOR: eagle on a par-5 reached in two, else
+  // birdie. Par 3 (PAR3_TEE_NOTES) is always a birdie look and has no token.
+  lookFor: Outcome = "birdie"
+): string {
+  return fmt(pick(isPar3 ? PAR3_TEE_NOTES[green] : APPROACH_NOTES[green], rng), undefined, lookFor);
 }
 
 export function puttNote(
@@ -112,7 +139,10 @@ export function puttNote(
   bucket: PuttBucket,
   ft: number | undefined,
   rng: () => number,
-  decision?: Decision
+  decision?: Decision,
+  // The actual scored Outcome (from composeOutcome). Fills {score}/{se} so the
+  // word matches the score — e.g. a one-putt on a par-5 reached in two is eagle.
+  outcome?: Outcome
 ): string {
   if (bucket === "tap") return pick(KICKIN_NOTES, rng);
   // Bad-luck note when the dropped shot comes from a position we framed as safe:
@@ -120,16 +150,21 @@ export function puttNote(
   // "two-putt" read. Variance, not a bad call — so it doesn't feel like a lie.
   // Aggressive (Charge) is never excused — you accepted the three-jack risk.
   if (result === "threeputt" && decision !== "aggressive" && (decision === "safe" || bucket === "long"))
-    return fmt(pick(LAG_THREEPUTT_NOTES, rng), ft);
+    return fmt(pick(LAG_THREEPUTT_NOTES, rng), ft, outcome);
   const pool = PUTT_NOTES[result][bucket === "short" ? "short" : "long"] ?? KICKIN_NOTES;
-  return fmt(pick(pool, rng), ft);
+  return fmt(pick(pool, rng), ft, outcome);
 }
 
-export function scrambleNote(result: ScrambleResult, rng: () => number, decision?: Decision): string {
+export function scrambleNote(
+  result: ScrambleResult,
+  rng: () => number,
+  decision?: Decision,
+  outcome?: Outcome // actual scored Outcome; fills {score} so the word matches.
+): string {
   // Bad-luck framing when a SAFE punch blows up: variance, not a bad call.
   if (decision === "safe" && (result === "blowup" || result === "disaster"))
-    return pick(SAFE_SCRAMBLE_UNLUCKY, rng);
-  return pick(SCRAMBLE_NOTES[result], rng);
+    return fmt(pick(SAFE_SCRAMBLE_UNLUCKY, rng), undefined, outcome);
+  return fmt(pick(SCRAMBLE_NOTES[result], rng), undefined, outcome);
 }
 
 /** Par-5 lay-up approach line (the 2nd shot, played safe short of the green). */
