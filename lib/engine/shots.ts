@@ -285,7 +285,7 @@ export function resolveHoleChain(
   const isPar5Layup = hole.par === 5 && !reachedInTwo;
   shots.push({
     index: aIdx, stage: "approach", decision: aDec, green: isPar5Layup ? undefined : green, event: aEv?.instance ?? null,
-    note: narrate ? (isPar5Layup ? layupApproachNote(noteRng(aIdx, 0x777)) : approachNote(green, isPar3, noteRng(aIdx, 0x777))) : "",
+    note: narrate ? (isPar5Layup ? layupApproachNote(noteRng(aIdx, 0x777)) : approachNote(green, isPar3, noteRng(aIdx, 0x777), reachedInTwo ? "eagle" : "birdie")) : "",
   });
   // VISIBLE LAYUP THIRD: a narration-only wedge record so a laid-up par 5 plainly
   // takes three to the green (two-putt = par now reads correctly). NOT a decision
@@ -307,7 +307,7 @@ export function resolveHoleChain(
     shots.push({
       index: -1, stage: "putt", decision: null, puttResult: "oneputt",
       distanceFt: distanceFor("tap", mulberry32(opts.shotSeed(fIdx))), event: null,
-      note: narrate ? puttNote("oneputt", "tap", undefined, noteRng(fIdx, 0x999)) : "",
+      note: narrate ? puttNote("oneputt", "tap", undefined, noteRng(fIdx, 0x999), undefined, outcome) : "",
     });
     return finalize(hole, shots, aIdx + 1, lie, green, outcome);
   }
@@ -324,7 +324,7 @@ export function resolveHoleChain(
     const outcome = composeOutcome(reachedInTwo, { kind: "scramble", result: sres });
     shots.push({
       index: fIdx, stage: "scramble", decision: fDec, scrambleResult: sres, event: sEv?.instance ?? null,
-      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777), fDec) : "",
+      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777), fDec, outcome) : "",
     });
     return finalize(hole, shots, fIdx + 1, lie, green, outcome);
   }
@@ -356,7 +356,7 @@ export function resolveHoleChain(
   const outcome = composeOutcome(reachedInTwo, { kind: "putt", result: pres });
   shots.push({
     index: fIdx, stage: "putt", decision: fDec, puttResult: pres, distanceFt, event: pEv?.instance ?? null,
-    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999), fDec) : "",
+    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999), fDec, outcome) : "",
   });
   return finalize(hole, shots, fIdx + 1, lie, green, outcome);
 }
