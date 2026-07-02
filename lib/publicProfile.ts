@@ -15,6 +15,7 @@
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
+import { NON_CHALLENGE } from "@/lib/challenge";
 import { COURSES } from "@/data/courses";
 import { bestByCourse, buildRecords, type RoundLite as HofRound, type CourseRecord } from "@/lib/hallOfFame";
 import {
@@ -104,7 +105,8 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
 
   const [rows, streak, awards] = await Promise.all([
     prisma.round.findMany({
-      where: { userId: profileUser.id, completed: true },
+      // Exclude challenge rounds from the public profile (records/recent/trophies).
+      where: { userId: profileUser.id, completed: true, ...NON_CHALLENGE },
       select: {
         id: true, mode: true, dateKey: true, score: true, relativeToPar: true,
         durationMs: true, playedAt: true, course: { select: { slug: true } },

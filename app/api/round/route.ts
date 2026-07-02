@@ -8,6 +8,7 @@ import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { countTeeApproachAggressive } from "@/lib/engine/shots";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
+import { startOrResumeChallengeRound } from "@/lib/challenge";
 
 /** Shape a Course for the client (used by the play screen). */
 function coursePayload(course: Course) {
@@ -35,43 +36,59 @@ export const POST = route(async (req: Request) => {
 
   const { user, newGuestId } = await getOrStartUser();
 
-  const body = (await req.json().catch(() => ({}))) as { slug?: string };
-  const unlimited = typeof body.slug === "string" && body.slug.length > 0;
-  const course = unlimited ? courseBySlug(body.slug!) : dailyCourse();
-  if (!course) return NextResponse.json({ error: "unknown-course" }, { status: 404 });
+  const body = (await req.json().catch(() => ({}))) as { slug?: string; challengeId?: string };
 
-  // Course rows are seeded; look up the id by slug.
-  const courseRow = await prisma.course.findUnique({ where: { slug: course.slug } });
-  if (!courseRow)
-    return NextResponse.json({ error: "course-not-seeded" }, { status: 500 });
-
+  const roundInclude = { holeResults: true, course: { select: { slug: true } } } as const;
   let round;
-  if (unlimited) {
-    // Unlimited rounds are never resumed — each start is a fresh card.
-    round = await prisma.round.create({
-      data: { userId: user.id, courseId: courseRow.id, mode: "unlimited", dateKey: null },
-      include: { holeResults: true, course: { select: { slug: true } } },
-    });
+
+  // ---- CHALLENGE round: start/resume MY side of a head-to-head (accounts only).
+  // The course + shared seedKey live on the Challenge; both players get identical
+  // hole conditions (the hole route seeds from round.seedKey). One attempt/side.
+  if (typeof body.challengeId === "string" && body.challengeId.length > 0) {
+    if (!user.clerkId)
+      return NextResponse.json({ error: "account-required" }, { status: 403 });
+    const started = await startOrResumeChallengeRound(user.id, body.challengeId);
+    if (!started.ok) {
+      const code = started.error === "forbidden" ? 403 : started.error === "not-found" ? 404 : 409;
+      return NextResponse.json({ error: started.error }, { status: code });
+    }
+    round = await prisma.round.findUniqueOrThrow({ where: { id: started.roundId }, include: roundInclude });
   } else {
-    const key = dateKey();
-    try {
-      // One ranked round per day — resume if it already exists.
-      round = await prisma.round.upsert({
-        where: { userId_dateKey: { userId: user.id, dateKey: key } },
-        update: {},
-        create: { userId: user.id, courseId: courseRow.id, mode: "daily", dateKey: key },
-        include: { holeResults: true, course: { select: { slug: true } } },
+    const unlimited = typeof body.slug === "string" && body.slug.length > 0;
+    const course = unlimited ? courseBySlug(body.slug!) : dailyCourse();
+    if (!course) return NextResponse.json({ error: "unknown-course" }, { status: 404 });
+
+    // Course rows are seeded; look up the id by slug.
+    const courseRow = await prisma.course.findUnique({ where: { slug: course.slug } });
+    if (!courseRow)
+      return NextResponse.json({ error: "course-not-seeded" }, { status: 500 });
+
+    // Unlimited = fresh card each start; daily = one per day, resumed via upsert.
+    if (unlimited) {
+      round = await prisma.round.create({
+        data: { userId: user.id, courseId: courseRow.id, mode: "unlimited", dateKey: null },
+        include: roundInclude,
       });
-    } catch (e) {
-      // Concurrent first-start race: two upserts both tried to create. The
-      // unique(userId, dateKey) rejects the loser — just read the winner's row.
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        round = await prisma.round.findUniqueOrThrow({
+    } else {
+      const key = dateKey();
+      try {
+        round = await prisma.round.upsert({
           where: { userId_dateKey: { userId: user.id, dateKey: key } },
-          include: { holeResults: true, course: { select: { slug: true } } },
+          update: {},
+          create: { userId: user.id, courseId: courseRow.id, mode: "daily", dateKey: key },
+          include: roundInclude,
         });
-      } else {
-        throw e;
+      } catch (e) {
+        // Concurrent first-start race: two upserts both tried to create. The
+        // unique(userId, dateKey) rejects the loser — just read the winner's row.
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+          round = await prisma.round.findUniqueOrThrow({
+            where: { userId_dateKey: { userId: user.id, dateKey: key } },
+            include: roundInclude,
+          });
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -81,8 +98,9 @@ export const POST = route(async (req: Request) => {
   // round straddling UTC midnight, or a catalogue change), so the recomputed
   // dailyCourse() can disagree with what this round was actually played on.
   // The hole route and result page already key off the stored course; this
-  // keeps start/resume consistent. For a fresh round this equals `course`.
-  const playedCourse = courseBySlug(round.course.slug) ?? course;
+  // keeps start/resume consistent.
+  const playedCourse = courseBySlug(round.course.slug);
+  if (!playedCourse) return NextResponse.json({ error: "unknown-course" }, { status: 404 });
 
   const res = NextResponse.json({
     roundId: round.id,

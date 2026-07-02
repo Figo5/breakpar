@@ -39,6 +39,10 @@ model User {
   streak       Streak?
   trophyAwards TrophyAward[]
 
+  // Challenges (accounts only). Directed: challenger -> opponent, both accounts.
+  challengesSent     Challenge[] @relation("challengesSent")
+  challengesReceived Challenge[] @relation("challengesReceived")
+
   // Social graph (accounts only; gated in the app layer). Follows are directed;
   // a "friend" is a MUTUAL follow (both directions exist). Request/accept can be
   // layered later as an additive status column without reworking these.
@@ -74,8 +78,9 @@ model Course {
   wind       Int
   greens     String
 
-  holes  Hole[]
-  rounds Round[]
+  holes      Hole[]
+  rounds     Round[]
+  challenges Challenge[]
 }
 
 model Hole {
@@ -95,8 +100,12 @@ model Round {
   id          String   @id @default(cuid())
   userId      String
   courseId    String
-  mode        String   @default("daily") // "daily" (ranked) | "unlimited" (practice)
-  dateKey     String?  // "2026-06-25" for daily rounds; null for unlimited play
+  mode        String   @default("daily") // "daily" (ranked) | "unlimited" (practice) | "challenge" (head-to-head)
+  dateKey     String?  // "2026-06-25" for daily rounds; null for unlimited/challenge play
+  // Shared RNG namespace for challenge rounds (= Challenge.seedKey) so both
+  // players face identical hole conditions. null for daily/unlimited -> the hole
+  // route seeds from round.id as before (byte-identical, calibration untouched).
+  seedKey     String?
   score       Int      @default(0)
   relativeToPar Int    @default(0)
   completed   Boolean  @default(false)
@@ -107,11 +116,43 @@ model Round {
   course      Course       @relation(fields: [courseId], references: [id])
   holeResults HoleResult[]
 
+  // Back-relations for a challenge's per-side round links (each @unique on
+  // Challenge, so a round is at most one side of one challenge).
+  challengerFor Challenge? @relation("challengerRound")
+  opponentFor   Challenge? @relation("opponentRound")
+
   // one ranked round per player per day. Unlimited rounds use dateKey = null,
   // and Postgres treats each NULL as distinct, so a player can have many.
   @@unique([userId, dateKey])
   @@index([dateKey, score])
   @@index([userId, mode])
+}
+
+// A head-to-head challenge: two accounts play the SAME course from a shared
+// seedKey (= this challenge's id), then compare to-par. Async — each plays on
+// their own time; settled when both rounds complete. Challenge rounds are a
+// separate mode: outside the daily rotation, streak, leaderboard, trophies and
+// HoF (excluded via a mode guard) so a chosen seed can't farm records.
+model Challenge {
+  id                String    @id @default(cuid())
+  challengerId      String
+  opponentId        String
+  courseId          String
+  seedKey           String // shared RNG namespace (set = id on create)
+  status            String    @default("pending") // pending|active|complete|declined|expired
+  challengerRoundId String?   @unique // one attempt per side (DB-enforced)
+  opponentRoundId   String?   @unique
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  challenger      User   @relation("challengesSent", fields: [challengerId], references: [id], onDelete: Cascade)
+  opponent        User   @relation("challengesReceived", fields: [opponentId], references: [id], onDelete: Cascade)
+  course          Course @relation(fields: [courseId], references: [id])
+  challengerRound Round? @relation("challengerRound", fields: [challengerRoundId], references: [id])
+  opponentRound   Round? @relation("opponentRound", fields: [opponentRoundId], references: [id])
+
+  @@index([opponentId, status])
+  @@index([challengerId, status])
 }
 
 model HoleResult {

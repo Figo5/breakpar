@@ -27,6 +27,7 @@ export default async function Home() {
               in SSR immediately for accounts and never for guests — no dependency
               on Clerk client hydration (which had hidden it inside <SignedIn>). */}
           {me.isAccount && <Link href="/friends" className="acct-link">Friends</Link>}
+          {me.isAccount && <Link href="/challenges" className="acct-link">Challenges</Link>}
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
           </SignedIn>

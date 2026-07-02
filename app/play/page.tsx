@@ -60,7 +60,9 @@ function Loading() {
 
 function PlayInner() {
   const router = useRouter();
-  const slug = useSearchParams().get("course"); // present -> unlimited practice
+  const params = useSearchParams();
+  const slug = params.get("course"); // present -> unlimited practice
+  const challengeId = params.get("challenge"); // present -> head-to-head challenge round
   const [course, setCourse] = useState<PlayCourse | null>(null);
   const [unlimited, setUnlimited] = useState(false);
   const [roundId, setRoundId] = useState<string | null>(null);
@@ -98,9 +100,10 @@ function PlayInner() {
         const rRes = await fetch("/api/round", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(slug ? { slug } : {}),
+          body: JSON.stringify(challengeId ? { challengeId } : slug ? { slug } : {}),
         });
         if (rRes.status === 401) throw new Error("Please sign in to play.");
+        if (rRes.status === 403) throw new Error("Please sign in to play.");
         if (rRes.status === 404) throw new Error("That course doesn't exist.");
         if (!rRes.ok) throw new Error("round");
         const r = await rRes.json();
@@ -121,7 +124,7 @@ function PlayInner() {
         const meta: RoundMeta = {
           roundId: r.roundId,
           slug: c.slug,
-          mode: r.mode === "unlimited" ? "practice" : "daily",
+          mode: r.mode === "unlimited" ? "practice" : r.mode === "challenge" ? "challenge" : "daily",
           puzzleNumber: r.puzzleNumber ?? null,
         };
         metaRef.current = meta;
@@ -142,7 +145,7 @@ function PlayInner() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, challengeId]);
 
   // round_abandoned (best-effort): a started round left unfinished. Fires once,
   // on SPA unmount (back to home, etc.) or pagehide (tab close/navigate away).
@@ -256,7 +259,9 @@ function PlayInner() {
             sessionStorage.setItem(`bp_new_trophies_${roundId}`, JSON.stringify(fin.newTrophies));
           } catch {}
         }
-        router.push(`/result/${roundId}`);
+        // Challenge rounds land on the side-by-side challenge view (not the
+        // daily result screen, which has no standing for a seedKey round).
+        router.push(challengeId ? `/challenges/${challengeId}` : `/result/${roundId}`);
       } catch {
         setError("Couldn't post your card. Tap to retry.");
         setBusy(false);
