@@ -15,9 +15,19 @@ const EXPECTED_PAR: Record<string, number> = {
   "royal-portrush-dunluce": 71,
   "winged-foot-west": 70,
   "kiawah-ocean": 72,
+  // Batch 4 (verified par totals):
+  aronimink: 70,
+  "quail-hollow": 71,
+  "harbour-town": 71,
+  "doral-blue-monster": 72,
+  "royal-birkdale": 70,
 };
 
 describe("course catalogue integrity", () => {
+  it("roster is the expected size (23 after batch 4)", () => {
+    expect(COURSES.length).toBe(23);
+  });
+
   it("every course has 18 holes", () => {
     for (const c of COURSES) expect(c.holes.length, c.slug).toBe(18);
   });
