@@ -395,3 +395,37 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   .screen{padding:36px 44px 40px}
   .trophy-grid{grid-template-columns:repeat(4,1fr)}
 }
+
+/* ===== APPEND THESE TO app/globals.css ===== */
+/* --- How It Works explainer -------------------------------------------- */
+.hiw{padding-bottom:28px}
+.hiw-block{margin:0 0 20px}
+.hiw-h{font-family:'Oswald',sans-serif;font-weight:600;font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--fairway);margin:0 0 8px}
+.hiw-block p{font-size:14.5px;line-height:1.6;color:var(--ink);margin:0 0 10px}
+.hiw-block p b{color:var(--fairway)}
+.hiw-list{margin:6px 0 0;padding-left:18px}
+.hiw-list li{font-size:14px;line-height:1.55;color:var(--ink);margin-bottom:7px}
+.hiw-list li b{color:var(--fairway)}
+.hiw-key{background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--flag);border-radius:12px;padding:15px 16px}
+.hiw-key .hiw-h{color:var(--flag)}
+.hiw-cta{margin:22px 0 16px}
+
+/* --- Post-hole odds reveal (on the result card) ------------------------ */
+.odds-reveal{margin:14px 0 2px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 13px;text-align:left}
+.odds-reveal-h{font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:9px;display:flex;align-items:center;gap:6px}
+.odds-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.odds-row:last-child{margin-bottom:0}
+.odds-row.mine .odds-name{color:var(--fairway);font-weight:700}
+.odds-name{font-family:'Oswald',sans-serif;font-weight:500;font-size:12px;width:74px;flex:none;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+.odds-bar{flex:1;height:16px;border-radius:5px;overflow:hidden;display:flex;background:rgba(19,32,26,.06)}
+.odds-seg{height:100%}
+.odds-seg.good{background:var(--turf-light)}
+.odds-seg.rough{background:var(--sand)}
+.odds-seg.trouble{background:var(--flag)}
+.odds-good-lbl{font-family:'Oswald',sans-serif;font-weight:600;font-size:12px;width:34px;flex:none;text-align:right;color:var(--fairway)}
+.odds-take{font-size:12.5px;line-height:1.5;color:var(--ink-soft);margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.odds-legend{display:flex;gap:12px;margin-top:8px;font-size:10.5px;color:var(--ink-soft);font-family:'Oswald',sans-serif;letter-spacing:.03em}
+.odds-legend span{display:flex;align-items:center;gap:4px}
+.odds-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.odds-legend i.good{background:var(--turf-light)} .odds-legend i.rough{background:var(--sand)} .odds-legend i.trouble{background:var(--flag)}
+.odds-toggle{background:none;border:none;color:var(--ink-soft);font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:underline;padding:6px 0;margin-top:4px}
