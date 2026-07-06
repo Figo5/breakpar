@@ -481,3 +481,9 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .tourn-cutline{text-align:center;background:var(--paper);border:1px dashed var(--flag);border-radius:10px;padding:9px 12px;margin:10px 0;font-size:13.5px;color:var(--ink)}
 .tourn-cutline b{color:var(--flag);font-size:15px}
 .tourn-cutline-sub{color:var(--ink-soft);font-size:12px}
+
+/* ===== APPEND TO app/globals.css ===== */
+ 
+/* --- Tournament: top back link (field can be 100s deep) ---------------- */
+.eyebrow-back{cursor:pointer;text-decoration:none;transition:opacity .15s}
+.eyebrow-back:hover{opacity:.65}

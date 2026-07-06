@@ -25,7 +25,7 @@ export default async function TournamentPage() {
   return (
     <div className="screen">
       <div className="topbar">
-        <div className="eyebrow">Tournament</div>
+        <Link href="/" className="eyebrow eyebrow-back">← Back to today</Link>
         <div className="acct">
           <SignedIn><UserButton afterSignOutUrl="/" /></SignedIn>
           <SignedOut>
