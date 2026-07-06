@@ -73,7 +73,7 @@ export function nextRollover(now = new Date()): Date {
 /** Midnight America/New_York on `civil`, as a real UTC instant — DST-safe.
  * Same wall-clock->UTC correction as nextRollover, factored for reuse. Accepts
  * out-of-range day-of-month (e.g. d + 7); Date.UTC normalizes it. */
-function easternMidnight({ y, m, d }: CivilDate): Date {
+export function easternMidnight({ y, m, d }: { y: number; m: number; d: number }): Date {
   const wallAsUTC = Date.UTC(y, m - 1, d);
   return new Date(wallAsUTC - easternOffsetMs(new Date(wallAsUTC)));
 }

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/user";
 import { nextStreak, type StreakState } from "@/lib/scoring";
 import { awardTrophiesOnFinish } from "@/lib/trophies.server";
 import { settleChallengeOnFinish } from "@/lib/challenge";
+import { settleTournamentRound } from "@/lib/tournament.server";
 import { route } from "@/lib/api";
 
 // POST: finalize the round and roll up streak + best-score stats.
@@ -61,6 +62,14 @@ export const POST = route(async (
   // challenge (flips to "complete" once both sides finish) and return.
   if (round.mode === "challenge") {
     await settleChallengeOnFinish(roundId);
+    return NextResponse.json({ score: round.score, streak: null, newTrophies: [] });
+  }
+
+  // Tournament rounds: separate mode — NO streak, NO daily leaderboard, and NO
+  // trophies/HoF (a shared/known seed must not farm records). Standings + cut
+  // derive from completed rounds; just settle and return.
+  if (round.mode === "tournament") {
+    await settleTournamentRound(roundId);
     return NextResponse.json({ score: round.score, streak: null, newTrophies: [] });
   }
 
