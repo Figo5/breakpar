@@ -194,3 +194,15 @@ export function computeCut(
 export function tournamentSeedKey(tournamentId: string, roundNo: number): string {
   return `${tournamentId}:${roundNo}`;
 }
+
+/**
+ * Pure: given sorted-ascending cumulative scores of players through the pre-cut
+ * rounds, return the score at the cut position (top percent%, min N, capped at
+ * field). Null for an empty field. The "cut line so far".
+ */
+export function cutlineScore(sortedScores: number[], percent = CUT_PERCENT, min = CUT_MIN): number | null {
+  if (sortedScores.length === 0) return null;
+  const byPercent = Math.ceil((percent / 100) * sortedScores.length);
+  const cutSize = Math.min(sortedScores.length, Math.max(min, byPercent));
+  return sortedScores[cutSize - 1]; // score of the last player who makes it
+}
