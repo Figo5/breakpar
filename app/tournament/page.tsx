@@ -50,6 +50,24 @@ export default async function TournamentPage() {
             <div className="tourn-preview-badge">👁️ Preview mode — you can play all rounds before the public start</div>
           )}
 
+          {/* Champion banner (once complete) */}
+          {view.phase === "complete" && view.champion && (
+            <div className="tourn-champion">
+              <div className="tourn-champion-crown">🏆</div>
+              <div className="tourn-champion-label">Champion</div>
+              <div className="tourn-champion-name">{view.champion.username}</div>
+              <div className="tourn-champion-score">{relativeLabel(view.champion.cumulativeToPar)}</div>
+            </div>
+          )}
+
+          {/* Current cut line (during rounds 1-2) */}
+          {view.phase === "round1_2" && view.cutLine !== null && (
+            <div className="tourn-cutline">
+              Cut line so far: <b>{relativeLabel(view.cutLine)}</b>
+              <span className="tourn-cutline-sub"> · top {view.cutPercent}% (min {view.cutMin}) advance</span>
+            </div>
+          )}
+
           {/* Phase banner + countdown (client for the live tick) + join/play actions */}
           <TournamentActions
             view={view}

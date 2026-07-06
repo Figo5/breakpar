@@ -6,6 +6,7 @@ import {
   computeCut,
   scheduleFromStart,
   tournamentSeedKey,
+  cutlineScore,
   CUT_MIN,
   type CutCandidate,
 } from "@/lib/tournament";
@@ -134,5 +135,35 @@ describe("tournamentSeedKey", () => {
   it("is stable per (tournament, round) and differs across rounds", () => {
     expect(tournamentSeedKey("t1", 1)).toBe("t1:1");
     expect(tournamentSeedKey("t1", 2)).not.toBe(tournamentSeedKey("t1", 1));
+  });
+});
+
+describe("cutlineScore (current cut line)", () => {
+  it("returns null for an empty field", () => {
+    expect(cutlineScore([], 30, 20)).toBeNull();
+  });
+
+  it("is the score at the cut position when percent binds", () => {
+    // 100 players, 30% => 30 advance; sorted asc, the 30th score (index 29) is the line.
+    const scores = Array.from({ length: 100 }, (_, i) => i); // 0..99
+    expect(cutlineScore(scores, 30, 20)).toBe(29);
+  });
+
+  it("uses the min when the field is small", () => {
+    // 25 players, 30% => 8, but min 20 => the 20th score (index 19) is the line.
+    const scores = Array.from({ length: 25 }, (_, i) => i);
+    expect(cutlineScore(scores, 30, 20)).toBe(19);
+  });
+
+  it("caps at the field size", () => {
+    // 5 players, min 20 > field => everyone's in, line = worst (last) score.
+    const scores = [-5, -3, -1, 0, 2];
+    expect(cutlineScore(scores, 30, 20)).toBe(2);
+  });
+
+  it("works with realistic negative to-par scores", () => {
+    // 10 players through 2 rounds; 30% => 3 advance; line = 3rd-best score.
+    const scores = [-16, -15, -14, -12, -11, -9, -8, -6, -4, 1];
+    expect(cutlineScore(scores, 30, 3)).toBe(-14);
   });
 });

@@ -110,6 +110,8 @@ export const TROPHIES: Trophy[] = [
   // measure(): earned solely via a TrophyAward row, never through play.
   { id: "creator", label: "Creator", category: "special", tier: "special", special: true,
     criteria: "Break Par's creator" },
+  { id: "tournament-champion", label: "Tournament Champion", category: "special", tier: "special", special: true,
+    criteria: "Won a weekly tournament" },
 
   // 🏌️ Breaking Par
   { id: "broke-par", label: "Broke Par", category: "breaking-par", tier: "common",

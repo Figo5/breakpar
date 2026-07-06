@@ -28,6 +28,7 @@ import {
   cutIsDue,
   computeCut,
   tournamentSeedKey,
+  cutlineScore,
   type TournamentPhase,
   type CutCandidate,
 } from "@/lib/tournament";
@@ -143,6 +144,8 @@ export interface TournamentView {
   cutPercent: number;
   cutMin: number;
   fieldSize: number;
+  cutLine: number | null; // current cut-line score during rounds 1-2 (else null)
+  champion: { username: string; cumulativeToPar: number } | null; // once complete
 }
 
 function courseView(course: Course) {
@@ -172,6 +175,11 @@ export async function getActiveTournament(
     await runCut(t.id);
   }
 
+  // Lazily settle the winner once we're past endsAt and it hasn't been settled.
+  if (realPhase === "complete" && !t.winnerUserId) {
+    await settleTournament(t.id);
+  }
+
   // Refresh the cached status column if it drifted (cheap, best-effort). Cache
   // the REAL phase, not the preview one.
   if (t.status !== realPhase) {
@@ -181,6 +189,33 @@ export async function getActiveTournament(
   const course = courseBySlug(TOURNAMENT_COURSE_SLUG)!;
   const cv = courseView(course);
   const fieldSize = await prisma.tournamentEntry.count({ where: { tournamentId: t.id } });
+
+  // Current cutline (during rounds 1-2 only): the score at the cut position
+  // among players who've completed BOTH pre-cut rounds so far. Null otherwise.
+  let cutLine: number | null = null;
+  if (phase === "round1_2") {
+    cutLine = await computeCurrentCutline(t.id, t.cutPercent, t.cutMin);
+  }
+
+  // Champion (once complete + settled). winnerUserId "" means "no eligible winner".
+  let champion: { username: string; cumulativeToPar: number } | null = null;
+  const settled = await prisma.tournament.findUnique({ where: { id: t.id }, select: { winnerUserId: true } });
+  if (realPhase === "complete" && settled?.winnerUserId) {
+    // Look up the actual settled winner (settleTournament applied the time tiebreak).
+    const winnerEntry = await prisma.tournamentEntry.findFirst({
+      where: { tournamentId: t.id, userId: settled.winnerUserId },
+      select: {
+        user: { select: { username: true } },
+        rounds: { where: { tournamentRoundNo: { not: null }, completed: true }, select: { relativeToPar: true } },
+      },
+    });
+    if (winnerEntry) {
+      champion = {
+        username: winnerEntry.user.username,
+        cumulativeToPar: winnerEntry.rounds.reduce((s, r) => s + r.relativeToPar, 0),
+      };
+    }
+  }
 
   return {
     id: t.id,
@@ -198,6 +233,8 @@ export async function getActiveTournament(
     cutPercent: t.cutPercent,
     cutMin: t.cutMin,
     fieldSize,
+    cutLine,
+    champion,
   };
 }
 
@@ -357,7 +394,87 @@ export async function runCut(tournamentId: string): Promise<void> {
   ]);
 }
 
-// --- settle a finished tournament round ------------------------------------
+// --- winner resolution (lazy, idempotent) ----------------------------------
+
+export interface ChampionResult {
+  userId: string;
+  username: string;
+  cumulativeToPar: number;
+  totalDurationMs: number;
+}
+
+/**
+ * Settle the tournament winner once, after endsAt. Winner = lowest cumulative
+ * to-par among CUT-MAKERS who completed all 4 rounds; ties broken by lowest
+ * total play time (sum of the 4 rounds' durationMs). Awards the
+ * "tournament-champion" special trophy to the winner. Idempotent via a claim on
+ * winnerUserId (like runCut's cutComputedAt claim) — safe on concurrent reads.
+ * Returns the champion (or null if no eligible finisher).
+ */
+export async function settleTournament(tournamentId: string): Promise<void> {
+  const t = (await prisma.tournament.findUnique({ where: { id: tournamentId } })) as TournamentRow | null;
+  if (!t || t.winnerUserId) return; // already settled or missing
+
+  // Claim the settle so concurrent readers don't double-run it. We claim by
+  // setting status to "complete" AND requiring winnerUserId still null; but we
+  // set winnerUserId in the same update only after computing, so use a separate
+  // guard column pattern: attempt to mark a sentinel, then compute.
+  // Simpler: compute first, then updateMany guarded on winnerUserId null.
+
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { tournamentId, madeCut: true, withdrawn: false },
+    select: {
+      userId: true,
+      user: { select: { username: true } },
+      rounds: {
+        where: { tournamentRoundNo: { not: null }, completed: true },
+        select: { relativeToPar: true, durationMs: true, tournamentRoundNo: true },
+      },
+    },
+  });
+
+  // Eligible = made cut AND completed all 4 rounds.
+  const finishers = entries
+    .filter((e) => {
+      const nums = new Set(e.rounds.map((r) => r.tournamentRoundNo));
+      return [1, 2, 3, 4].every((n) => nums.has(n));
+    })
+    .map((e) => ({
+      userId: e.userId,
+      username: e.user.username,
+      cumulativeToPar: e.rounds.reduce((s, r) => s + r.relativeToPar, 0),
+      totalDurationMs: e.rounds.reduce((s, r) => s + (r.durationMs ?? 0), 0),
+    }));
+
+  if (finishers.length === 0) {
+    // No eligible finisher — mark complete with no winner so we don't re-run.
+    await prisma.tournament.updateMany({
+      where: { id: tournamentId, winnerUserId: null },
+      data: { status: "complete", winnerUserId: "" },
+    });
+    return;
+  }
+
+  // Rank: lowest to-par, then lowest total time.
+  finishers.sort((a, b) => {
+    if (a.cumulativeToPar !== b.cumulativeToPar) return a.cumulativeToPar - b.cumulativeToPar;
+    return a.totalDurationMs - b.totalDurationMs;
+  });
+  const champion = finishers[0];
+
+  // Claim: only the first writer (winnerUserId still null) proceeds to award.
+  const claim = await prisma.tournament.updateMany({
+    where: { id: tournamentId, winnerUserId: null },
+    data: { winnerUserId: champion.userId, status: "complete" },
+  });
+  if (claim.count === 0) return; // someone else settled it
+
+  // Award the champion trophy (idempotent via @@unique([userId, trophyId])).
+  await prisma.trophyAward.createMany({
+    data: [{ userId: champion.userId, trophyId: "tournament-champion", unlockedAt: new Date() }],
+    skipDuplicates: true,
+  });
+}
 
 /** Called by the finish route for tournament rounds. No streak/trophies/HoF —
  * just leaves the completed round; standings/cut derive from completed rounds.
@@ -367,6 +484,41 @@ export async function settleTournamentRound(_roundId: string): Promise<void> {
   // read. Placeholder so the finish route has a clear tournament branch and we
   // can add per-round side effects later without touching the route again.
   return;
+}
+
+// --- current cutline (live during rounds 1-2) ------------------------------
+
+/**
+ * The current cut-line SCORE: among players who've completed both pre-cut rounds
+ * so far, the cumulative to-par at the cut position (top cutPercent%, min cutMin,
+ * ties extend). Returns null if nobody's completed both rounds yet. This is the
+ * "cut line so far" — honest to the moment, not a prediction.
+ */
+export async function computeCurrentCutline(
+  tournamentId: string,
+  cutPercent: number,
+  cutMin: number
+): Promise<number | null> {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { tournamentId, withdrawn: false },
+    select: {
+      rounds: {
+        where: { tournamentRoundNo: { lte: PRE_CUT_ROUNDS }, completed: true },
+        select: { relativeToPar: true, tournamentRoundNo: true },
+      },
+    },
+  });
+
+  // Only players through BOTH pre-cut rounds count toward the current line.
+  const scores = entries
+    .filter((e) => {
+      const nums = new Set(e.rounds.map((r) => r.tournamentRoundNo));
+      return [1, 2].every((n) => nums.has(n));
+    })
+    .map((e) => e.rounds.reduce((s, r) => s + r.relativeToPar, 0))
+    .sort((a, b) => a - b); // lower (better) first
+
+  return cutlineScore(scores, cutPercent, cutMin);
 }
 
 // --- standings (ranked board) ----------------------------------------------

@@ -470,3 +470,14 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .tease-soon.live{background:var(--flag);color:#fff;animation:pulse-live 2s ease-in-out infinite}
 @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.6}}
 .tease-btn.live{background:var(--flag);color:#fff;border-color:var(--flag);cursor:pointer;opacity:1}
+
+/* ===== APPEND TO app/globals.css ===== */
+/* --- Tournament: champion banner + current cutline --------------------- */
+.tourn-champion{text-align:center;background:linear-gradient(160deg,#f8f1d8,#f0e4b8);border:1px solid #d9c67e;border-radius:14px;padding:18px 16px;margin:14px 0}
+.tourn-champion-crown{font-size:34px;line-height:1}
+.tourn-champion-label{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8a7526;margin-top:4px}
+.tourn-champion-name{font-family:'Anton',sans-serif;font-size:26px;color:var(--fairway);margin-top:2px;letter-spacing:.01em}
+.tourn-champion-score{font-family:'Oswald',sans-serif;font-weight:600;font-size:16px;color:#8a7526;margin-top:2px}
+.tourn-cutline{text-align:center;background:var(--paper);border:1px dashed var(--flag);border-radius:10px;padding:9px 12px;margin:10px 0;font-size:13.5px;color:var(--ink)}
+.tourn-cutline b{color:var(--flag);font-size:15px}
+.tourn-cutline-sub{color:var(--ink-soft);font-size:12px}
