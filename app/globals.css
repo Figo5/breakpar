@@ -464,3 +464,9 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .tourn-tag.wd{background:#e5ded0;color:#7a6f57}
 .tourn-thru{font-family:'Oswald',sans-serif;font-size:12px;color:var(--ink-soft);width:34px;flex:none;text-align:right}
 .tourn-score{font-family:'Oswald',sans-serif;font-weight:700;font-size:14px;color:var(--fairway);width:44px;flex:none;text-align:right}
+
+/* ===== APPEND TO app/globals.css ===== */
+/* --- Tournament teaser: live state ------------------------------------- */
+.tease-soon.live{background:var(--flag);color:#fff;animation:pulse-live 2s ease-in-out infinite}
+@keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.6}}
+.tease-btn.live{background:var(--flag);color:#fff;border-color:var(--flag);cursor:pointer;opacity:1}
