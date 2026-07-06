@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SignUpButton } from "@clerk/nextjs";
 import { nextMonday } from "@/lib/daily";
 
@@ -14,8 +15,8 @@ import { nextMonday } from "@/lib/daily";
  * so the guest-vs-member messaging is stable in SSR with no Clerk hydration flash.
  */
 export function TournamentTeaser({ isAccount }: { isAccount: boolean }) {
+  const router = useRouter();
   const [label, setLabel] = useState("");
-  const [note, setNote] = useState(false);
 
   useEffect(() => {
     const tick = () => {
@@ -44,17 +45,16 @@ export function TournamentTeaser({ isAccount }: { isAccount: boolean }) {
         One course, 4 rounds, a cut, and a trophy for the winner. Accounts only.
       </div>
 
-      {/* Disabled teaser button — NOT a link (no /tournaments route yet). Tapping
-          just surfaces a small "coming Monday" note; it never navigates. */}
+      {/* The tournament page now exists (self-activating). The button navigates
+          there — before Monday it shows the countdown + join; during the week,
+          live rounds. */}
       <button
         type="button"
         className="tease-btn"
-        aria-disabled="true"
-        onClick={() => setNote(true)}
+        onClick={() => router.push("/tournament")}
       >
-        🔒 Tournaments
+        🏆 View tournament
       </button>
-      {note && <div className="tease-note">⛳ Coming Monday — hang tight.</div>}
 
       {isAccount ? (
         <div className="tease-ready">✓ You&apos;re all set — see you Monday.</div>

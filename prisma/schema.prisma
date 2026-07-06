@@ -38,6 +38,7 @@ model User {
   rounds       Round[]
   streak       Streak?
   trophyAwards TrophyAward[]
+  tournamentEntries TournamentEntry[]
 
   // Challenges (accounts only). Directed: challenger -> opponent, both accounts.
   challengesSent     Challenge[] @relation("challengesSent")
@@ -81,6 +82,7 @@ model Course {
   holes      Hole[]
   rounds     Round[]
   challenges Challenge[]
+  tournaments Tournament[]
 }
 
 model Hole {
@@ -100,12 +102,18 @@ model Round {
   id          String   @id @default(cuid())
   userId      String
   courseId    String
-  mode        String   @default("daily") // "daily" (ranked) | "unlimited" (practice) | "challenge" (head-to-head)
+  mode        String   @default("daily") // "daily" (ranked) | "unlimited" (practice) | "challenge" (head-to-head) | "tournament"
   dateKey     String?  // "2026-06-25" for daily rounds; null for unlimited/challenge play
   // Shared RNG namespace for challenge rounds (= Challenge.seedKey) so both
   // players face identical hole conditions. null for daily/unlimited -> the hole
   // route seeds from round.id as before (byte-identical, calibration untouched).
+  // Tournament rounds set seedKey = "{tournamentId}:{roundNo}" so the whole field
+  // shares one seed per round (fair), yet each round of the week differs.
   seedKey     String?
+  // Tournament linkage (null for non-tournament rounds). A round belongs to one
+  // tournament entry and is one of the 4 numbered rounds (1..4).
+  tournamentEntryId String?
+  tournamentRoundNo Int?
   score       Int      @default(0)
   relativeToPar Int    @default(0)
   completed   Boolean  @default(false)
@@ -121,9 +129,13 @@ model Round {
   challengerFor Challenge? @relation("challengerRound")
   opponentFor   Challenge? @relation("opponentRound")
 
+  tournamentEntry TournamentEntry? @relation(fields: [tournamentEntryId], references: [id], onDelete: Cascade)
+
   // one ranked round per player per day. Unlimited rounds use dateKey = null,
   // and Postgres treats each NULL as distinct, so a player can have many.
   @@unique([userId, dateKey])
+  // one round per (entry, roundNo) — DB-enforces "one attempt per tournament round".
+  @@unique([tournamentEntryId, tournamentRoundNo])
   @@index([dateKey, score])
   @@index([userId, mode])
 }
@@ -153,6 +165,55 @@ model Challenge {
 
   @@index([opponentId, status])
   @@index([challengerId, status])
+}
+
+// A weekly tournament: one course, 4 rounds over the week, unlimited entry,
+// cumulative to-par, a mid-week cut. Self-activating by clock — status is
+// DERIVED from now vs. startsAt/cutAt/endsAt (a stored `status` is only a cache
+// the read-path refreshes lazily; no cron required). Everyone plays the SAME
+// course from a per-round shared seed ("{tournamentId}:{roundNo}"), so scores
+// are comparable. Accounts only.
+model Tournament {
+  id        String   @id @default(cuid())
+  weekKey   String   @unique // e.g. "2026-W28" — one tournament per week
+  courseId  String
+  name      String   @default("Weekly Tournament")
+  startsAt  DateTime // Mon 00:00 ET — rounds 1-2 open
+  cutAt     DateTime // Thu 00:00 ET (end of Thu) — cut computed, rounds 1-2 close
+  endsAt    DateTime // Sun end — rounds 3-4 close, final settled
+  cutPercent Int     @default(30) // top X% advance...
+  cutMin     Int     @default(20) // ...but at least this many always advance
+  // Lifecycle cache — the read path recomputes phase from the clock and updates
+  // this lazily. "upcoming" | "round1_2" | "cut" | "round3_4" | "complete".
+  status    String   @default("upcoming")
+  cutComputedAt DateTime? // set once the cut has been resolved (idempotent guard)
+  winnerUserId  String?   // set once finalized
+  createdAt DateTime @default(now())
+
+  course  Course            @relation(fields: [courseId], references: [id])
+  entries TournamentEntry[]
+
+  @@index([status])
+}
+
+// A player's participation in a tournament. Holds up to 4 rounds (linked via
+// Round.tournamentEntryId + tournamentRoundNo). madeCut/withdrawn are set by the
+// cut computation. cumulativeToPar is derived from completed rounds.
+model TournamentEntry {
+  id           String   @id @default(cuid())
+  tournamentId String
+  userId       String
+  madeCut      Boolean? // null until the cut runs; true/false after
+  withdrawn    Boolean  @default(false) // incomplete required rounds by a deadline
+  joinedAt     DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rounds     Round[]
+
+  @@unique([tournamentId, userId]) // one entry per player per tournament
+  @@index([tournamentId])
+  @@index([userId])
 }
 
 model HoleResult {

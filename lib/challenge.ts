@@ -21,11 +21,13 @@ import { courseBySlug, coursePar } from "@/data/courses";
 import { dailyCourse } from "@/lib/daily";
 
 /**
- * Prisma where-guard that EXCLUDES challenge rounds from lifetime stats
- * (trophies, HoF course-records, profile totals). No existing rows are
- * "challenge", so applying this is byte-identical for pre-Stage-2 data.
+ * Prisma where-guard that EXCLUDES non-ranked rounds (challenge AND tournament)
+ * from lifetime stats (trophies, HoF course-records, profile totals). Both use
+ * chosen/shared seeds, so neither must farm records. No pre-Stage-2 rows are
+ * "challenge" or "tournament", so applying this is byte-identical for old data.
+ * Kept named NON_CHALLENGE for back-compat with existing imports.
  */
-export const NON_CHALLENGE = { mode: { not: "challenge" } } as const;
+export const NON_CHALLENGE = { mode: { notIn: ["challenge", "tournament"] as string[] } };
 
 export type ChallengeStatus = "pending" | "active" | "complete" | "declined" | "expired";
 

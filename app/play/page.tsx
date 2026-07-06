@@ -64,6 +64,8 @@ function PlayInner() {
   const params = useSearchParams();
   const slug = params.get("course"); // present -> unlimited practice
   const challengeId = params.get("challenge"); // present -> head-to-head challenge round
+  const tournamentRoundParam = params.get("tournament"); // present -> tournament round N (1..4)
+  const tournamentRoundNo = tournamentRoundParam ? parseInt(tournamentRoundParam, 10) : null;
   const [course, setCourse] = useState<PlayCourse | null>(null);
   const [unlimited, setUnlimited] = useState(false);
   const [roundId, setRoundId] = useState<string | null>(null);
@@ -101,7 +103,9 @@ function PlayInner() {
         const rRes = await fetch("/api/round", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(challengeId ? { challengeId } : slug ? { slug } : {}),
+          body: JSON.stringify(
+            tournamentRoundNo ? { tournamentRoundNo } : challengeId ? { challengeId } : slug ? { slug } : {}
+          ),
         });
         if (rRes.status === 401) throw new Error("Please sign in to play.");
         if (rRes.status === 403) throw new Error("Please sign in to play.");
@@ -146,7 +150,7 @@ function PlayInner() {
     return () => {
       cancelled = true;
     };
-  }, [slug, challengeId]);
+  }, [slug, challengeId, tournamentRoundNo]);
 
   // round_abandoned (best-effort): a started round left unfinished. Fires once,
   // on SPA unmount (back to home, etc.) or pagehide (tab close/navigate away).
@@ -260,9 +264,11 @@ function PlayInner() {
             sessionStorage.setItem(`bp_new_trophies_${roundId}`, JSON.stringify(fin.newTrophies));
           } catch { }
         }
-        // Challenge rounds land on the side-by-side challenge view (not the
-        // daily result screen, which has no standing for a seedKey round).
-        router.push(challengeId ? `/challenges/${challengeId}` : `/result/${roundId}`);
+        // Challenge rounds land on the side-by-side challenge view; tournament
+        // rounds return to the tournament page (standings). Others -> result.
+        router.push(
+          tournamentRoundNo ? `/tournament` : challengeId ? `/challenges/${challengeId}` : `/result/${roundId}`
+        );
       } catch {
         setError("Couldn't post your card. Tap to retry.");
         setBusy(false);
@@ -289,7 +295,7 @@ function PlayInner() {
   return (
     <div className="screen">
       <div className="play-head">
-        <div className="hole-id">{unlimited ? "Practice · " : ""}{course.name.split("—")[0].trim()} · Hole {hole.number}/18</div>
+        <div className="hole-id">{tournamentRoundNo ? `Tournament · R${tournamentRoundNo} · ` : unlimited ? "Practice · " : ""}{course.name.split("—")[0].trim()} · Hole {hole.number}/18</div>
         <div className="score-pill"><span className="v">{relativeLabel(rel)}</span><span className="k">to par</span></div>
       </div>
       <div className="progress"><i style={{ width: `${(holeIdx / 18) * 100}%` }} /></div>

@@ -429,3 +429,38 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .odds-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
 .odds-legend i.good{background:var(--turf-light)} .odds-legend i.rough{background:var(--sand)} .odds-legend i.trouble{background:var(--flag)}
 .odds-toggle{background:none;border:none;color:var(--ink-soft);font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:underline;padding:6px 0;margin-top:4px}
+
+/* ===== APPEND TO app/globals.css ===== */
+/* --- Tournament page --------------------------------------------------- */
+.tourn-preview-badge{background:#2d2a1f;color:#f4e9c1;border:1px solid #6b5d2f;border-radius:10px;padding:8px 12px;font-size:12.5px;margin:10px 0;text-align:center}
+.tourn-actions{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+.tourn-phase{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:center;margin-bottom:12px}
+.tourn-phase b{color:var(--flag);font-size:15px}
+.tourn-joined,.tourn-ready{text-align:center;color:var(--fairway);font-weight:600;font-size:14px;padding:8px 0}
+.tourn-sub{text-align:center;font-size:12.5px;color:var(--ink-soft);margin-top:10px;line-height:1.5}
+.tourn-note{text-align:center;font-size:13px;color:var(--ink-soft);line-height:1.55;padding:6px 4px}
+.tourn-mine{text-align:center;font-size:14px;color:var(--ink);margin-bottom:12px}
+.tourn-mine b{color:var(--fairway);font-size:16px}
+.tourn-rounds{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tourn-round-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px 4px;border-radius:10px;border:1px solid var(--line);background:var(--cream);cursor:pointer;font-family:'Oswald',sans-serif}
+.tourn-round-btn .trb-n{font-size:12px;letter-spacing:.06em;color:var(--ink-soft);font-weight:600}
+.tourn-round-btn .trb-state{font-size:14px;font-weight:700;color:var(--ink)}
+.tourn-round-btn.open{border-color:var(--flag);background:#fff}
+.tourn-round-btn.open .trb-state{color:var(--flag)}
+.tourn-round-btn.done{background:#eef3ec;border-color:var(--turf-light)}
+.tourn-round-btn.done .trb-state{color:var(--fairway)}
+.tourn-round-btn.locked{opacity:.5;cursor:not-allowed}
+.tourn-section-h{font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--fairway);margin:18px 0 8px}
+.tourn-empty{text-align:center;color:var(--ink-soft);font-size:13.5px;padding:18px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.tourn-board{display:flex;flex-direction:column;gap:2px}
+.tourn-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:var(--paper)}
+.tourn-row.me{background:#eef3ec;border:1px solid var(--turf-light)}
+.tourn-row.wd{opacity:.55}
+.tourn-rank{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--ink-soft);width:24px;flex:none;text-align:center}
+.tourn-name{flex:1;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:7px;min-width:0}
+.tourn-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tourn-tag{font-family:'Oswald',sans-serif;font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:4px;flex:none}
+.tourn-tag.cut{background:var(--turf-light);color:#14321f}
+.tourn-tag.wd{background:#e5ded0;color:#7a6f57}
+.tourn-thru{font-family:'Oswald',sans-serif;font-size:12px;color:var(--ink-soft);width:34px;flex:none;text-align:right}
+.tourn-score{font-family:'Oswald',sans-serif;font-weight:700;font-size:14px;color:var(--fairway);width:44px;flex:none;text-align:right}

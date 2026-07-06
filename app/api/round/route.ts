@@ -9,6 +9,7 @@ import { countTeeApproachAggressive } from "@/lib/engine/shots";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 import { startOrResumeChallengeRound } from "@/lib/challenge";
+import { startTournamentRound } from "@/lib/tournament.server";
 
 /** Shape a Course for the client (used by the play screen). */
 function coursePayload(course: Course) {
@@ -36,15 +37,23 @@ export const POST = route(async (req: Request) => {
 
   const { user, newGuestId } = await getOrStartUser();
 
-  const body = (await req.json().catch(() => ({}))) as { slug?: string; challengeId?: string };
+  const body = (await req.json().catch(() => ({}))) as { slug?: string; challengeId?: string; tournamentRoundNo?: number };
 
   const roundInclude = { holeResults: true, course: { select: { slug: true } } } as const;
   let round;
 
-  // ---- CHALLENGE round: start/resume MY side of a head-to-head (accounts only).
-  // The course + shared seedKey live on the Challenge; both players get identical
-  // hole conditions (the hole route seeds from round.seedKey). One attempt/side.
-  if (typeof body.challengeId === "string" && body.challengeId.length > 0) {
+  // ---- TOURNAMENT round: start/resume MY round N of the current weekly
+  // tournament (accounts only). Shared per-round seed; one attempt per round;
+  // phase + cut gating enforced server-side.
+  if (typeof body.tournamentRoundNo === "number") {
+    if (!user.clerkId)
+      return NextResponse.json({ error: "account-required" }, { status: 403 });
+const started = await startTournamentRound(user.id, body.tournamentRoundNo, new Date(), user.username);    if (!started.ok) {
+      const code = started.error === "not-found" ? 404 : 409;
+      return NextResponse.json({ error: started.error }, { status: code });
+    }
+    round = await prisma.round.findUniqueOrThrow({ where: { id: started.roundId }, include: roundInclude });
+  } else if (typeof body.challengeId === "string" && body.challengeId.length > 0) {
     if (!user.clerkId)
       return NextResponse.json({ error: "account-required" }, { status: 403 });
     const started = await startOrResumeChallengeRound(user.id, body.challengeId);
