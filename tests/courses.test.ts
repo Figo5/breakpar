@@ -21,11 +21,17 @@ const EXPECTED_PAR: Record<string, number> = {
   "harbour-town": 71,
   "doral-blue-monster": 72,
   "royal-birkdale": 70,
+  // Batch 5 (fully verified from official BlueGolf scorecards):
+  "paynes-valley": 72,
+  "bandon-dunes": 72,
+  "chambers-bay": 72,
+  "arcadia-bluffs": 72,
+  "pacific-dunes": 71,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (23 after batch 4)", () => {
-    expect(COURSES.length).toBe(23);
+  it("roster is the expected size (28 after batch 5)", () => {
+    expect(COURSES.length).toBe(28);
   });
 
   it("every course has 18 holes", () => {
