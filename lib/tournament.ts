@@ -23,8 +23,82 @@ import { nextMonday, easternMidnight, dateKey } from "@/lib/daily";
 
 // --- config ----------------------------------------------------------------
 
-/** The launch course for the first tournament. */
-export const TOURNAMENT_COURSE_SLUG = "pebble-beach";
+/**
+ * TOURNAMENT COURSE SELECTION
+ * ---------------------------
+ * Default: a deterministic ROTATION through a curated pool of "regular tour
+ * stops", indexed by the tournament's week number — so each week is a different
+ * course and the cycle is predictable (no random repeats).
+ *
+ * Override: `TOURNAMENT_COURSE_OVERRIDES` hand-picks a course for a specific
+ * week ("major weeks"). An override always wins over the rotation, and the
+ * rotation simply continues around it.
+ *
+ * The CROWN JEWELS (Augusta, St Andrews, Pinehurst, Royal Birkdale) are
+ * deliberately kept OUT of the regular pool so they only ever appear when you
+ * assign them to a major week — that's what makes them feel like an event.
+ */
+
+/** Regular weekly rotation. Deterministic order; loops when exhausted.
+ * NOTE: pebble-beach is intentionally NOT here — it was the launch tournament
+ * (week 1) and shouldn't come back around for a while. It's still available as
+ * a hand-picked override whenever you want it. */
+export const TOURNAMENT_COURSE_POOL: string[] = [
+  "bethpage-black",
+  "chambers-bay",
+  "torrey-pines-south",
+  "quail-hollow",
+  "whistling-straits",
+  "bandon-dunes",
+  "kiawah-ocean",
+  "oakmont",
+  "arcadia-bluffs",
+  "harbour-town",
+  "royal-portrush-dunluce",
+  "pacific-dunes",
+  "winged-foot-west",
+];
+
+/**
+ * Hand-picked courses for specific weeks (majors / special events). Key is the
+ * ISO week key from `weekKeyFor` (e.g. "2026-W29"); value is a course slug.
+ * An entry here overrides the rotation for that week.
+ *
+ * Reserved crown jewels — use these here, not in the pool:
+ *   augusta-national · st-andrews-old · pinehurst-no2 · royal-birkdale
+ *
+ * Example:
+ *   "2026-W29": "augusta-national",   // The Masters week
+ *   "2026-W33": "st-andrews-old",     // The Open week
+ */
+export const TOURNAMENT_COURSE_OVERRIDES: Record<string, string> = {
+  // Week 2 of tournaments — hand-picked. (Rotation would have given Chambers Bay;
+  // pinned to Winged Foot West. Rotation resumes normally from W30.)
+  "2026-W29": "winged-foot-west",
+};
+
+/** Fallback if a configured slug is ever missing from the roster. */
+export const TOURNAMENT_FALLBACK_SLUG = "pebble-beach";
+
+/**
+ * The course slug for a given tournament week. Override wins; otherwise rotate
+ * through the pool by the week's ordinal so consecutive weeks differ and the
+ * sequence is stable/predictable. Pure — easy to unit test.
+ */
+export function tournamentCourseSlugFor(weekKey: string): string {
+  const override = TOURNAMENT_COURSE_OVERRIDES[weekKey];
+  if (override) return override;
+  if (TOURNAMENT_COURSE_POOL.length === 0) return TOURNAMENT_FALLBACK_SLUG;
+  // weekKey is "YYYY-Www" — build a monotonic ordinal from year + week so the
+  // rotation advances by one each week and carries across a year boundary.
+  const m = /^(\d{4})-W(\d{1,2})$/.exec(weekKey);
+  if (!m) return TOURNAMENT_FALLBACK_SLUG;
+  const year = Number(m[1]);
+  const week = Number(m[2]);
+  const ordinal = year * 53 + week; // 53 = max ISO weeks; strictly increasing
+  const idx = ((ordinal % TOURNAMENT_COURSE_POOL.length) + TOURNAMENT_COURSE_POOL.length) % TOURNAMENT_COURSE_POOL.length;
+  return TOURNAMENT_COURSE_POOL[idx];
+}
 
 /** Cut rule: top X% advance, but never fewer than MIN. */
 export const CUT_PERCENT = 30;
