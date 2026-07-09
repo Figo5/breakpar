@@ -19,6 +19,19 @@
 import { teeWeights, type Lie } from "@/lib/engine/shots";
 import type { Decision } from "@/lib/engine/probabilities";
 import type { HoleSpec, Conditions } from "@/lib/engine/resolveHole";
+import {
+  puttWeights,
+  greenWeights,
+  scrambleWeights,
+  PUTT_DECISION_LABEL,
+  SHORT_DECISION_LABEL,
+  type PuttResult,
+  type GreenResult,
+  type ScrambleResult,
+  type GreenSource,
+  type PuttBucket,
+  type GreenSpeed,
+} from "@/lib/engine/putting";
 
 export interface OddsRow {
   decision: Decision;
@@ -103,4 +116,200 @@ export function teeOddsTakeaway(chosen: Decision, hole: HoleSpec, c: Conditions)
       ? `a slightly better shot at a great position (${mine.goodPct}% vs ${safe.goodPct}% safe)`
       : `a lower chance of the short grass (${mine.goodPct}% vs ${safe.goodPct}% safe)`;
   return `Going ${DECISION_LABEL[chosen].toLowerCase()} traded ${goodPhrase} for more trouble risk (${mine.troublePct}% vs ${safe.troublePct}% safe). Your decision shifted the odds — the outcome was one roll inside them.`;
+}
+
+// ===========================================================================
+// PUTTING ODDS REVEAL — the most-requested extension (Will, /admin Jul 7).
+// Players "really don't know the best options" on putts. Surface P(one/two/
+// three-putt) per decision, same post-hole reveal pattern as the tee shot,
+// reusing the engine's exported puttWeights so it can never drift from the real
+// probabilities. Display-only.
+// ===========================================================================
+
+export interface PuttOddsRow {
+  decision: Decision;
+  label: string; // "Lag" | "Roll it" | "Charge"
+  onePct: number;
+  twoPct: number;
+  threePct: number;
+}
+
+/** Normalize a putt weight map to whole-number percentages summing to 100. */
+function puttToPct(w: Record<PuttResult, number>): { one: number; two: number; three: number } {
+  const keys: PuttResult[] = ["oneputt", "twoputt", "threeputt"];
+  const total = keys.reduce((a, k) => a + w[k], 0) || 1;
+  const rounded = keys.map((k) => ({ k, v: Math.round((w[k] / total) * 100) }));
+  const drift = 100 - rounded.reduce((a, r) => a + r.v, 0);
+  if (drift !== 0) {
+    const biggest = rounded.reduce((a, b) => (b.v > a.v ? b : a));
+    biggest.v += drift;
+  }
+  const m = {} as Record<PuttResult, number>;
+  for (const r of rounded) m[r.k] = r.v;
+  return { one: m.oneputt, two: m.twoputt, three: m.threeputt };
+}
+
+function puttRowFor(decision: Decision, bucket: Exclude<PuttBucket, "tap">, speed: GreenSpeed): PuttOddsRow {
+  const p = puttToPct(puttWeights(bucket, decision, speed));
+  return { decision, label: PUTT_DECISION_LABEL[decision], onePct: p.one, twoPct: p.two, threePct: p.three };
+}
+
+/** The putt odds the player faced for all three putt decisions (Lag / Roll it /
+ * Charge), at the bucket + green speed of the putt they had. */
+export function puttOddsReveal(
+  bucket: Exclude<PuttBucket, "tap">,
+  speed: GreenSpeed
+): { safe: PuttOddsRow; normal: PuttOddsRow; aggressive: PuttOddsRow } {
+  return {
+    safe: puttRowFor("safe", bucket, speed),
+    normal: puttRowFor("normal", bucket, speed),
+    aggressive: puttRowFor("aggressive", bucket, speed),
+  };
+}
+
+/** Plain-English putt takeaway: how the chosen roll traded make-rate for
+ * three-jack risk vs. lagging. Honest about variance. */
+export function puttOddsTakeaway(
+  chosen: Decision,
+  bucket: Exclude<PuttBucket, "tap">,
+  speed: GreenSpeed
+): string {
+  const rows = puttOddsReveal(bucket, speed);
+  const mine = rows[chosen];
+  const lag = rows.safe;
+  const dist = bucket === "short" ? "makeable" : "long";
+  if (chosen === "safe") {
+    return `Lagging a ${dist} putt gave you the lowest three-putt risk (${mine.threePct}%) — you cozy it close and tap in. Fewer one-putts (${mine.onePct}%), but you protect against the three-jack.`;
+  }
+  return `${PUTT_DECISION_LABEL[chosen]} raised your one-putt chance to ${mine.onePct}% (vs ${lag.onePct}% lagging) but pushed three-putt risk to ${mine.threePct}% (vs ${lag.threePct}% lagging). More reward, more risk — the roll landed inside those odds.`;
+}
+
+// ===========================================================================
+// APPROACH ODDS REVEAL — where the approach leaves you (kick-in / birdie look /
+// long putt / missed green), per decision. Reuses greenWeights.
+// ===========================================================================
+
+export interface ApproachOddsRow {
+  decision: Decision;
+  label: string;
+  kickinPct: number;
+  makeablePct: number;
+  lagPct: number;
+  scramblePct: number;
+  greenPct: number; // kickin + makeable + lag = hit the green
+}
+
+function greenToPct(w: Record<GreenResult, number>): Record<GreenResult, number> {
+  const keys: GreenResult[] = ["kickin", "makeable", "lag", "scramble"];
+  const total = keys.reduce((a, k) => a + w[k], 0) || 1;
+  const rounded = keys.map((k) => ({ k, v: Math.round((w[k] / total) * 100) }));
+  const drift = 100 - rounded.reduce((a, r) => a + r.v, 0);
+  if (drift !== 0) {
+    const biggest = rounded.reduce((a, b) => (b.v > a.v ? b : a));
+    biggest.v += drift;
+  }
+  const out = {} as Record<GreenResult, number>;
+  for (const r of rounded) out[r.k] = r.v;
+  return out;
+}
+
+function approachRowFor(decision: Decision, source: GreenSource, hole: HoleSpec, c: Conditions): ApproachOddsRow {
+  const p = greenToPct(greenWeights(source, decision, hole, c));
+  return {
+    decision,
+    label: DECISION_LABEL[decision],
+    kickinPct: p.kickin,
+    makeablePct: p.makeable,
+    lagPct: p.lag,
+    scramblePct: p.scramble,
+    greenPct: p.kickin + p.makeable + p.lag,
+  };
+}
+
+/** Approach odds for all three decisions, from the lie the player was in
+ * ("tee" for a par 3, else the tee-shot lie). */
+export function approachOddsReveal(
+  source: GreenSource,
+  hole: HoleSpec,
+  c: Conditions
+): { safe: ApproachOddsRow; normal: ApproachOddsRow; aggressive: ApproachOddsRow } {
+  return {
+    safe: approachRowFor("safe", source, hole, c),
+    normal: approachRowFor("normal", source, hole, c),
+    aggressive: approachRowFor("aggressive", source, hole, c),
+  };
+}
+
+export function approachOddsTakeaway(chosen: Decision, source: GreenSource, hole: HoleSpec, c: Conditions): string {
+  const rows = approachOddsReveal(source, hole, c);
+  const mine = rows[chosen];
+  const safe = rows.safe;
+  if (chosen === "safe") {
+    return `Playing it safe gave you a ${mine.greenPct}% chance to hit the green and the lowest miss risk (${mine.scramblePct}%). Steady — you take your par look and move on.`;
+  }
+  return `Going ${DECISION_LABEL[chosen].toLowerCase()} raised your kick-in/birdie-look odds but pushed the missed-green risk to ${mine.scramblePct}% (vs ${safe.scramblePct}% safe). You bought a better look at the cost of more short-side trouble.`;
+}
+
+// ===========================================================================
+// SHORT-GAME (SCRAMBLE) ODDS REVEAL — up & down / chip & two-putt / blow-up /
+// disaster, per decision. Reuses scrambleWeights.
+// ===========================================================================
+
+export interface ScrambleOddsRow {
+  decision: Decision;
+  label: string; // "Punch" | "Chip" | "Flop"
+  updownPct: number;
+  twochipPct: number;
+  blowupPct: number;
+  disasterPct: number;
+  savePct: number; // updown = saved par (or better)
+}
+
+function scrambleToPct(w: Record<ScrambleResult, number>): Record<ScrambleResult, number> {
+  const keys: ScrambleResult[] = ["updown", "twochip", "blowup", "disaster"];
+  const total = keys.reduce((a, k) => a + w[k], 0) || 1;
+  const rounded = keys.map((k) => ({ k, v: Math.round((w[k] / total) * 100) }));
+  const drift = 100 - rounded.reduce((a, r) => a + r.v, 0);
+  if (drift !== 0) {
+    const biggest = rounded.reduce((a, b) => (b.v > a.v ? b : a));
+    biggest.v += drift;
+  }
+  const out = {} as Record<ScrambleResult, number>;
+  for (const r of rounded) out[r.k] = r.v;
+  return out;
+}
+
+function scrambleRowFor(decision: Decision, hole: HoleSpec, c: Conditions): ScrambleOddsRow {
+  const p = scrambleToPct(scrambleWeights(decision, hole, c));
+  return {
+    decision,
+    label: SHORT_DECISION_LABEL[decision],
+    updownPct: p.updown,
+    twochipPct: p.twochip,
+    blowupPct: p.blowup,
+    disasterPct: p.disaster,
+    savePct: p.updown,
+  };
+}
+
+export function scrambleOddsReveal(
+  hole: HoleSpec,
+  c: Conditions
+): { safe: ScrambleOddsRow; normal: ScrambleOddsRow; aggressive: ScrambleOddsRow } {
+  return {
+    safe: scrambleRowFor("safe", hole, c),
+    normal: scrambleRowFor("normal", hole, c),
+    aggressive: scrambleRowFor("aggressive", hole, c),
+  };
+}
+
+export function scrambleOddsTakeaway(chosen: Decision, hole: HoleSpec, c: Conditions): string {
+  const rows = scrambleOddsReveal(hole, c);
+  const mine = rows[chosen];
+  const punch = rows.safe;
+  const doublePlus = (r: ScrambleOddsRow) => r.blowupPct + r.disasterPct;
+  if (chosen === "safe") {
+    return `The punch was the card-protector: lowest blow-up risk (${doublePlus(mine)}% double or worse) with a ${mine.savePct}% up-and-down. You take the safe recovery and keep the round intact.`;
+  }
+  return `${SHORT_DECISION_LABEL[chosen]} chased the save — ${mine.savePct}% up-and-down (vs ${punch.savePct}% punch) — but raised the blow-up risk to ${doublePlus(mine)}% double-or-worse (vs ${doublePlus(punch)}% punch). Chase-the-save vs protect-the-card.`;
 }
