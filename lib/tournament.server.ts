@@ -17,7 +17,8 @@
 import { prisma } from "@/lib/db";
 import { courseBySlug, coursePar, type Course } from "@/data/courses";
 import {
-  TOURNAMENT_COURSE_SLUG,
+  tournamentCourseSlugFor,
+  TOURNAMENT_FALLBACK_SLUG,
   CUT_PERCENT,
   CUT_MIN,
   PRE_CUT_ROUNDS,
@@ -103,7 +104,11 @@ async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow 
   if (live) return live;
 
   const sched = scheduleForUpcoming(now);
-  const course = courseBySlug(TOURNAMENT_COURSE_SLUG);
+  // Course for this week: hand-picked override (major week) else the rotation.
+  // Fall back to the launch course if a configured slug isn't in the roster, so
+  // a config typo can never stop a tournament from being created.
+  const slug = tournamentCourseSlugFor(sched.weekKey);
+  const course = courseBySlug(slug) ?? courseBySlug(TOURNAMENT_FALLBACK_SLUG);
   if (!course) return null;
   const courseRow = await prisma.course.findUnique({ where: { slug: course.slug }, select: { id: true } });
   if (!courseRow) return null;
@@ -186,7 +191,11 @@ export async function getActiveTournament(
     await prisma.tournament.updateMany({ where: { id: t.id, status: { not: realPhase } }, data: { status: realPhase } });
   }
 
-  const course = courseBySlug(TOURNAMENT_COURSE_SLUG)!;
+  // Resolve THIS tournament's course from its stored courseId (NOT a hardcoded
+  // slug) — with rotation, each week's tournament has a different course, and
+  // gameplay already uses t.courseId. Falls back safely if the row is missing.
+  const courseRow = await prisma.course.findUnique({ where: { id: t.courseId }, select: { slug: true } });
+  const course = (courseRow ? courseBySlug(courseRow.slug) : null) ?? courseBySlug(TOURNAMENT_FALLBACK_SLUG)!;
   const cv = courseView(course);
   const fieldSize = await prisma.tournamentEntry.count({ where: { tournamentId: t.id } });
 

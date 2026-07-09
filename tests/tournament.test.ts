@@ -167,3 +167,81 @@ describe("cutlineScore (current cut line)", () => {
     expect(cutlineScore(scores, 30, 3)).toBe(-14);
   });
 });
+
+// --- Course rotation (+ major-week overrides) -------------------------------
+import {
+  tournamentCourseSlugFor,
+  TOURNAMENT_COURSE_POOL,
+  TOURNAMENT_COURSE_OVERRIDES,
+  TOURNAMENT_FALLBACK_SLUG,
+} from "@/lib/tournament";
+import { COURSES } from "@/data/courses";
+
+describe("tournament course rotation", () => {
+  const slugs = new Set(COURSES.map((c) => c.slug));
+
+  it("every pool slug exists in the course roster", () => {
+    for (const s of TOURNAMENT_COURSE_POOL) {
+      expect(slugs.has(s), `pool slug missing from roster: ${s}`).toBe(true);
+    }
+  });
+
+  it("every override slug exists in the course roster", () => {
+    for (const [week, s] of Object.entries(TOURNAMENT_COURSE_OVERRIDES)) {
+      expect(slugs.has(s), `override slug for ${week} missing from roster: ${s}`).toBe(true);
+    }
+  });
+
+  it("the fallback slug exists in the roster", () => {
+    expect(slugs.has(TOURNAMENT_FALLBACK_SLUG)).toBe(true);
+  });
+
+  it("reserves the crown jewels — they are NOT in the regular rotation", () => {
+    for (const jewel of ["augusta-national", "st-andrews-old", "pinehurst-no2", "royal-birkdale"]) {
+      expect(TOURNAMENT_COURSE_POOL.includes(jewel), `${jewel} should be override-only`).toBe(false);
+    }
+  });
+
+  it("pebble-beach is out of the pool (it was the launch tournament)", () => {
+    expect(TOURNAMENT_COURSE_POOL.includes("pebble-beach")).toBe(false);
+  });
+
+  it("no course appears twice in the pool", () => {
+    expect(new Set(TOURNAMENT_COURSE_POOL).size).toBe(TOURNAMENT_COURSE_POOL.length);
+  });
+
+  it("is deterministic — same week always yields the same course", () => {
+    expect(tournamentCourseSlugFor("2026-W30")).toBe(tournamentCourseSlugFor("2026-W30"));
+  });
+
+  it("consecutive weeks give different courses", () => {
+    for (let w = 20; w < 30; w++) {
+      const a = tournamentCourseSlugFor(`2026-W${String(w).padStart(2, "0")}`);
+      const b = tournamentCourseSlugFor(`2026-W${String(w + 1).padStart(2, "0")}`);
+      expect(a, `weeks ${w} and ${w + 1} repeated`).not.toBe(b);
+    }
+  });
+
+  it("cycles through the whole pool before repeating", () => {
+    const n = TOURNAMENT_COURSE_POOL.length;
+    const seen = new Set<string>();
+    for (let w = 1; w <= n; w++) seen.add(tournamentCourseSlugFor(`2026-W${String(w).padStart(2, "0")}`));
+    expect(seen.size).toBe(n);
+  });
+
+  it("an override wins over the rotation", () => {
+    const week = Object.keys(TOURNAMENT_COURSE_OVERRIDES)[0];
+    if (!week) return; // no overrides configured yet — nothing to assert
+    expect(tournamentCourseSlugFor(week)).toBe(TOURNAMENT_COURSE_OVERRIDES[week]);
+  });
+
+  it("falls back on a malformed week key", () => {
+    expect(tournamentCourseSlugFor("not-a-week")).toBe(TOURNAMENT_FALLBACK_SLUG);
+  });
+
+  it("carries the rotation across a year boundary without repeating", () => {
+    const a = tournamentCourseSlugFor("2026-W52");
+    const b = tournamentCourseSlugFor("2027-W01");
+    expect(a).not.toBe(b);
+  });
+});
