@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoleArt } from "@/components/HoleArt";
 import { PuttView } from "@/components/PuttView";
@@ -18,10 +18,15 @@ import {
   AGGRESSIVE_BUDGET,
 } from "@/lib/holeRead";
 import { LIE_META, stagePrompt, type Lie, type PuttContext, type ShotRecord } from "@/lib/engine/shots";
-import { GREEN_META, type GreenResult } from "@/lib/engine/putting";
+import { GREEN_META, type GreenResult, type GreenSpeed, type GreenSource } from "@/lib/engine/putting";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
-import { teeOddsReveal, teeOddsTakeaway } from "@/lib/oddsReveal";
+import {
+  teeOddsReveal, teeOddsTakeaway,
+  puttOddsReveal, puttOddsTakeaway,
+  approachOddsReveal, approachOddsTakeaway,
+  scrambleOddsReveal, scrambleOddsTakeaway,
+} from "@/lib/oddsReveal";
 import { track, identifyUser, type RoundMeta } from "@/lib/analytics";
 import type { Course } from "@/data/courses";
 
@@ -370,11 +375,13 @@ function PlayInner() {
           <div className="name">{OUTCOME_META[pending].label}</div>
           {shotLog.length > 0 && <div className="result-note">“{shotLog[shotLog.length - 1].note}”</div>}
           <div className="delta">running {relativeLabel(rel)}</div>
-          {hole.par !== 3 && holeDecisions[0] && (
+          {shotLog.length > 0 && holeDecisions.length > 0 && (
             <OddsReveal
-              chosen={holeDecisions[0]}
+              shots={shotLog}
+              decisions={holeDecisions}
               hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
               conditions={conditions}
+              greens={course.greens}
             />
           )}
           <button className={`cta ${holeIdx >= 17 ? "" : "green"}`} style={{ marginTop: 18 }} onClick={next}>
@@ -458,17 +465,19 @@ function positionBanner(
 }
 
 function OddsReveal({
-  chosen,
+  shots,
+  decisions,
   hole,
   conditions,
+  greens,
 }: {
-  chosen: Decision;
+  shots: ShotRecord[];
+  decisions: Decision[];
   hole: { number: number; par: number; strokeIndex: number };
   conditions: { difficulty: number; wind: number };
+  greens: GreenSpeed;
 }) {
   const [open, setOpen] = useState(false);
-  const rows = teeOddsReveal(hole, conditions);
-  const order: Decision[] = ["safe", "normal", "aggressive"];
 
   if (!open) {
     return (
@@ -478,29 +487,101 @@ function OddsReveal({
     );
   }
 
+  // Walk the shots the player actually made and pair each DECISION shot with its
+  // odds block. Kick-ins/layup/auto shots have decision === null and are skipped.
+  const order: Decision[] = ["safe", "normal", "aggressive"];
+  const isPar3 = hole.par === 3;
+  let teeLie: Lie | null = null;
+  const blocks: ReactNode[] = [];
+
+  for (const s of shots) {
+    if (s.stage === "tee" && s.decision) {
+      teeLie = (s.lie as Lie) ?? null;
+      const rows = teeOddsReveal(hole, conditions);
+      blocks.push(
+        <StageOdds key="tee" title="🏌️ Tee shot" chosen={s.decision} order={order}
+          rows={order.map((d) => ({ label: rows[d].label, decision: d,
+            segs: [{ cls: "good", w: rows[d].pct.dialed + rows[d].pct.fairway }, { cls: "rough", w: rows[d].pct.rough }, { cls: "trouble", w: rows[d].pct.trouble }],
+            right: `${rows[d].goodPct}%` }))}
+          legend={[["good", "short grass"], ["rough", "rough"], ["trouble", "trouble"]]}
+          takeaway={teeOddsTakeaway(s.decision, hole, conditions)} />
+      );
+    } else if (s.stage === "approach" && s.decision) {
+      const source: GreenSource = isPar3 ? "tee" : (teeLie ?? "fairway");
+      const rows = approachOddsReveal(source, hole, conditions);
+      blocks.push(
+        <StageOdds key="approach" title="🎯 Approach" chosen={s.decision} order={order}
+          rows={order.map((d) => ({ label: rows[d].label, decision: d,
+            segs: [{ cls: "good", w: rows[d].kickinPct + rows[d].makeablePct }, { cls: "rough", w: rows[d].lagPct }, { cls: "trouble", w: rows[d].scramblePct }],
+            right: `${rows[d].greenPct}%` }))}
+          legend={[["good", "birdie look"], ["rough", "long putt"], ["trouble", "missed green"]]}
+          takeaway={approachOddsTakeaway(s.decision, source, hole, conditions)} />
+      );
+    } else if (s.stage === "putt" && s.decision) {
+      const bucket = s.green === "makeable" ? "short" : "long";
+      const rows = puttOddsReveal(bucket, greens);
+      blocks.push(
+        <StageOdds key="putt" title="⛳ Putt" chosen={s.decision} order={order}
+          rows={order.map((d) => ({ label: rows[d].label, decision: d,
+            segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
+            right: `${rows[d].onePct}%` }))}
+          legend={[["good", "one-putt"], ["rough", "two-putt"], ["trouble", "three-putt"]]}
+          takeaway={puttOddsTakeaway(s.decision, bucket, greens)} />
+      );
+    } else if (s.stage === "scramble" && s.decision) {
+      const rows = scrambleOddsReveal(hole, conditions);
+      blocks.push(
+        <StageOdds key="scramble" title="🌿 Short game" chosen={s.decision} order={order}
+          rows={order.map((d) => ({ label: rows[d].label, decision: d,
+            segs: [{ cls: "good", w: rows[d].updownPct }, { cls: "rough", w: rows[d].twochipPct }, { cls: "trouble", w: rows[d].blowupPct + rows[d].disasterPct }],
+            right: `${rows[d].savePct}%` }))}
+          legend={[["good", "up & down"], ["rough", "chip & two-putt"], ["trouble", "blow-up"]]}
+          takeaway={scrambleOddsTakeaway(s.decision, hole, conditions)} />
+      );
+    }
+  }
+
   return (
-    <div className="odds-reveal" role="region" aria-label="Odds you faced off the tee">
-      <div className="odds-reveal-h">📊 Your tee shot · odds you faced</div>
-      {order.map((d) => {
-        const r = rows[d];
-        return (
-          <div className={`odds-row ${d === chosen ? "mine" : ""}`} key={d}>
-            <span className="odds-name">{r.label}{d === chosen ? " ✓" : ""}</span>
-            <span className="odds-bar" aria-hidden="true">
-              <span className="odds-seg good" style={{ width: `${r.pct.dialed + r.pct.fairway}%` }} />
-              <span className="odds-seg rough" style={{ width: `${r.pct.rough}%` }} />
-              <span className="odds-seg trouble" style={{ width: `${r.pct.trouble}%` }} />
-            </span>
-            <span className="odds-good-lbl">{r.goodPct}%</span>
-          </div>
-        );
-      })}
+    <div className="odds-reveal" role="region" aria-label="Odds you faced this hole">
+      <div className="odds-reveal-title">📊 The odds you faced · every decision</div>
+      {blocks}
+    </div>
+  );
+}
+
+/** One stage's odds block: three decision rows (safe/normal/aggressive) with a
+ * three-segment bar + a plain-English takeaway. Reused across tee/approach/putt/
+ * scramble so every decision reads the same way. */
+function StageOdds({
+  title, chosen, order, rows, legend, takeaway,
+}: {
+  title: string;
+  chosen: Decision;
+  order: Decision[];
+  rows: { label: string; decision: Decision; segs: { cls: string; w: number }[]; right: string }[];
+  legend: [string, string][];
+  takeaway: string;
+}) {
+  return (
+    <div className="odds-stage">
+      <div className="odds-reveal-h">{title} · odds you faced</div>
+      {rows.map((r) => (
+        <div className={`odds-row ${r.decision === chosen ? "mine" : ""}`} key={r.decision}>
+          <span className="odds-name">{r.label}{r.decision === chosen ? " ✓" : ""}</span>
+          <span className="odds-bar" aria-hidden="true">
+            {r.segs.map((s, i) => (
+              <span key={i} className={`odds-seg ${s.cls}`} style={{ width: `${s.w}%` }} />
+            ))}
+          </span>
+          <span className="odds-good-lbl">{r.right}</span>
+        </div>
+      ))}
       <div className="odds-legend">
-        <span><i className="good" /> short grass</span>
-        <span><i className="rough" /> rough</span>
-        <span><i className="trouble" /> trouble</span>
+        {legend.map(([cls, lbl]) => (
+          <span key={cls}><i className={cls} /> {lbl}</span>
+        ))}
       </div>
-      <div className="odds-take">{teeOddsTakeaway(chosen, hole, conditions)}</div>
+      <div className="odds-take">{takeaway}</div>
     </div>
   );
 }

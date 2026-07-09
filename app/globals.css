@@ -487,3 +487,9 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 /* --- Tournament: top back link (field can be 100s deep) ---------------- */
 .eyebrow-back{cursor:pointer;text-decoration:none;transition:opacity .15s}
 .eyebrow-back:hover{opacity:.65}
+
+/* ===== APPEND TO app/globals.css ===== */
+/* --- Odds reveal: multi-stage (tee/approach/putt/short-game) ----------- */
+.odds-reveal-title{font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--fairway);margin-bottom:10px;text-align:center}
+.odds-stage{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.odds-stage:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
