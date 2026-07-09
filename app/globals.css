@@ -493,3 +493,15 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .odds-reveal-title{font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--fairway);margin-bottom:10px;text-align:center}
 .odds-stage{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .odds-stage:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+
+/* ===== APPEND TO app/globals.css ===== */
+/* --- Changelog --------------------------------------------------------- */
+.chg-list{margin-top:4px}
+.chg-entry{margin:0 0 22px;padding-left:16px;border-left:2px solid var(--line);position:relative}
+.chg-entry::before{content:"";position:absolute;left:-5px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--fairway)}
+.chg-entry:first-child::before{background:var(--flag)}
+.chg-date{font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--fairway);margin:0 0 8px}
+.chg-items{margin:0;padding-left:17px}
+.chg-items li{font-size:14.5px;line-height:1.6;color:var(--ink);margin-bottom:7px}
+.chg-items li:last-child{margin-bottom:0}
+.acct-sep{color:var(--ink-soft);font-size:13px}

@@ -109,6 +109,8 @@ export default async function Home() {
 
       <div style={{ textAlign: "center", marginTop: 16 }}>
         <Link href="/how-it-works" className="acct-link">How it works · Fair play</Link>
+        <span className="acct-sep"> · </span>
+        <Link href="/changelog" className="acct-link">Changelog</Link>
       </div>
 
       <div className="footnote">
