@@ -15,6 +15,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-10",
+    items: [
+      "Added 5 courses: The Country Club (Brookline), Los Angeles Country Club, National Golf Links of America, Muirfield, and Royal Melbourne. The roster is now 33.",
+    ],
+  },
+  {
     date: "2026-07-09",
     items: [
       "Weekly tournaments now rotate courses each week. Previously every tournament used the same course.",

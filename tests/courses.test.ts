@@ -27,11 +27,17 @@ const EXPECTED_PAR: Record<string, number> = {
   "chambers-bay": 72,
   "arcadia-bluffs": 72,
   "pacific-dunes": 71,
+  // Batch 6 (fully verified from official BlueGolf scorecards):
+  "the-country-club": 70,
+  "lacc-north": 71,
+  "national-golf-links": 72,
+  muirfield: 71,
+  "royal-melbourne": 71,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (28 after batch 5)", () => {
-    expect(COURSES.length).toBe(28);
+  it("roster is the expected size (33 after batch 6)", () => {
+    expect(COURSES.length).toBe(33);
   });
 
   it("every course has 18 holes", () => {
