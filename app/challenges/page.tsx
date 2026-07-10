@@ -7,6 +7,7 @@ import { listChallenges, type ChallengeItem } from "@/lib/challenge";
 import { COURSES } from "@/data/courses";
 import { dailyCourse } from "@/lib/daily";
 import { ChallengeCreate } from "./ChallengeCreate";
+import { BotChallengeCard } from "./BotChallengeCard";
 import { ChallengeActions } from "./ChallengeActions";
 
 // Challenges (Stage 2) — accounts only. Create a head-to-head, play the shared
@@ -58,6 +59,8 @@ async function ChallengesBody({ meId, prefillOpponent }: { meId: string; prefill
   return (
     <>
       <ChallengeCreate courses={courses} dailyName={dailyName} prefillOpponent={prefillOpponent} />
+
+      <BotChallengeCard />
 
       <Section title="Your turn" items={groups.yourTurn} empty="No challenges waiting on you." />
       <Section title="Waiting on them" items={groups.waiting} empty="" hideIfEmpty />
