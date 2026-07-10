@@ -252,6 +252,18 @@ export async function startOrResumeChallengeRound(meId: string, challengeId: str
  * complete, flips status to "complete" + stamps completedAt. Idempotent.
  */
 export async function settleChallengeOnFinish(roundId: string): Promise<void> {
+  const pre = await prisma.challenge.findFirst({
+    where: { OR: [{ challengerRoundId: roundId }, { opponentRoundId: roundId }] },
+    select: { id: true },
+  });
+  if (!pre) return;
+  // Bot opponents "play" the moment the human finishes: materialise the
+  // simulated round so the normal both-complete settlement below fires now.
+  // No-op for human opponents. (Lazy import keeps challenge.ts free of a
+  // static dependency on the bot module.)
+  const { finalizeBotSideIfNeeded } = await import("@/lib/challengeBot");
+  await finalizeBotSideIfNeeded(pre.id);
+
   const ch = await prisma.challenge.findFirst({
     where: { OR: [{ challengerRoundId: roundId }, { opponentRoundId: roundId }] },
     include: {

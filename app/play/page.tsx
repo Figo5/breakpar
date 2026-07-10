@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoleArt } from "@/components/HoleArt";
+import { OpponentStrip } from "@/components/OpponentStrip";
 import { PuttView } from "@/components/PuttView";
 import { Scorecard } from "@/components/Scorecard";
 import {
@@ -304,6 +305,8 @@ function PlayInner() {
         <div className="score-pill"><span className="v">{relativeLabel(rel)}</span><span className="k">to par</span></div>
       </div>
       <div className="progress"><i style={{ width: `${(holeIdx / 18) * 100}%` }} /></div>
+
+      {challengeId ? <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} /> : null}
 
       <div className="hole-info">
         <div><div className="big">{hole.number}</div><div className="par">Par {hole.par} · SI {hole.strokeIndex}</div></div>
