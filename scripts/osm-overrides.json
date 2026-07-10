@@ -1,0 +1,16 @@
+{
+  "_comment": "Per-course fixes for scripts/importAllHoles.ts.",
+
+  "tpc-sawgrass": { "boundaryName": "TPC Sawgrass", "courseIndex": 1, "_note": "[1] 16 holes centre 30.19617,-81.39371 = Stadium. 10 and 15 unmapped in OSM." },
+  "st-andrews-old": { "boundaryName": "Old Course" },
+  "royal-portrush-dunluce": { "boundaryName": "Dunluce Links" },
+  "bethpage-black": { "boundaryName": "Bethpage" },
+
+  "the-country-club": { "courseIndex": 1, "_note": "VERIFY centre on osm.org — three nines here, two complete 18 combos" },
+  "lacc-north": { "courseIndex": 1, "_note": "VERIFY [1] 34.07322,-118.42374 is the NORTH course, not South" },
+  "doral-blue-monster": { "courseIndex": 1, "_note": "VERIFY this is Blue Monster — 3 complete courses at the resort, plus 7 close-run holes" },
+
+  "kiawah-ocean": { "_note": "SUSPECT: clipped to 'Kiawah Island Club - River Course' — possibly the WRONG course imported clean. Verify hole centres, then set boundaryName to the right polygon or a manual bbox." },
+
+  "_thin_coverage": "These are simply under-mapped in OSM; no override fixes that. They keep the generated fallback: pinehurst-no2, paynes-valley, pacific-dunes, royal-melbourne (0/18), bandon-dunes (4), chambers-bay (5), torrey-pines-south (9), royal-birkdale (8), cypress-point (7), pebble-beach (2!)"
+}
