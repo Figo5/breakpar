@@ -96,12 +96,28 @@ type TournamentRow = {
  */
 async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow | null> {
   // If a tournament is currently live (start <= now < end), use it; otherwise
-  // create/fetch the one for the upcoming Monday.
+  // create/fetch the one for the upcoming week.
   const live = (await prisma.tournament.findFirst({
     where: { startsAt: { lte: now }, endsAt: { gt: now } },
     orderBy: { startsAt: "desc" },
   })) as TournamentRow | null;
   if (live) return live;
+
+  // ROOT-CAUSE GUARD (the W29 bug): before rolling forward to a new week, settle
+  // any tournament that has ENDED but was never settled. Previously the lazy
+  // settle only ran against whatever ensureCurrentTournament returned — and once
+  // an event's endsAt passed it was no longer "live", so it fell out of the
+  // window and its settle never ran. An ended-but-unsettled event orphaned its
+  // champion. Sweep them here so it can never happen again.
+  const orphans = (await prisma.tournament.findMany({
+    where: { endsAt: { lte: now }, winnerUserId: null },
+  })) as TournamentRow[];
+  for (const o of orphans) {
+    // Make sure its cut ran too (an event that ended before anyone triggered the
+    // cut would have no madeCut entries to settle from).
+    if (!o.cutComputedAt) await runCut(o.id);
+    await settleTournament(o.id);
+  }
 
   const sched = scheduleForUpcoming(now);
   // Course for this week: hand-picked override (major week) else the rotation.
@@ -657,5 +673,58 @@ export async function myTournamentProgress(
       cumulativeToPar,
       rounds,
     },
+  };
+}
+
+// --- last completed champion (for the Monday results / "last week" banner) --
+
+export interface LastChampion {
+  tournamentName: string;
+  courseName: string;
+  username: string;
+  cumulativeToPar: number;
+  weekKey: string;
+}
+
+/**
+ * The champion of the most-recently-ENDED settled tournament — for the results
+ * banner shown while the next event is upcoming (the "Monday is results day"
+ * slot). Returns null if there's no settled winner to show (e.g. an event that
+ * ended with no eligible finisher stores winnerUserId = "" and is skipped).
+ *
+ * Distinct from getActiveTournament().champion, which only surfaces a champion
+ * while the ACTIVE tournament is itself complete — once the next event exists
+ * and becomes active, that path can't show the prior winner. This one always
+ * looks back to the latest finished event.
+ */
+export async function lastCompletedChampion(now = new Date()): Promise<LastChampion | null> {
+  // Most recent tournament that has ended and has a real (non-sentinel) winner.
+  const t = (await prisma.tournament.findFirst({
+    where: { endsAt: { lte: now }, winnerUserId: { not: null } },
+    orderBy: { endsAt: "desc" },
+  })) as TournamentRow | null;
+  if (!t || !t.winnerUserId) return null; // no ended event, or sentinel "" (no winner)
+
+  const winnerEntry = await prisma.tournamentEntry.findFirst({
+    where: { tournamentId: t.id, userId: t.winnerUserId },
+    select: {
+      user: { select: { username: true } },
+      rounds: {
+        where: { tournamentRoundNo: { not: null }, completed: true },
+        select: { relativeToPar: true },
+      },
+    },
+  });
+  if (!winnerEntry) return null;
+
+  const courseRow = await prisma.course.findUnique({ where: { id: t.courseId }, select: { slug: true } });
+  const course = (courseRow ? courseBySlug(courseRow.slug) : null) ?? courseBySlug(TOURNAMENT_FALLBACK_SLUG)!;
+
+  return {
+    tournamentName: t.name,
+    courseName: course.name.split("—")[0].trim(),
+    username: winnerEntry.user.username,
+    cumulativeToPar: winnerEntry.rounds.reduce((s, r) => s + r.relativeToPar, 0),
+    weekKey: t.weekKey,
   };
 }

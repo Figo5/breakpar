@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { relativeLabel } from "@/lib/scoring";
 import { getCurrentUser } from "@/lib/user";
-import { getActiveTournament, myTournamentProgress, standings } from "@/lib/tournament.server";
+import { getActiveTournament, myTournamentProgress, standings, lastCompletedChampion } from "@/lib/tournament.server";
 import { TournamentActions } from "./TournamentActions";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,13 @@ export default async function TournamentPage() {
   const me = data?.me ?? null;
   const board = view ? await standings(view.id, view.par, user?.id) : [];
 
+  // Last week's champion — for the results banner shown while the next event is
+  // upcoming/live. Hidden when the active event IS the one just completed (its
+  // own champion banner covers that case, avoiding a duplicate).
+  const prior = await lastCompletedChampion(new Date());
+  const showPrior =
+    prior !== null && !(view?.phase === "complete" && view?.champion?.username === prior.username);
+
   return (
     <div className="screen">
       <div className="topbar">
@@ -39,6 +46,20 @@ export default async function TournamentPage() {
         <div className="profile-empty">No tournament scheduled yet — check back soon.</div>
       ) : (
         <>
+          {/* Last week's champion — the Monday results / "who won" banner. */}
+          {showPrior && prior && (
+            <div className="tourn-last-champion">
+              <div className="tourn-last-champion-head">
+                <span className="tourn-last-champion-crown">🏆</span>
+                <span>{prior.tournamentName} — Champion</span>
+              </div>
+              <div className="tourn-last-champion-body">
+                <span className="tourn-last-champion-name">{prior.username}</span>
+                <span className="tourn-last-champion-score">{relativeLabel(prior.cumulativeToPar)}</span>
+              </div>
+            </div>
+          )}
+
           <h1 className="wordmark" style={{ fontSize: "clamp(34px,10vw,50px)" }}>
             {view.name}
           </h1>

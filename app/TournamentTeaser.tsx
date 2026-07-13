@@ -15,7 +15,7 @@ import { SignUpButton } from "@clerk/nextjs";
  * guest sign-up CTA.
  */
 type Phase = "upcoming" | "round1_2" | "cut" | "round3_4" | "complete";
-type View = { phase: Phase; startsAt: string; cutAt: string; endsAt: string; fieldSize?: number } | null;
+type View = { phase: Phase; startsAt: string; cutAt: string; endsAt: string; fieldSize?: number; champion?: { username: string; cumulativeToPar: number } | null } | null;
 
 export function TournamentTeaser({ isAccount }: { isAccount: boolean }) {
   const router = useRouter();
@@ -74,12 +74,14 @@ export function TournamentTeaser({ isAccount }: { isAccount: boolean }) {
     : !view
       ? "Coming soon"
       : view.phase === "upcoming"
-        ? <>First tournament starts in <b>{label || "—"}</b></>
+        ? <>Next tournament starts in <b>{label || "—"}</b></>
         : view.phase === "round1_2"
           ? <>Rounds 1 &amp; 2 live · cut closes in <b>{label || "—"}</b></>
           : view.phase === "round3_4"
             ? <>Rounds 3 &amp; 4 live · final in <b>{label || "—"}</b></>
-            : "This week's tournament is complete.";
+            : view.champion
+              ? <>Champion: <b>{view.champion.username}</b> · next tournament Tuesday</>
+              : "This week's tournament is complete.";
 
   return (
     <div className="tease" aria-label="Weekly Tournaments">
