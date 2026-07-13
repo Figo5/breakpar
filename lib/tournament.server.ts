@@ -96,12 +96,28 @@ type TournamentRow = {
  */
 async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow | null> {
   // If a tournament is currently live (start <= now < end), use it; otherwise
-  // create/fetch the one for the upcoming Monday.
+  // create/fetch the one for the upcoming week.
   const live = (await prisma.tournament.findFirst({
     where: { startsAt: { lte: now }, endsAt: { gt: now } },
     orderBy: { startsAt: "desc" },
   })) as TournamentRow | null;
   if (live) return live;
+
+  // ROOT-CAUSE GUARD (the W29 bug): before rolling forward to a new week, settle
+  // any tournament that has ENDED but was never settled. Previously the lazy
+  // settle only ran against whatever ensureCurrentTournament returned — and once
+  // an event's endsAt passed it was no longer "live", so it fell out of the
+  // window and its settle never ran. An ended-but-unsettled event orphaned its
+  // champion. Sweep them here so it can never happen again.
+  const orphans = (await prisma.tournament.findMany({
+    where: { endsAt: { lte: now }, winnerUserId: null },
+  })) as TournamentRow[];
+  for (const o of orphans) {
+    // Make sure its cut ran too (an event that ended before anyone triggered the
+    // cut would have no madeCut entries to settle from).
+    if (!o.cutComputedAt) await runCut(o.id);
+    await settleTournament(o.id);
+  }
 
   const sched = scheduleForUpcoming(now);
   // Course for this week: hand-picked override (major week) else the rotation.

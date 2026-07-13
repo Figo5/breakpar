@@ -1042,3 +1042,21 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .bot-row-name { font-weight: 600; font-size: 14px; }
 .bot-row-blurb { color: var(--muted, #6b7563); font-size: 12px; }
 .bot-card-error { margin-top: 10px; color: #a33327; font-size: 12.5px; }
+
+/* Last week's champion — results banner above the active tournament */
+.tourn-last-champion {
+  margin: 4px 0 18px; padding: 14px 16px;
+  border: 1px solid var(--line, #e3ddcc); border-radius: 12px;
+  background: linear-gradient(180deg, rgba(212,175,55,0.10), rgba(212,175,55,0.02));
+}
+.tourn-last-champion-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted, #6b7563); font-weight: 600;
+}
+.tourn-last-champion-crown { font-size: 15px; }
+.tourn-last-champion-body {
+  display: flex; align-items: baseline; gap: 10px; margin-top: 6px;
+}
+.tourn-last-champion-name { font-size: 22px; font-weight: 700; }
+.tourn-last-champion-score { font-size: 16px; font-weight: 600; color: #a33327; }

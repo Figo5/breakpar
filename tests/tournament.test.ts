@@ -5,6 +5,7 @@ import {
   cutIsDue,
   computeCut,
   scheduleFromStart,
+  scheduleForUpcoming,
   tournamentSeedKey,
   cutlineScore,
   CUT_MIN,
@@ -122,12 +123,12 @@ describe("computeCut", () => {
 });
 
 describe("scheduleFromStart", () => {
-  it("cut is 4 days after start, end is 7 days after", () => {
-    const start = new Date("2026-07-06T04:00:00Z"); // Mon 00:00 ET
+  it("cut is 3 days after start (Tue->Fri), end is 6 days after (Tue->next Mon)", () => {
+    const start = new Date("2026-07-07T04:00:00Z"); // Tue 00:00 ET
     const s = scheduleFromStart(start);
     const days = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86_400_000);
-    expect(days(s.cutAt, s.startsAt)).toBe(4); // Fri
-    expect(days(s.endsAt, s.startsAt)).toBe(7); // next Mon
+    expect(days(s.cutAt, s.startsAt)).toBe(3); // Fri
+    expect(days(s.endsAt, s.startsAt)).toBe(6); // next Mon
   });
 });
 
@@ -243,5 +244,35 @@ describe("tournament course rotation", () => {
     const a = tournamentCourseSlugFor("2026-W52");
     const b = tournamentCourseSlugFor("2027-W01");
     expect(a).not.toBe(b);
+  });
+});
+
+
+describe("scheduleForUpcoming (Tue start / Mon results-day shape)", () => {
+  const easternWeekday = (d: Date) =>
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long" }).format(d);
+
+  it("starts on a Tuesday", () => {
+    const s = scheduleForUpcoming(new Date("2026-07-08T12:00:00Z")); // a Wednesday
+    expect(easternWeekday(s.startsAt)).toBe("Tuesday");
+  });
+
+  it("cut falls on Friday 00:00 ET (end of Thursday)", () => {
+    const s = scheduleForUpcoming(new Date("2026-07-08T12:00:00Z"));
+    expect(easternWeekday(s.cutAt)).toBe("Friday");
+  });
+
+  it("ends on Monday 00:00 ET (end of Sunday) — Monday is the results gap", () => {
+    const s = scheduleForUpcoming(new Date("2026-07-08T12:00:00Z"));
+    expect(easternWeekday(s.endsAt)).toBe("Monday");
+  });
+
+  it("Monday sits in the 'complete' gap between one week ending and the next starting", () => {
+    const s = scheduleForUpcoming(new Date("2026-07-08T12:00:00Z"));
+    // A moment on the Monday the event ends is complete for that event...
+    expect(phaseFor(s, s.endsAt)).toBe("complete");
+    // ...and still before next week's Tuesday start.
+    const next = scheduleFromStart(new Date(s.endsAt.getTime() + 86_400_000)); // +1 day = Tue
+    expect(phaseFor(next, s.endsAt)).toBe("upcoming");
   });
 });
