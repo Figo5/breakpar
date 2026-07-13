@@ -1060,3 +1060,10 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 }
 .tourn-last-champion-name { font-size: 22px; font-weight: 700; }
 .tourn-last-champion-score { font-size: 16px; font-weight: 600; color: #a33327; }
+
+/* Personal-best badge on the course-select cards */
+.chip.cc-best {
+  background: var(--ink, #1b2a17);
+  color: var(--card, #f7f4ea);
+  font-weight: 600;
+}
