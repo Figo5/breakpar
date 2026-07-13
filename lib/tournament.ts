@@ -149,28 +149,44 @@ export function weekKeyFor(monday: Date): string {
 }
 
 /**
- * The schedule for the tournament week that STARTS on the Monday at or after
- * `now`. startsAt = that Monday 00:00 ET; cutAt = Friday 00:00 ET (end of
- * Thursday play); endsAt = the following Monday 00:00 ET (end of Sunday play).
+ * The schedule for the tournament week that STARTS on the Tuesday of the week
+ * whose Monday is at or after `now`.
  *
- * `nextMonday` returns the NEXT Monday strictly after now (a full week out if
- * today is Monday). For the FIRST tournament we want the upcoming Monday, which
- * before that Monday is exactly nextMonday(now).
+ * WEEK SHAPE (changed after W29): Monday is a RESULTS/REST day — last week's
+ * champion is shown and this week's event teases with a countdown. Play runs
+ * Tuesday–Sunday:
+ *   startsAt = Tuesday 00:00 ET       (rounds 1-2 open)
+ *   cutAt    = Friday 00:00 ET        (end of Thursday — cut computed)
+ *   endsAt   = next Monday 00:00 ET   (end of Sunday — settle)
+ *
+ * So the tournament goes live Tuesday, cuts Thursday night, ends Sunday night,
+ * and Monday is the gap where results are final and the next event counts down.
  */
 export function scheduleForUpcoming(now = new Date()): TournamentSchedule {
-  const startsAt = nextMonday(now);
-  return scheduleFromStart(startsAt);
+  // nextMonday gives the upcoming Monday; the event starts the day after it.
+  const monday = nextMonday(now);
+  return scheduleFromStart(startTuesdayFromMonday(monday));
 }
 
-/** Build the full schedule from a known start Monday (00:00 ET). */
+/** Tuesday 00:00 ET given the week's Monday 00:00 ET. */
+function startTuesdayFromMonday(monday: Date): Date {
+  const key = dateKey(monday);
+  const [y, m, d] = key.split("-").map(Number);
+  return easternMidnight({ y, m, d: d + 1 }); // Tue 00:00 ET
+}
+
+/** Build the full schedule from a known start Tuesday (00:00 ET). */
 export function scheduleFromStart(startsAt: Date): TournamentSchedule {
-  // Civil Eastern date of the start Monday, then add days via easternMidnight
+  // Civil Eastern date of the start Tuesday, then add days via easternMidnight
   // (which normalizes out-of-range day-of-month and stays DST-safe).
   const key = dateKey(startsAt);
   const [y, m, d] = key.split("-").map(Number);
-  const cutAt = easternMidnight({ y, m, d: d + 4 }); // Fri 00:00 ET (end of Thu)
-  const endsAt = easternMidnight({ y, m, d: d + 7 }); // next Mon 00:00 ET (end of Sun)
-  return { weekKey: weekKeyFor(startsAt), startsAt, cutAt, endsAt };
+  const cutAt = easternMidnight({ y, m, d: d + 3 }); // Fri 00:00 ET (end of Thu)
+  const endsAt = easternMidnight({ y, m, d: d + 6 }); // next Mon 00:00 ET (end of Sun)
+  // weekKey is still keyed off the MONDAY of the week, so overrides written as
+  // "2026-Wnn" continue to line up with the calendar week.
+  const mondayKey = easternMidnight({ y, m, d: d - 1 });
+  return { weekKey: weekKeyFor(mondayKey), startsAt, cutAt, endsAt };
 }
 
 // --- phase derivation (pure, testable) -------------------------------------
