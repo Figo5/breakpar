@@ -149,30 +149,40 @@ export function weekKeyFor(monday: Date): string {
 }
 
 /**
- * The schedule for the tournament week that STARTS on the Tuesday of the week
- * whose Monday is at or after `now`.
+ * The schedule for the tournament week currently in view.
  *
- * WEEK SHAPE (changed after W29): Monday is a RESULTS/REST day — last week's
- * champion is shown and this week's event teases with a countdown. Play runs
- * Tuesday–Sunday:
+ * WEEK SHAPE (changed after the launch event): Monday is a RESULTS/REST day —
+ * last week's champion is shown and this week's event teases with a countdown.
+ * Play runs Tuesday–Sunday:
  *   startsAt = Tuesday 00:00 ET       (rounds 1-2 open)
  *   cutAt    = Friday 00:00 ET        (end of Thursday — cut computed)
  *   endsAt   = next Monday 00:00 ET   (end of Sunday — settle)
  *
- * So the tournament goes live Tuesday, cuts Thursday night, ends Sunday night,
- * and Monday is the gap where results are final and the next event counts down.
+ * "Upcoming" means the Tuesday of the CURRENT calendar week when we're at/after
+ * this week's Monday but before its Tuesday (i.e. on results-day Monday we point
+ * at TOMORROW, not a week out), and otherwise the Tuesday of next week. We derive
+ * the Tuesday directly from the civil date rather than via nextMonday(), because
+ * nextMonday() skips a full week when today is itself a Monday — which on a
+ * results-day Monday would push the countdown out by a week.
  */
 export function scheduleForUpcoming(now = new Date()): TournamentSchedule {
-  // nextMonday gives the upcoming Monday; the event starts the day after it.
-  const monday = nextMonday(now);
-  return scheduleFromStart(startTuesdayFromMonday(monday));
+  return scheduleFromStart(upcomingTuesday(now));
 }
 
-/** Tuesday 00:00 ET given the week's Monday 00:00 ET. */
-function startTuesdayFromMonday(monday: Date): Date {
-  const key = dateKey(monday);
+/**
+ * The Tuesday 00:00 ET that starts the upcoming tournament week.
+ * - On Monday: today+1 (this week's Tuesday) — results-day points at tomorrow.
+ * - Tue..Sun: next week's Tuesday (this week's event is already live/among us).
+ */
+function upcomingTuesday(now = new Date()): Date {
+  const key = dateKey(now); // civil Eastern "YYYY-MM-DD"
   const [y, m, d] = key.split("-").map(Number);
-  return easternMidnight({ y, m, d: d + 1 }); // Tue 00:00 ET
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+  // Days from today to the target Tuesday (2 = Tuesday's dow).
+  // Monday(1) -> +1; Tuesday(2) -> +7 (next week); ... Sunday(0) -> +2.
+  let delta = (2 - dow + 7) % 7;
+  if (delta === 0) delta = 7; // on a Tuesday, aim at next Tuesday
+  return easternMidnight({ y, m, d: d + delta });
 }
 
 /** Build the full schedule from a known start Tuesday (00:00 ET). */
@@ -183,8 +193,8 @@ export function scheduleFromStart(startsAt: Date): TournamentSchedule {
   const [y, m, d] = key.split("-").map(Number);
   const cutAt = easternMidnight({ y, m, d: d + 3 }); // Fri 00:00 ET (end of Thu)
   const endsAt = easternMidnight({ y, m, d: d + 6 }); // next Mon 00:00 ET (end of Sun)
-  // weekKey is still keyed off the MONDAY of the week, so overrides written as
-  // "2026-Wnn" continue to line up with the calendar week.
+  // weekKey is keyed off the MONDAY of the week (start Tuesday minus one day) so
+  // "2026-Wnn" overrides continue to line up with the calendar week.
   const mondayKey = easternMidnight({ y, m, d: d - 1 });
   return { weekKey: weekKeyFor(mondayKey), startsAt, cutAt, endsAt };
 }

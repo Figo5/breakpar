@@ -103,23 +103,47 @@ async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow 
   })) as TournamentRow | null;
   if (live) return live;
 
-  // ROOT-CAUSE GUARD (the W29 bug): before rolling forward to a new week, settle
-  // any tournament that has ENDED but was never settled. Previously the lazy
-  // settle only ran against whatever ensureCurrentTournament returned — and once
-  // an event's endsAt passed it was no longer "live", so it fell out of the
-  // window and its settle never ran. An ended-but-unsettled event orphaned its
+  // ROOT-CAUSE GUARD (the launch-event bug): before rolling forward, settle any
+  // tournament that ENDED but was never settled. The lazy settle used to run
+  // only against whatever this function returned, so once an event's endsAt
+  // passed it fell out of the window and its settle never ran — orphaning the
   // champion. Sweep them here so it can never happen again.
   const orphans = (await prisma.tournament.findMany({
     where: { endsAt: { lte: now }, winnerUserId: null },
   })) as TournamentRow[];
   for (const o of orphans) {
-    // Make sure its cut ran too (an event that ended before anyone triggered the
-    // cut would have no madeCut entries to settle from).
     if (!o.cutComputedAt) await runCut(o.id);
     await settleTournament(o.id);
   }
 
   const sched = scheduleForUpcoming(now);
+
+  // SELF-HEALING RESCHEDULE: an UPCOMING tournament created under an older
+  // schedule keeps its stale stored dates forever (the upsert below never
+  // rewrites them). So when the schedule logic changes — e.g. Monday-start to
+  // Tuesday-start — existing upcoming rows would still run on the old calendar
+  // and a human would have to hand-fix the DB. Instead: if the upcoming row for
+  // THIS week's key has dates that don't match what the current schedule logic
+  // produces, rewrite them in place. This preserves entries (no delete) and
+  // makes every future schedule change self-apply. Only ever touches a row that
+  // hasn't started (startsAt in the future), so a live/finished event is safe.
+  const existingUpcoming = (await prisma.tournament.findFirst({
+    where: { weekKey: sched.weekKey },
+  })) as TournamentRow | null;
+  if (
+    existingUpcoming &&
+    existingUpcoming.startsAt.getTime() > now.getTime() &&
+    (existingUpcoming.startsAt.getTime() !== sched.startsAt.getTime() ||
+      existingUpcoming.cutAt.getTime() !== sched.cutAt.getTime() ||
+      existingUpcoming.endsAt.getTime() !== sched.endsAt.getTime())
+  ) {
+    const healed = (await prisma.tournament.update({
+      where: { id: existingUpcoming.id },
+      data: { startsAt: sched.startsAt, cutAt: sched.cutAt, endsAt: sched.endsAt, status: "upcoming" },
+    })) as TournamentRow;
+    return healed;
+  }
+
   // Course for this week: hand-picked override (major week) else the rotation.
   // Fall back to the launch course if a configured slug isn't in the roster, so
   // a config typo can never stop a tournament from being created.
