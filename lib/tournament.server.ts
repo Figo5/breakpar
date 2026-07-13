@@ -675,3 +675,56 @@ export async function myTournamentProgress(
     },
   };
 }
+
+// --- last completed champion (for the Monday results / "last week" banner) --
+
+export interface LastChampion {
+  tournamentName: string;
+  courseName: string;
+  username: string;
+  cumulativeToPar: number;
+  weekKey: string;
+}
+
+/**
+ * The champion of the most-recently-ENDED settled tournament — for the results
+ * banner shown while the next event is upcoming (the "Monday is results day"
+ * slot). Returns null if there's no settled winner to show (e.g. an event that
+ * ended with no eligible finisher stores winnerUserId = "" and is skipped).
+ *
+ * Distinct from getActiveTournament().champion, which only surfaces a champion
+ * while the ACTIVE tournament is itself complete — once the next event exists
+ * and becomes active, that path can't show the prior winner. This one always
+ * looks back to the latest finished event.
+ */
+export async function lastCompletedChampion(now = new Date()): Promise<LastChampion | null> {
+  // Most recent tournament that has ended and has a real (non-sentinel) winner.
+  const t = (await prisma.tournament.findFirst({
+    where: { endsAt: { lte: now }, winnerUserId: { not: null } },
+    orderBy: { endsAt: "desc" },
+  })) as TournamentRow | null;
+  if (!t || !t.winnerUserId) return null; // no ended event, or sentinel "" (no winner)
+
+  const winnerEntry = await prisma.tournamentEntry.findFirst({
+    where: { tournamentId: t.id, userId: t.winnerUserId },
+    select: {
+      user: { select: { username: true } },
+      rounds: {
+        where: { tournamentRoundNo: { not: null }, completed: true },
+        select: { relativeToPar: true },
+      },
+    },
+  });
+  if (!winnerEntry) return null;
+
+  const courseRow = await prisma.course.findUnique({ where: { id: t.courseId }, select: { slug: true } });
+  const course = (courseRow ? courseBySlug(courseRow.slug) : null) ?? courseBySlug(TOURNAMENT_FALLBACK_SLUG)!;
+
+  return {
+    tournamentName: t.name,
+    courseName: course.name.split("—")[0].trim(),
+    username: winnerEntry.user.username,
+    cumulativeToPar: winnerEntry.rounds.reduce((s, r) => s + r.relativeToPar, 0),
+    weekKey: t.weekKey,
+  };
+}
