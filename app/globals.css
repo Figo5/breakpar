@@ -1042,7 +1042,6 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .bot-row-name { font-weight: 600; font-size: 14px; }
 .bot-row-blurb { color: var(--muted, #6b7563); font-size: 12px; }
 .bot-card-error { margin-top: 10px; color: #a33327; font-size: 12.5px; }
-
 /* Last week's champion — results banner above the active tournament */
 .tourn-last-champion {
   margin: 4px 0 18px; padding: 14px 16px;
@@ -1060,10 +1059,105 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 }
 .tourn-last-champion-name { font-size: 22px; font-weight: 700; }
 .tourn-last-champion-score { font-size: 16px; font-weight: 600; color: #a33327; }
+/* ============================================================================
 
-/* Personal-best badge on the course-select cards */
-.chip.cc-best {
-  background: var(--ink, #1b2a17);
-  color: var(--card, #f7f4ea);
-  font-weight: 600;
+/* ============================================================================
+   PLAY SCREEN v2 — banner map + flowing controls (fits HoleArt's real 400x150)
+   ============================================================================ */
+:root{
+  --pm-paper:#F7F4EA; --pm-paper-2:#FBF9F1; --pm-ink:#1B2A17; --pm-ink-soft:#5A6B52;
+  --pm-flag:#C8493A; --pm-flag-soft:#F3C9BE; --pm-amber:#F2C14E;
+  --pm-safe:#3A6B33; --pm-normal:#C99A2E;
+  --pm-line:rgba(27,42,23,.16); --pm-line-strong:rgba(27,42,23,.26);
 }
+.play{position:relative;max-width:var(--app-w,440px);margin:0 auto;background:var(--pm-paper);
+  min-height:100dvh;display:flex;flex-direction:column;padding-bottom:24px}
+.play-progress{height:3px;background:rgba(27,42,23,.1);margin:0}
+.play-progress>i{display:block;height:100%;background:var(--pm-flag);transition:width .3s ease}
+
+/* ===== MAP: a banner at natural height. header + chips float on IT. ===== */
+.play-map{position:relative;width:100%;overflow:hidden;background:var(--pm-ink)}
+/* HoleArt/PuttView render inside; let them size naturally. Add a min-height so
+   the banner is a real surface for the header/chips even for short art. */
+.play-map>.hole-art,.play-map>.puttview{display:block;width:100%;min-height:190px}
+.play-map>.hole-art svg,.play-map>.puttview svg{display:block;width:100%;height:100%}
+/* scrims painted by CSS (HoleArt has none of its own) */
+.play-map::before{content:"";position:absolute;top:0;left:0;right:0;height:96px;
+  background:linear-gradient(180deg,rgba(21,36,24,.62),transparent);z-index:1;pointer-events:none}
+.play.is-decision .play-map::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;
+  background:linear-gradient(0deg,rgba(21,36,24,.55),transparent);z-index:1;pointer-events:none}
+
+.pm-head{position:absolute;top:12px;left:16px;right:16px;z-index:2;
+  display:flex;align-items:flex-start;justify-content:space-between}
+.pm-num{font-family:'Anton',sans-serif;font-size:34px;line-height:.9;color:#fff}
+.pm-sub{font-family:'Oswald',sans-serif;font-size:10.5px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:#D5E2C9;margin-top:3px}
+.pm-right{text-align:right}
+.pm-topar{display:inline-flex;align-items:baseline;gap:6px;background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.24);padding:5px 12px;border-radius:999px}
+.pm-topar b{font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;color:#FFD9D2}
+.pm-topar span{font-family:'Oswald',sans-serif;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:#CBDCC0}
+.pm-yards{font-family:'Oswald',sans-serif;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#D5E2C9;margin-top:6px}
+
+.pm-chips{position:absolute;bottom:10px;left:16px;right:16px;z-index:2;display:flex;gap:6px;flex-wrap:wrap}
+.play.is-result .pm-chips{display:none}
+.pm-chip{font-family:'Inter',sans-serif;font-size:10px;font-weight:500;color:#EAF1E4;
+  background:rgba(21,36,24,.55);border:1px solid rgba(255,255,255,.16);
+  padding:3px 9px;border-radius:999px;line-height:1.3}
+.pm-chip-course{background:rgba(21,36,24,.7);font-weight:600}
+
+.pm-opponent{position:relative;z-index:2;padding:8px 14px 0}
+
+/* ===== CONTROLS: normal flow BELOW the map (no absolute pile-up) ===== */
+.pm-controls{padding:14px 16px 4px}
+.pm-reads{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;align-items:stretch}
+.pm-situation{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--pm-ink);
+  background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:7px 12px;border-radius:9px;text-align:center}
+.pm-situation.s-good{border-color:rgba(58,107,51,.4)}
+.pm-situation.s-warn{border-color:rgba(201,154,46,.45)}
+.pm-situation.s-bad{border-color:rgba(200,73,58,.4)}
+.pm-reads .cues{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.pm-reads .cue{font-family:'Inter',sans-serif;font-size:11px;color:var(--pm-ink-soft);
+  background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:5px 10px;border-radius:8px}
+.pm-reads .cue .ci{opacity:.7;margin-right:4px}
+.pm-reads .lie-banner{font-family:'Inter',sans-serif;font-size:12px;color:var(--pm-ink);
+  background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:7px 12px;border-radius:9px;text-align:center}
+
+.pm-prompt{font-family:'Oswald',sans-serif;font-size:11px;font-weight:500;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--pm-ink-soft);text-align:center;margin-bottom:11px}
+.pm-choices{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.pm-choice{appearance:none;cursor:pointer;text-align:left;line-height:1.3;
+  background:var(--pm-paper-2);border:1.5px solid var(--pm-line-strong);
+  border-radius:12px;padding:11px 11px 12px;transition:transform .1s ease,opacity .15s ease}
+.pm-choice:hover:not(:disabled){transform:translateY(-1px)}
+.pm-choice:disabled{opacity:.5;cursor:not-allowed}
+.pm-choice-top{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.pm-lbl{display:flex;align-items:center;gap:6px;min-width:0}
+.pm-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none;background:var(--pm-ink-soft)}
+.pm-choice.c-safe .pm-dot{background:var(--pm-safe)}
+.pm-choice.c-normal .pm-dot{background:var(--pm-normal)}
+.pm-choice.c-aggressive .pm-dot{background:#F7E3D2}
+.pm-name{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.02em;
+  text-transform:uppercase;color:var(--pm-ink);white-space:nowrap}
+.pm-desc{font-family:'Inter',sans-serif;font-size:10.5px;color:var(--pm-ink-soft);margin-top:5px}
+.pm-budget{font-family:'Oswald',sans-serif;font-size:9px;font-weight:500;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--pm-flag);flex:none}
+.pm-choice.c-aggressive.hot{background:var(--pm-flag);border-color:rgba(255,255,255,.3)}
+.pm-choice.c-aggressive.hot .pm-name{color:#FFF6F1}
+.pm-choice.c-aggressive.hot .pm-desc{color:var(--pm-flag-soft)}
+.pm-choice.c-aggressive.hot .pm-budget{color:var(--pm-flag-soft)}
+
+/* ===== RESULT content ===== */
+.play-result{padding:16px 16px 22px;display:flex;flex-direction:column;gap:14px}
+.pr-outcome{text-align:center}
+.pr-tag{font-family:'Anton',sans-serif;font-size:30px;line-height:1;color:var(--pm-ink)}
+.pr-outcome.o-great .pr-tag,.pr-outcome.o-good .pr-tag{color:var(--pm-safe)}
+.pr-outcome.o-bad .pr-tag,.pr-outcome.o-terrible .pr-tag{color:var(--pm-flag)}
+.pr-quote{font-family:'Inter',sans-serif;font-size:12.5px;font-style:italic;color:var(--pm-ink-soft);margin-top:6px}
+.pr-run{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--pm-ink-soft);margin-top:8px}
+.pr-run b{color:var(--pm-ink)}
+.pr-cta{display:block;width:100%;appearance:none;cursor:pointer;font-family:'Oswald',sans-serif;
+  font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#fff;
+  background:var(--pm-ink);border:none;border-radius:12px;padding:14px}

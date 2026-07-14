@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { HoleArt } from "@/components/HoleArt";
+import { HoleMap } from "@/components/HoleMap";
 import { OpponentStrip } from "@/components/OpponentStrip";
 import { PuttView } from "@/components/PuttView";
 import { Scorecard } from "@/components/Scorecard";
@@ -299,54 +299,63 @@ function PlayInner() {
   const choices = stage === "putt" ? PUTT_CHOICES : stage === "scramble" ? SHORT_CHOICES : SWING_CHOICES;
 
   return (
-    <div className="screen">
-      <div className="play-head">
-        <div className="hole-id">{tournamentRoundNo ? `Tournament · R${tournamentRoundNo} · ` : unlimited ? "Practice · " : ""}{course.name.split("—")[0].trim()} · Hole {hole.number}/18</div>
-        <div className="score-pill"><span className="v">{relativeLabel(rel)}</span><span className="k">to par</span></div>
+    <div className={`play ${pending ? "is-result" : "is-decision"}`}>
+      {/* progress hairline, pinned over everything */}
+      <div className="play-progress"><i style={{ width: `${(holeIdx / 18) * 100}%` }} /></div>
+
+      {/* ============ THE MAP (HoleMap seam) ============ */}
+      {/* Full-bleed in decision mode; shrinks to a hero strip in result mode.
+          HoleMap wraps HoleArt today; OSM geometry drops into HoleMap later. */}
+      <div className="play-map">
+        {stage === "putt" && puttCtx ? (
+          <PuttView putt={puttCtx} />
+        ) : (
+          <HoleMap hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
+        )}
+
+        {/* header floats over the top scrim */}
+        <div className="pm-head">
+          <div>
+            <div className="pm-num">{hole.number}</div>
+            <div className="pm-sub">Par {hole.par} · SI {hole.strokeIndex}</div>
+          </div>
+          <div className="pm-right">
+            <div className="pm-topar"><b>{relativeLabel(rel)}</b><span>to par</span></div>
+            {!pending && <div className="pm-yards">{approachYards ?? hole.yardage} yards</div>}
+          </div>
+        </div>
+
+        {/* course/mode label + condition chips — decision mode only */}
+        {!pending && (
+          <div className="pm-chips">
+            <span className="pm-chip pm-chip-course">
+              {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
+            </span>
+            {cues.map((c, i) => (
+              <span className="pm-chip" key={i}>{c.text}</span>
+            ))}
+          </div>
+        )}
+
       </div>
-      <div className="progress"><i style={{ width: `${(holeIdx / 18) * 100}%` }} /></div>
 
-      {challengeId ? <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} /> : null}
+      {/* opponent strip (challenges) — below the map banner, in flow */}
+      {challengeId && !pending ? (
+        <div className="pm-opponent">
+          <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} />
+        </div>
+      ) : null}
 
-      <div className="hole-info">
-        <div><div className="big">{hole.number}</div><div className="par">Par {hole.par} · SI {hole.strokeIndex}</div></div>
-        <div className="yards">{hole.yardage}<small>Yards</small></div>
-      </div>
-
-      {stage === "putt" && puttCtx ? (
-        <PuttView putt={puttCtx} />
-      ) : (
-        <HoleArt hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
-      )}
-
-      {!pending ? (
-        <>
-          <div className="reads">
-            {stage === "tee" && situation && <div className={`situation s-${situation.tone}`}>{situation.text}</div>}
+      {/* ============ DECISION controls: normal flow below the map ============ */}
+      {!pending && (
+        <div className="pm-controls">
+          <div className="pm-reads">
+            {stage === "tee" && situation && <div className={`pm-situation s-${situation.tone}`}>{situation.text}</div>}
             {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
-            {stage === "approach" && (approachYards ?? hole.yardage) && (
-              <div className="yardage">⛳ {approachYards ?? hole.yardage} to the pin</div>
-            )}
           </div>
 
-          {shotLog.length > 0 && (
-            <div className="shotlog" aria-label="Shot-by-shot">
-              {shotLog.map((s, i) => (
-                <div className="plog" key={i}>
-                  <span className="pst">{stageTag(s.stage)}</span>
-                  <span className="pnote">
-                    {s.note}
-                    {typeof s.yards === "number" && <em className="pyd">~{s.yards} yd</em>}
-                    {s.event && <em className={`pev pev-${s.event.tone}`}>⚡ {s.event.narration}</em>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="prompt">{stagePrompt(stage, hole.par)}</div>
-          {!budgeted && <div className="budget-note">Putts &amp; chips don&apos;t use your 🔥 budget</div>}
-          <div className="choices">
+          <div className="pm-prompt">{stagePrompt(stage, hole.par)}</div>
+          <div className="pm-choices">
             {choices.map((d) => {
               const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
               const isAggro = d.id === "aggressive";
@@ -354,30 +363,32 @@ function PlayInner() {
               return (
                 <button
                   key={d.id}
-                  className={`choice c-${d.id}`}
+                  className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
                   disabled={busy || outOfBudget}
                   onClick={() => choose(d.id)}
                   aria-label={`${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
                 >
-                  <span className="dot" />
-                  <span className="txt">
-                    <b>{d.label}{budgeted && isAggro && <em className="budget">🔥 {aggressiveLeft} left</em>}</b>
-                    <span>{d.blurb}</span>
+                  <span className="pm-choice-top">
+                    <span className="pm-lbl"><span className="pm-dot" /><span className="pm-name">{d.label}</span></span>
+                    {budgeted && isAggro && <span className="pm-budget">{outOfBudget ? "spent" : `${aggressiveLeft} left`}</span>}
                   </span>
-                  <span className={`risk r-${risk.tone}`} aria-hidden="true">
-                    {outOfBudget ? "Spent" : risk.text}
-                  </span>
+                  <span className="pm-desc">{d.blurb}</span>
                 </button>
               );
             })}
           </div>
-        </>
-      ) : (
-        <div className={`result ${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
-          <div className="emoji">{OUTCOME_META[pending].emoji}</div>
-          <div className="name">{OUTCOME_META[pending].label}</div>
-          {shotLog.length > 0 && <div className="result-note">“{shotLog[shotLog.length - 1].note}”</div>}
-          <div className="delta">running {relativeLabel(rel)}</div>
+        </div>
+      )}
+
+      {/* ============ RESULT mode: content opens below the map hero ============ */}
+      {pending && (
+        <div className="play-result">
+          <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
+            <div className="pr-tag">{OUTCOME_META[pending].label}</div>
+            {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
+            <div className="pr-run">running <b>{relativeLabel(rel)}</b></div>
+          </div>
+
           {shotLog.length > 0 && holeDecisions.length > 0 && (
             <OddsReveal
               shots={shotLog}
@@ -387,13 +398,14 @@ function PlayInner() {
               greens={course.greens}
             />
           )}
-          <button className={`cta ${holeIdx >= 17 ? "" : "green"}`} style={{ marginTop: 18 }} onClick={next}>
+
+          <button className="pr-cta" onClick={next}>
             {holeIdx >= 17 ? "See your card" : "Next hole"}
           </button>
+
+          <Scorecard holes={course.holes} outcomes={outcomes} currentHole={holeIdx} />
         </div>
       )}
-
-      <Scorecard holes={course.holes} outcomes={outcomes} currentHole={holeIdx} />
     </div>
   );
 }
