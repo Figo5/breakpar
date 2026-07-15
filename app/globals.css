@@ -161,17 +161,23 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .result .delta{font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;color:var(--ink-soft);margin-top:2px}
 .result.good .name{color:var(--turf)} .result.even .name{color:var(--fairway)} .result.bad .name{color:var(--flag)}
 
-.scorecard{margin-top:auto;padding-top:16px}
-.sc-row{display:grid;grid-template-columns:repeat(9,1fr);gap:5px}
-.sc-row+.sc-row{margin-top:5px}
-.cell{aspect-ratio:1;border:1px solid var(--line);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;background:var(--paper);color:var(--ink-soft);position:relative}
-.cell.cur{border-color:var(--flag);box-shadow:0 0 0 2px rgba(215,64,47,.18)}
-.cell.played{color:var(--ink)}
-.cell.under::before{content:"";position:absolute;width:78%;height:78%;border-radius:50%;border:1.6px solid var(--turf)}
-.cell.eagle::after{content:"";position:absolute;width:92%;height:92%;border-radius:50%;border:1.6px solid var(--turf)}
-.cell.over::before{content:"";position:absolute;width:74%;height:74%;border:1.6px solid var(--flag)}
-.cell.dbl::after{content:"";position:absolute;width:90%;height:90%;border:1.6px solid var(--flag)}
-.sc-meta{display:flex;justify-content:space-between;margin-top:8px;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.scorecard{margin-top:auto;padding-top:2px}
+.sc-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px;
+  font-family:'Oswald',sans-serif;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.sc-head b{font-size:12px;color:var(--pm-flag);white-space:nowrap}
+.sc-grid{overflow:hidden;border:1px solid var(--pm-line-strong);border-radius:8px;background:#EDE7D7}
+.sc-line{display:grid;grid-template-columns:44px repeat(9,minmax(0,1fr));min-height:25px}
+.sc-line+.sc-line{border-top:1px solid var(--pm-line)}
+.sc-line>span{display:flex;align-items:center;justify-content:center;min-width:0;padding:3px 1px;
+  border-left:1px solid var(--pm-line);font-family:'Oswald',sans-serif;font-size:10px;font-weight:500;color:var(--pm-ink-soft)}
+.sc-line>.sc-label{justify-content:flex-start;padding-left:7px;border-left:0;background:var(--pm-ink);
+  color:#EAF1E4;font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.sc-line>span.current{background:#F5D9D2;color:var(--pm-flag);font-weight:700}
+.sc-line.sc-scores>span:not(.sc-label){background:var(--pm-paper-2);font-size:13px;font-weight:600;color:var(--pm-ink)}
+.sc-line.sc-scores>span.played{background:#E3ECD9}
+.sc-line.sc-scores>span.current{background:#F3C9BE;color:var(--pm-flag)}
+.sc-meta{display:flex;justify-content:space-between;margin-top:7px;font-family:'Oswald',sans-serif;
+  font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
 
 .final-course{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--pm-ink-soft);font-size:13px;text-align:center}
 .final-score{font-family:'Anton',sans-serif;font-size:96px;line-height:.85;color:var(--pm-ink);margin:6px 0 0;text-align:center}
@@ -602,10 +608,9 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
        exactly what caused the original 277px collapse in result mode (result
        content happened to be narrower than decision-mode content, so the
        shrink-to-fit width collapsed with it).
-     - .pm-card is the actual card and OWNS max-width:440px + margin:0 auto.
-       It stays phone-width and centered no matter how wide .play/.app get on
-       desktop — a phone-card layout doesn't benefit from extra width, so it
-       intentionally doesn't take any, on any viewport.
+     - .pm-card is the actual play surface and OWNS max-width:680px + margin:auto.
+       Play is the one screen allowed to use the wider desktop shell because a
+       yardage-book map benefits directly from the extra canvas.
    ============================================================================ */
 /* Concept palette tokens — used across EVERY screen (Home's dark banner/CTAs,
    chips, cards, etc.), not just the play screen. They live here with the play
@@ -619,7 +624,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   --pm-line:rgba(27,42,23,.16); --pm-line-strong:rgba(27,42,23,.26);
 }
 .play{width:100%;min-height:100dvh;background:var(--pm-ink);display:flex;flex-direction:column;padding:20px 16px 40px}
-.play-progress{width:100%;max-width:440px;height:3px;background:rgba(255,255,255,.14);margin:0 auto 14px;border-radius:99px;overflow:hidden;flex:none}
+.play-progress{width:100%;max-width:680px;height:3px;background:rgba(255,255,255,.14);margin:0 auto 14px;border-radius:99px;overflow:hidden;flex:none}
 .play-progress>i{display:block;height:100%;background:var(--pm-flag);transition:width .3s ease}
 
 /* ===== THE CARD: one surface. The art (HoleArt/PuttView, an <svg> with its
@@ -631,21 +636,22 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
    and the bottom of .play, matching the concept's place-items:center dark
    field. Auto margins collapse to 0 if the card ever exceeds the viewport
    (long result panel), so the top never becomes unreachable — no clipping. */
-.pm-card{position:relative;width:100%;max-width:440px;margin:auto;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.pm-card{position:relative;width:100%;max-width:680px;margin:auto;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .pm-card-art{position:relative;border-radius:16px;overflow:hidden;background:var(--pm-ink);
   border:1.5px solid rgba(197,210,184,.5)}
 .pm-card-art>svg{display:block;width:100%}
+.pm-card.is-decision .pm-card-art>svg{height:min(560px,calc(100dvh - 190px));object-fit:cover}
 
 .pm-head{position:absolute;top:16px;left:20px;right:20px;z-index:2;
   display:flex;align-items:flex-start;justify-content:space-between}
-.pm-num{font-family:'Anton',sans-serif;font-size:34px;line-height:.9;color:#fff}
-.pm-sub{font-family:'Oswald',sans-serif;font-size:10.5px;font-weight:500;letter-spacing:.14em;
+.pm-num{font-family:'Oswald',sans-serif;font-size:34px;font-weight:600;line-height:1;color:#fff}
+.pm-sub{font-family:'Oswald',sans-serif;font-size:11.5px;font-weight:500;letter-spacing:.14em;
   text-transform:uppercase;color:#D5E2C9;margin-top:3px}
 .pm-right{text-align:right}
 .pm-topar{display:inline-flex;align-items:baseline;gap:6px;background:rgba(255,255,255,.14);
   border:1px solid rgba(255,255,255,.24);padding:5px 12px;border-radius:999px}
-.pm-topar b{font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;color:#FFD9D2}
-.pm-topar span{font-family:'Oswald',sans-serif;font-size:9.5px;letter-spacing:.1em;
+.pm-topar b{font-family:'Oswald',sans-serif;font-size:16px;font-weight:600;color:#FFD9D2}
+.pm-topar span{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:.1em;
   text-transform:uppercase;color:#CBDCC0}
 .pm-yards{font-family:'Oswald',sans-serif;font-size:10.5px;letter-spacing:.14em;
   text-transform:uppercase;color:#D5E2C9;margin-top:6px;text-align:right}
@@ -657,14 +663,11 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-chip-course{background:rgba(21,36,24,.7);font-weight:600}
 .pm-chip-sig{background:rgba(224,160,43,.88);color:#1a1205;border-color:rgba(224,160,43,.5);font-weight:600}
 
-/* ===== CONTROLS: float on the card's baked-in bottom scrim (position:absolute
-   bottom:0, INSIDE .pm-card-art). This keeps the MAP dominant — the art fills
-   the whole card and the controls sit on its lower scrim band, rather than the
-   controls growing the card downward and shrinking the map to a thumbnail.
-   The tall 680x1040 canvas gives the map plenty of visible height above the
-   controls. Decision controls are short (reads + prompt + 3 buttons) and never
-   exceed the card height, so no scroll/clip guard is needed here. */
-.pm-controls{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 16px 16px}
+/* ===== ACTION TRAY: gameplay controls are deliberately OUTSIDE the artwork.
+   The SVG reads as a clean yardage-book page; choices live in a separate dark
+   tray directly below it, still inside the unified card frame. */
+.pm-controls{position:relative;z-index:2;padding:12px 16px 15px;background:var(--pm-ink);
+  border-top:1px solid rgba(197,210,184,.22)}
 .pm-opponent{margin-bottom:8px}
 .pm-reads{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;align-items:stretch}
 .pm-situation{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--pm-ink);
@@ -682,22 +685,25 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-prompt{font-family:'Oswald',sans-serif;font-size:11px;font-weight:500;letter-spacing:.18em;
   text-transform:uppercase;color:#EAF1E4;text-shadow:0 1px 3px rgba(0,0,0,.4);text-align:center;margin-bottom:11px}
 .pm-choices{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.pm-choice{appearance:none;cursor:pointer;text-align:left;line-height:1.3;
+.pm-choice{appearance:none;cursor:pointer;text-align:left;line-height:1.3;min-width:0;
   background:rgba(247,244,234,.96);border:1.5px solid rgba(247,244,234,.5);
-  border-radius:12px;padding:11px 11px 12px;transition:transform .1s ease,opacity .15s ease}
+  border-radius:11px;padding:9px 10px 10px;transition:transform .1s ease,opacity .15s ease}
 .pm-choice:hover:not(:disabled){transform:translateY(-1px)}
+.pm-choice:focus-visible,.pr-cta:focus-visible{outline:3px solid var(--pm-amber);outline-offset:2px}
 .pm-choice:disabled{opacity:.5;cursor:not-allowed}
 .pm-choice-top{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .pm-lbl{display:flex;align-items:center;gap:6px;min-width:0}
 .pm-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none;background:var(--pm-ink-soft)}
-.pm-choice.c-safe .pm-dot{background:var(--pm-safe)}
-.pm-choice.c-normal .pm-dot{background:var(--pm-normal)}
-.pm-choice.c-aggressive .pm-dot{background:#F7E3D2}
-.pm-name{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.02em;
+/* Preserve the original at-a-glance decision legend on every shot. */
+.pm-choice.c-safe .pm-dot{background:#3F8A45;box-shadow:0 0 0 2px rgba(63,138,69,.18)}
+.pm-choice.c-normal .pm-dot{background:#E0A02B;box-shadow:0 0 0 2px rgba(224,160,43,.2)}
+.pm-choice.c-aggressive .pm-dot{background:#D44F40;box-shadow:0 0 0 2px rgba(255,246,241,.72)}
+.pm-name{font-family:'Oswald',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.02em;
   text-transform:uppercase;color:var(--pm-ink);white-space:nowrap}
-.pm-desc{font-family:'Inter',sans-serif;font-size:10.5px;color:var(--pm-ink-soft);margin-top:5px}
+.pm-desc{font-family:'Inter',sans-serif;font-size:10px;color:var(--pm-ink-soft);margin-top:4px;white-space:nowrap}
 .pm-budget{font-family:'Oswald',sans-serif;font-size:9px;font-weight:500;letter-spacing:.06em;
   text-transform:uppercase;color:var(--pm-flag);flex:none}
+.pm-budget b{font-size:11px}.pm-budget i{font-style:normal}
 .pm-choice.c-aggressive.hot{background:rgba(200,73,58,.95);border-color:rgba(255,255,255,.3)}
 .pm-choice.c-aggressive.hot .pm-name{color:#FFF6F1}
 .pm-choice.c-aggressive.hot .pm-desc{color:var(--pm-flag-soft)}
@@ -713,6 +719,15 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   max-height:calc(100% - 48px);overflow-y:auto;background:var(--pm-paper);
   border-top:1.5px solid rgba(197,210,184,.5);border-radius:20px 20px 0 0;
   padding:20px 16px 22px;display:flex;flex-direction:column;gap:16px}
+
+/* Result mode is a standalone golf card. The yardage-book art and floating map
+   header disappear completely; outcome, action, and scorecard own the surface. */
+.pm-card.is-result .pm-card-art>svg,.pm-card.is-result .pm-head{display:none}
+.pm-card.is-result .pm-result-panel{position:relative;max-height:none;overflow:visible;
+  border:0;border-radius:16px;margin-top:0}
+.pr-holeline{text-align:center;font-family:'Oswald',sans-serif;font-size:10px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--pm-ink-soft);padding-bottom:10px;
+  border-bottom:1px solid var(--pm-line)}
 .pr-outcome{text-align:center}
 .pr-tag{font-family:'Anton',sans-serif;font-size:30px;line-height:1;color:var(--pm-ink)}
 .pr-outcome.o-great .pr-tag,.pr-outcome.o-good .pr-tag{color:var(--pm-safe)}
@@ -724,6 +739,19 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#fff;
   background:var(--pm-ink);border:none;border-radius:12px;padding:14px}
 
-/* Card frame stays phone-width even on a wide desktop window (see the sizing
-   contract above) — nothing to do here for >=680/1024px, .pm-card's own
-   max-width already holds regardless of how wide .play/.app get. */
+/* On phones, use the available vertical room: the yardage page becomes a tall
+   crop while the action tray remains outside it. preserveAspectRatio="slice"
+   keeps the central routing, green, and tee full-bleed instead of stretching. */
+@media (max-width:679px){
+  .play{padding:12px 16px 24px}
+  .play-progress{margin-bottom:10px}
+  .pm-card.is-decision .pm-card-art>svg{height:min(56dvh,520px);object-fit:cover}
+  .pm-controls{padding:11px 10px 12px}
+  .pm-choices{gap:6px}
+  .pm-choice{padding:8px 8px 9px}
+  .pm-name{font-size:11.5px}
+  .pm-desc{font-size:9.5px}
+  .pm-budget i{display:none}
+  .pm-budget b{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
+    border:1px solid currentColor;border-radius:999px;font-size:9px}
+}

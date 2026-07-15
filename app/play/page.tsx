@@ -15,13 +15,13 @@ import {
   puttRiskRead,
   shortGameRiskRead,
   greenRead,
-  situationRead,
   AGGRESSIVE_BUDGET,
 } from "@/lib/holeRead";
-import { LIE_META, stagePrompt, type Lie, type PuttContext, type ShotRecord } from "@/lib/engine/shots";
+import { LIE_META, type Lie, type PuttContext, type ShotRecord } from "@/lib/engine/shots";
 import { GREEN_META, type GreenResult, type GreenSpeed, type GreenSource } from "@/lib/engine/putting";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
+import { encodeBallDisplay } from "@/lib/ballDisplay";
 import {
   teeOddsReveal, teeOddsTakeaway,
   puttOddsReveal, puttOddsTakeaway,
@@ -36,19 +36,19 @@ type SwingStage = "tee" | "approach" | "putt" | "scramble";
 
 // Decision vocab is shared (safe/normal/aggressive) but labelled per stage.
 const SWING_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Safe", blurb: "Protect par, low risk" },
-  { id: "normal", label: "Normal", blurb: "Balanced go at it" },
-  { id: "aggressive", label: "Aggressive", blurb: "Chase birdie, accept blowups" },
+  { id: "safe", label: "Safe", blurb: "Middle of the green" },
+  { id: "normal", label: "Normal", blurb: "Favor the fat side" },
+  { id: "aggressive", label: "Aggressive", blurb: "Hunt the pin" },
 ];
 const PUTT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Lag", blurb: "Cozy it up, protect against the 3-putt" },
-  { id: "normal", label: "Roll it", blurb: "Good pace, give it a chance" },
-  { id: "aggressive", label: "Charge", blurb: "Ram it in — three-jack risk" },
+  { id: "safe", label: "Lag", blurb: "Cozy it close" },
+  { id: "normal", label: "Roll it", blurb: "Good pace" },
+  { id: "aggressive", label: "Charge", blurb: "Ram it in" },
 ];
 const SHORT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Punch", blurb: "Take bogey, kill the blow-up" },
-  { id: "normal", label: "Chip", blurb: "Standard chip at it" },
-  { id: "aggressive", label: "Flop", blurb: "High flop, go for the save" },
+  { id: "safe", label: "Punch", blurb: "Take the safe out" },
+  { id: "normal", label: "Chip", blurb: "Standard chip" },
+  { id: "aggressive", label: "Flop", blurb: "Go for the save" },
 ];
 
 const initialStage = (par: number): SwingStage => (par === 3 ? "approach" : "tee");
@@ -73,7 +73,6 @@ function PlayInner() {
   const tournamentRoundParam = params.get("tournament"); // present -> tournament round N (1..4)
   const tournamentRoundNo = tournamentRoundParam ? parseInt(tournamentRoundParam, 10) : null;
   const [course, setCourse] = useState<PlayCourse | null>(null);
-  const [unlimited, setUnlimited] = useState(false);
   const [roundId, setRoundId] = useState<string | null>(null);
   const [holeIdx, setHoleIdx] = useState(0); // 0..17
   const [outcomes, setOutcomes] = useState<(Outcome | null)[]>(Array(18).fill(null));
@@ -122,7 +121,6 @@ function PlayInner() {
 
         const c = r.course as PlayCourse;
         setCourse(c);
-        setUnlimited(r.mode === "unlimited");
         setRoundId(r.roundId);
         setAggressiveLeft((r.aggressiveBudget ?? AGGRESSIVE_BUDGET) - (r.aggressiveUsed ?? 0));
         const startIdx = r.playedHoles?.length ? Math.min(r.playedHoles.length, 17) : 0;
@@ -232,12 +230,15 @@ function PlayInner() {
         setPending(outcome);
       } else {
         // Next stage — reveal the new position + reads.
-        setStage(data.stage as SwingStage);
-        setLie((data.lie as Lie) ?? lie);
+        const nextStage = data.stage as SwingStage;
+        const nextLie = (data.lie as Lie) ?? lie;
+        setStage(nextStage);
+        setLie(nextLie);
         setGreen((data.green as GreenResult) ?? null);
         setPuttCtx((data.putt as PuttContext) ?? null);
         setApproachYards((data.approachYards as number) ?? null);
-        setBallT(typeof data.ballT === "number" ? data.ballT : 0.05);
+        const progress = typeof data.ballT === "number" ? data.ballT : 0.05;
+        setBallT(encodeBallDisplay(progress, nextLie, nextStage));
       }
     } catch {
       setError("That shot didn't register. Tap to retry.");
@@ -295,8 +296,22 @@ function PlayInner() {
   }
 
   const cues = holeCues(hole, conditions, course.greens);
-  const situation = situationRead(rel, 18 - holeIdx);
   const choices = stage === "putt" ? PUTT_CHOICES : stage === "scramble" ? SHORT_CHOICES : SWING_CHOICES;
+  const openingRead = stage === "tee" || (stage === "approach" && !lie);
+  const isIsland = hole.par === 3 && hole.hazard === "water" && !!hole.signature && /island/i.test(hole.signature);
+  const mapFeature = isIsland
+    ? "Island green"
+    : hole.hazard === "water"
+      ? "Water in play"
+      : hole.hazard === "ocean"
+        ? "Ocean in play"
+        : hole.hazard === "sand"
+          ? "Bunkers"
+          : hole.dogleg === "L"
+            ? "Dogleg left"
+            : hole.dogleg === "R"
+              ? "Dogleg right"
+              : null;
 
   return (
     <div className="play">
@@ -324,16 +339,13 @@ function PlayInner() {
             </div>
           </div>
 
-          {/* course/mode label (+ signature, when this hole has one) — decision
-              mode only. The full cue list (wind, greens, dogleg, hazard,
-              signature test, etc.) reads once, in .pm-controls — it doesn't
-              repeat here. */}
+          {/* The original concept used this rail for three terse conditions,
+              leaving the map itself unobstructed and the bottom rail thin. */}
           {!pending && (
             <div className="pm-chips">
-              <span className="pm-chip pm-chip-course">
-                {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
-              </span>
-              {hole.signature && <span className="pm-chip pm-chip-sig">★ {hole.signature}</span>}
+              <span className="pm-chip">{course.wind} mph</span>
+              <span className="pm-chip">{course.greens.toLowerCase()} greens</span>
+              {mapFeature && <span className="pm-chip">{mapFeature}</span>}
             </div>
           )}
 
@@ -346,15 +358,17 @@ function PlayInner() {
                 </div>
               )}
 
-              <div className="pm-reads">
-                {stage === "tee" && situation && <div className={`pm-situation s-${situation.tone}`}>{situation.text}</div>}
-                {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
-              </div>
+              {!openingRead && (
+                <div className="pm-reads">
+                  {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
+                </div>
+              )}
 
-              <div className="pm-prompt">{stagePrompt(stage, hole.par)}</div>
+              <div className="pm-prompt">{openingRead ? "Tee shot" : compactStageLabel(stage)}</div>
               <div className="pm-choices">
                 {choices.map((d) => {
                   const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
+                  const blurb = decisionBlurb(stage, d.id, hole.par, d.blurb);
                   const isAggro = d.id === "aggressive";
                   const outOfBudget = budgeted && isAggro && aggressiveLeft <= 0;
                   return (
@@ -363,13 +377,17 @@ function PlayInner() {
                       className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
                       disabled={busy || outOfBudget}
                       onClick={() => choose(d.id)}
-                      aria-label={`${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
+                      aria-label={`${d.label}: ${blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
                     >
                       <span className="pm-choice-top">
                         <span className="pm-lbl"><span className="pm-dot" /><span className="pm-name">{d.label}</span></span>
-                        {budgeted && isAggro && <span className="pm-budget">{outOfBudget ? "spent" : `${aggressiveLeft} left`}</span>}
+                        {budgeted && isAggro && (
+                          <span className="pm-budget">
+                            {outOfBudget ? "spent" : <><b>{aggressiveLeft}</b><i> left</i></>}
+                          </span>
+                        )}
                       </span>
-                      <span className="pm-desc">{d.blurb}</span>
+                      <span className="pm-desc">{blurb}</span>
                     </button>
                   );
                 })}
@@ -380,6 +398,7 @@ function PlayInner() {
           {/* ============ RESULT: a panel over the bottom of the SAME card ============ */}
           {pending && (
             <div className="pm-result-panel">
+              <div className="pr-holeline">Hole {hole.number} · {hole.yardage} yards · SI {hole.strokeIndex}</div>
               <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
                 <div className="pr-tag">{OUTCOME_META[pending].label}</div>
                 {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
@@ -410,6 +429,28 @@ function PlayInner() {
 }
 
 // --- helpers ---------------------------------------------------------------
+
+function compactStageLabel(stage: SwingStage): string {
+  if (stage === "tee") return "Tee shot";
+  if (stage === "approach") return "Approach";
+  if (stage === "putt") return "Putt";
+  return "Short game";
+}
+
+function decisionBlurb(stage: SwingStage, decision: Decision, par: number, fallback: string): string {
+  if (stage === "tee") {
+    if (decision === "safe") return "Find the fairway";
+    if (decision === "normal") return "Play your line";
+    return "Challenge the trouble";
+  }
+  // A par-3 "approach" is its tee shot; retain the original concept language.
+  if (stage === "approach") {
+    if (decision === "safe") return par === 3 ? "Middle of the green" : "Center of the green";
+    if (decision === "normal") return "Favor the fat side";
+    return "Hunt the pin";
+  }
+  return fallback;
+}
 
 function stageTag(stage: ShotRecord["stage"]): string {
   return stage === "tee" ? "Tee" : stage === "approach" ? "Approach" : stage === "layup" ? "Wedge" : stage === "putt" ? "Putt" : "Chip";
