@@ -299,112 +299,112 @@ function PlayInner() {
   const choices = stage === "putt" ? PUTT_CHOICES : stage === "scramble" ? SHORT_CHOICES : SWING_CHOICES;
 
   return (
-    <div className={`play ${pending ? "is-result" : "is-decision"}`}>
-      {/* progress hairline, pinned over everything */}
+    <div className="play">
+      {/* progress hairline, above the card */}
       <div className="play-progress"><i style={{ width: `${(holeIdx / 18) * 100}%` }} /></div>
 
-      {/* ============ THE MAP (HoleMap seam) ============ */}
-      {/* Full-bleed in decision mode; shrinks to a hero strip in result mode.
-          HoleMap wraps HoleArt today; OSM geometry drops into HoleMap later. */}
-      <div className="play-map">
-        {stage === "putt" && puttCtx ? (
-          <PuttView putt={puttCtx} />
-        ) : (
-          <HoleMap hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
-        )}
-
-        {/* header floats over the top scrim */}
-        <div className="pm-head">
-          <div>
-            <div className="pm-num">{hole.number}</div>
-            <div className="pm-sub">Par {hole.par} · SI {hole.strokeIndex}</div>
-          </div>
-          <div className="pm-right">
-            <div className="pm-topar"><b>{relativeLabel(rel)}</b><span>to par</span></div>
-            {!pending && <div className="pm-yards">{approachYards ?? hole.yardage} yards</div>}
-          </div>
-        </div>
-
-        {/* course/mode label — decision mode only. The full cue list (wind,
-            greens, dogleg, hazard, signature test, etc.) reads once, below
-            the map in .pm-reads — it doesn't repeat here. */}
-        {!pending && (
-          <div className="pm-chips">
-            <span className="pm-chip pm-chip-course">
-              {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
-            </span>
-          </div>
-        )}
-
-      </div>
-
-      {/* opponent strip (challenges) — below the map banner, in flow */}
-      {challengeId && !pending ? (
-        <div className="pm-opponent">
-          <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} />
-        </div>
-      ) : null}
-
-      {/* ============ DECISION controls: normal flow below the map ============ */}
-      {!pending && (
-        <div className="pm-controls">
-          <div className="pm-reads">
-            {stage === "tee" && situation && <div className={`pm-situation s-${situation.tone}`}>{situation.text}</div>}
-            {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
-          </div>
-
-          <div className="pm-prompt">{stagePrompt(stage, hole.par)}</div>
-          <div className="pm-choices">
-            {choices.map((d) => {
-              const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
-              const isAggro = d.id === "aggressive";
-              const outOfBudget = budgeted && isAggro && aggressiveLeft <= 0;
-              return (
-                <button
-                  key={d.id}
-                  className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
-                  disabled={busy || outOfBudget}
-                  onClick={() => choose(d.id)}
-                  aria-label={`${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
-                >
-                  <span className="pm-choice-top">
-                    <span className="pm-lbl"><span className="pm-dot" /><span className="pm-name">{d.label}</span></span>
-                    {budgeted && isAggro && <span className="pm-budget">{outOfBudget ? "spent" : `${aggressiveLeft} left`}</span>}
-                  </span>
-                  <span className="pm-desc">{d.blurb}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ============ RESULT mode: content opens below the map hero ============ */}
-      {pending && (
-        <div className="play-result">
-          <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
-            <div className="pr-tag">{OUTCOME_META[pending].label}</div>
-            {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
-            <div className="pr-run">running <b>{relativeLabel(rel)}</b></div>
-          </div>
-
-          {shotLog.length > 0 && holeDecisions.length > 0 && (
-            <OddsReveal
-              shots={shotLog}
-              decisions={holeDecisions}
-              hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
-              conditions={conditions}
-              greens={course.greens}
-            />
+      {/* ============ THE CARD: one surface (HoleMap seam owns the art) ============ */}
+      <div className={`pm-card ${pending ? "is-result" : "is-decision"}`}>
+        <div className="pm-card-art">
+          {stage === "putt" && puttCtx ? (
+            <PuttView putt={puttCtx} />
+          ) : (
+            <HoleMap hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
           )}
 
-          <button className="pr-cta" onClick={next}>
-            {holeIdx >= 17 ? "See your card" : "Next hole"}
-          </button>
+          {/* header floats over the art's own baked-in top scrim */}
+          <div className="pm-head">
+            <div>
+              <div className="pm-num">{hole.number}</div>
+              <div className="pm-sub">Par {hole.par} · SI {hole.strokeIndex}</div>
+            </div>
+            <div className="pm-right">
+              <div className="pm-topar"><b>{relativeLabel(rel)}</b><span>to par</span></div>
+              {!pending && <div className="pm-yards">{approachYards ?? hole.yardage} yards</div>}
+            </div>
+          </div>
 
-          <Scorecard holes={course.holes} outcomes={outcomes} currentHole={holeIdx} />
+          {/* course/mode label (+ signature, when this hole has one) — decision
+              mode only. The full cue list (wind, greens, dogleg, hazard,
+              signature test, etc.) reads once, in .pm-controls — it doesn't
+              repeat here. */}
+          {!pending && (
+            <div className="pm-chips">
+              <span className="pm-chip pm-chip-course">
+                {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
+              </span>
+              {hole.signature && <span className="pm-chip pm-chip-sig">★ {hole.signature}</span>}
+            </div>
+          )}
+
+          {/* ============ DECISION controls: float on the bottom scrim ============ */}
+          {!pending && (
+            <div className="pm-controls">
+              {challengeId && (
+                <div className="pm-opponent">
+                  <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} />
+                </div>
+              )}
+
+              <div className="pm-reads">
+                {stage === "tee" && situation && <div className={`pm-situation s-${situation.tone}`}>{situation.text}</div>}
+                {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
+              </div>
+
+              <div className="pm-prompt">{stagePrompt(stage, hole.par)}</div>
+              <div className="pm-choices">
+                {choices.map((d) => {
+                  const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
+                  const isAggro = d.id === "aggressive";
+                  const outOfBudget = budgeted && isAggro && aggressiveLeft <= 0;
+                  return (
+                    <button
+                      key={d.id}
+                      className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
+                      disabled={busy || outOfBudget}
+                      onClick={() => choose(d.id)}
+                      aria-label={`${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
+                    >
+                      <span className="pm-choice-top">
+                        <span className="pm-lbl"><span className="pm-dot" /><span className="pm-name">{d.label}</span></span>
+                        {budgeted && isAggro && <span className="pm-budget">{outOfBudget ? "spent" : `${aggressiveLeft} left`}</span>}
+                      </span>
+                      <span className="pm-desc">{d.blurb}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ============ RESULT: a panel over the bottom of the SAME card ============ */}
+          {pending && (
+            <div className="pm-result-panel">
+              <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
+                <div className="pr-tag">{OUTCOME_META[pending].label}</div>
+                {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
+                <div className="pr-run">running <b>{relativeLabel(rel)}</b></div>
+              </div>
+
+              {shotLog.length > 0 && holeDecisions.length > 0 && (
+                <OddsReveal
+                  shots={shotLog}
+                  decisions={holeDecisions}
+                  hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
+                  conditions={conditions}
+                  greens={course.greens}
+                />
+              )}
+
+              <button className="pr-cta" onClick={next}>
+                {holeIdx >= 17 ? "See your card" : "Next hole"}
+              </button>
+
+              <Scorecard holes={course.holes} outcomes={outcomes} currentHole={holeIdx} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
