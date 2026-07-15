@@ -22,6 +22,7 @@ import { GREEN_META, type GreenResult, type GreenSpeed, type GreenSource } from 
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
 import { encodeBallDisplay } from "@/lib/ballDisplay";
+import { finishSummary } from "@/lib/finishSummary";
 import {
   teeOddsReveal, teeOddsTakeaway,
   puttOddsReveal, puttOddsTakeaway,
@@ -312,6 +313,7 @@ function PlayInner() {
             : hole.dogleg === "R"
               ? "Dogleg right"
               : null;
+  const pendingFinish = pending ? finishSummary(shotLog, pending) : null;
 
   return (
     <div className="play">
@@ -400,6 +402,7 @@ function PlayInner() {
               <div className="pr-holeline">Hole {hole.number} · {hole.yardage} yards · SI {hole.strokeIndex}</div>
               <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
                 <div className="pr-tag">{OUTCOME_META[pending].label}</div>
+                {pendingFinish && <div className="pr-finish">{pendingFinish}</div>}
                 {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
                 <div className="pr-run">running <b>{relativeLabel(rel)}</b></div>
               </div>
@@ -585,14 +588,15 @@ function OddsReveal({
       );
     } else if (s.stage === "putt" && s.decision) {
       const bucket = s.green === "makeable" ? "short" : "long";
-      const rows = puttOddsReveal(bucket, greens);
+      const distanceFt = s.distanceFt ?? (bucket === "short" ? 12 : 35);
+      const rows = puttOddsReveal(bucket, greens, distanceFt);
       blocks.push(
         <StageOdds key="putt" title="Putt" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
             right: `${rows[d].onePct}%` }))}
           legend={[["good", "one-putt"], ["rough", "two-putt"], ["trouble", "three-putt"]]}
-          takeaway={puttOddsTakeaway(s.decision, bucket, greens)} />
+          takeaway={puttOddsTakeaway(s.decision, bucket, greens, distanceFt)} />
       );
     } else if (s.stage === "scramble" && s.decision) {
       const rows = scrambleOddsReveal(hole, conditions);
@@ -665,6 +669,6 @@ function riskFor(
 ): { tone: "good" | "warn" | "bad"; text: string } {
   if (stage === "tee") return riskRead(d, hole, conditions);
   if (stage === "approach") return lie ? lieRiskRead(lie, d) : riskRead(d, hole, conditions);
-  if (stage === "putt" && puttCtx) return puttRiskRead(d, puttCtx.bucket, puttCtx.speed);
+  if (stage === "putt" && puttCtx) return puttRiskRead(d, puttCtx.bucket, puttCtx.speed, puttCtx.distanceFt);
   return shortGameRiskRead(d);
 }

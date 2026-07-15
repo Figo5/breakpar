@@ -67,7 +67,7 @@ import {
 describe("puttOddsReveal", () => {
   it("returns all three putt decisions with percentages summing to 100", () => {
     for (const bucket of ["short", "long"] as const) {
-      const r = puttOddsReveal(bucket, "Medium");
+      const r = puttOddsReveal(bucket, "Medium", bucket === "short" ? 12 : 35);
       for (const row of [r.safe, r.normal, r.aggressive]) {
         expect(row.onePct + row.twoPct + row.threePct, `${bucket} ${row.label}`).toBe(100);
       }
@@ -75,25 +75,34 @@ describe("puttOddsReveal", () => {
   });
 
   it("Charge makes more one-putts than Lag", () => {
-    const r = puttOddsReveal("short", "Medium");
+    const r = puttOddsReveal("short", "Medium", 12);
     expect(r.aggressive.onePct).toBeGreaterThan(r.safe.onePct);
   });
 
   it("Lag three-putts less than Charge (protects the three-jack)", () => {
-    const r = puttOddsReveal("long", "Medium");
+    const r = puttOddsReveal("long", "Medium", 35);
     expect(r.safe.threePct).toBeLessThan(r.aggressive.threePct);
   });
 
   it("faster greens raise the three-putt rate", () => {
-    const slow = puttOddsReveal("long", "Slow");
-    const fast = puttOddsReveal("long", "Fast");
+    const slow = puttOddsReveal("long", "Slow", 35);
+    const fast = puttOddsReveal("long", "Fast", 35);
     expect(fast.aggressive.threePct).toBeGreaterThan(slow.aggressive.threePct);
   });
 
   it("takeaway is a non-empty string for each decision", () => {
     for (const d of ["safe", "normal", "aggressive"] as const) {
-      expect(puttOddsTakeaway(d, "short", "Medium").length).toBeGreaterThan(0);
+      expect(puttOddsTakeaway(d, "short", "Medium", 12).length).toBeGreaterThan(0);
     }
+  });
+
+  it("shows materially different make odds at different exact distances", () => {
+    expect(puttOddsReveal("short", "Medium", 6).normal.onePct).toBeGreaterThan(
+      puttOddsReveal("short", "Medium", 18).normal.onePct
+    );
+    expect(puttOddsReveal("long", "Medium", 25).normal.onePct).toBeGreaterThan(
+      puttOddsReveal("long", "Medium", 45).normal.onePct
+    );
   });
 });
 

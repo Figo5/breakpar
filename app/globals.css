@@ -742,6 +742,8 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   border-bottom:1px solid var(--pm-line)}
 .pr-outcome{text-align:center}
 .pr-tag{font-family:'Anton',sans-serif;font-size:30px;line-height:1;color:var(--pm-ink)}
+.pr-finish{font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--pm-ink-soft);margin-top:7px}
 .pr-outcome.o-great .pr-tag,.pr-outcome.o-good .pr-tag{color:var(--pm-safe)}
 .pr-outcome.o-bad .pr-tag,.pr-outcome.o-terrible .pr-tag{color:var(--pm-flag)}
 .pr-quote{font-family:'Inter',sans-serif;font-size:12.5px;font-style:italic;color:var(--pm-ink-soft);margin-top:6px}

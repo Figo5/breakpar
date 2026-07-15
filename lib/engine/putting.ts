@@ -224,16 +224,39 @@ const fillPutt = (w: Partial<Record<PuttResult, number>>): Record<PuttResult, nu
   return out;
 };
 
-/** Putt odds for a bucket + decision, modulated by green speed. */
+const PUTT_DISTANCE_MODEL = {
+  short: { min: 6, max: 18, midpoint: 12, makeSlope: 0.07, threeSlope: 0.04 },
+  long: { min: 25, max: 45, midpoint: 35, makeSlope: 0.045, threeSlope: 0.035 },
+} as const;
+
+/** Exact-distance adjustment around each bucket's midpoint. Because generated
+ * distances are uniform and these curves are linear around the midpoint, the
+ * average raw make/three-putt weights stay at the calibrated bucket baseline. */
+export function puttDistanceModifiers(
+  bucket: Exclude<PuttBucket, "tap">,
+  distanceFt: number
+): { make: number; three: number } {
+  const model = PUTT_DISTANCE_MODEL[bucket];
+  const ft = Math.max(model.min, Math.min(model.max, distanceFt));
+  const delta = ft - model.midpoint;
+  return {
+    make: 1 - delta * model.makeSlope,
+    three: 1 + delta * model.threeSlope,
+  };
+}
+
+/** Putt odds for an exact distance + decision, modulated by green speed. */
 export function puttWeights(
   bucket: Exclude<PuttBucket, "tap">,
   decision: Decision,
-  speed: GreenSpeed
+  speed: GreenSpeed,
+  distanceFt: number
 ): Record<PuttResult, number> {
   const w = fillPutt(PUTT_BASE[bucket][decision]);
-  const mod = GREEN_SPEED_MOD[speed];
-  w.oneputt *= mod.make;
-  w.threeputt *= mod.three;
+  const speedMod = GREEN_SPEED_MOD[speed];
+  const distanceMod = puttDistanceModifiers(bucket, distanceFt);
+  w.oneputt *= speedMod.make * distanceMod.make;
+  w.threeputt *= speedMod.three * distanceMod.three;
   return w;
 }
 
