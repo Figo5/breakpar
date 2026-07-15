@@ -15,13 +15,13 @@ import {
   puttRiskRead,
   shortGameRiskRead,
   greenRead,
-  situationRead,
   AGGRESSIVE_BUDGET,
 } from "@/lib/holeRead";
-import { LIE_META, stagePrompt, type Lie, type PuttContext, type ShotRecord } from "@/lib/engine/shots";
+import { LIE_META, type Lie, type PuttContext, type ShotRecord } from "@/lib/engine/shots";
 import { GREEN_META, type GreenResult, type GreenSpeed, type GreenSource } from "@/lib/engine/putting";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
+import { encodeBallDisplay } from "@/lib/ballDisplay";
 import {
   teeOddsReveal, teeOddsTakeaway,
   puttOddsReveal, puttOddsTakeaway,
@@ -36,19 +36,19 @@ type SwingStage = "tee" | "approach" | "putt" | "scramble";
 
 // Decision vocab is shared (safe/normal/aggressive) but labelled per stage.
 const SWING_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Safe", blurb: "Protect par, low risk" },
-  { id: "normal", label: "Normal", blurb: "Balanced go at it" },
-  { id: "aggressive", label: "Aggressive", blurb: "Chase birdie, accept blowups" },
+  { id: "safe", label: "Safe", blurb: "Middle of the green" },
+  { id: "normal", label: "Normal", blurb: "Favor the fat side" },
+  { id: "aggressive", label: "Aggressive", blurb: "Hunt the pin" },
 ];
 const PUTT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Lag", blurb: "Cozy it up, protect against the 3-putt" },
-  { id: "normal", label: "Roll it", blurb: "Good pace, give it a chance" },
-  { id: "aggressive", label: "Charge", blurb: "Ram it in — three-jack risk" },
+  { id: "safe", label: "Lag", blurb: "Cozy it close" },
+  { id: "normal", label: "Roll it", blurb: "Good pace" },
+  { id: "aggressive", label: "Charge", blurb: "Ram it in" },
 ];
 const SHORT_CHOICES: { id: Decision; label: string; blurb: string }[] = [
-  { id: "safe", label: "Punch", blurb: "Take bogey, kill the blow-up" },
-  { id: "normal", label: "Chip", blurb: "Standard chip at it" },
-  { id: "aggressive", label: "Flop", blurb: "High flop, go for the save" },
+  { id: "safe", label: "Punch", blurb: "Take the safe out" },
+  { id: "normal", label: "Chip", blurb: "Standard chip" },
+  { id: "aggressive", label: "Flop", blurb: "Go for the save" },
 ];
 
 const initialStage = (par: number): SwingStage => (par === 3 ? "approach" : "tee");
@@ -73,7 +73,6 @@ function PlayInner() {
   const tournamentRoundParam = params.get("tournament"); // present -> tournament round N (1..4)
   const tournamentRoundNo = tournamentRoundParam ? parseInt(tournamentRoundParam, 10) : null;
   const [course, setCourse] = useState<PlayCourse | null>(null);
-  const [unlimited, setUnlimited] = useState(false);
   const [roundId, setRoundId] = useState<string | null>(null);
   const [holeIdx, setHoleIdx] = useState(0); // 0..17
   const [outcomes, setOutcomes] = useState<(Outcome | null)[]>(Array(18).fill(null));
@@ -122,7 +121,6 @@ function PlayInner() {
 
         const c = r.course as PlayCourse;
         setCourse(c);
-        setUnlimited(r.mode === "unlimited");
         setRoundId(r.roundId);
         setAggressiveLeft((r.aggressiveBudget ?? AGGRESSIVE_BUDGET) - (r.aggressiveUsed ?? 0));
         const startIdx = r.playedHoles?.length ? Math.min(r.playedHoles.length, 17) : 0;
@@ -232,12 +230,15 @@ function PlayInner() {
         setPending(outcome);
       } else {
         // Next stage — reveal the new position + reads.
-        setStage(data.stage as SwingStage);
-        setLie((data.lie as Lie) ?? lie);
+        const nextStage = data.stage as SwingStage;
+        const nextLie = (data.lie as Lie) ?? lie;
+        setStage(nextStage);
+        setLie(nextLie);
         setGreen((data.green as GreenResult) ?? null);
         setPuttCtx((data.putt as PuttContext) ?? null);
         setApproachYards((data.approachYards as number) ?? null);
-        setBallT(typeof data.ballT === "number" ? data.ballT : 0.05);
+        const progress = typeof data.ballT === "number" ? data.ballT : 0.05;
+        setBallT(encodeBallDisplay(progress, nextLie, nextStage));
       }
     } catch {
       setError("That shot didn't register. Tap to retry.");
@@ -295,129 +296,164 @@ function PlayInner() {
   }
 
   const cues = holeCues(hole, conditions, course.greens);
-  const situation = situationRead(rel, 18 - holeIdx);
   const choices = stage === "putt" ? PUTT_CHOICES : stage === "scramble" ? SHORT_CHOICES : SWING_CHOICES;
+  const openingRead = stage === "tee" || (stage === "approach" && !lie);
+  const isIsland = hole.par === 3 && hole.hazard === "water" && !!hole.signature && /island/i.test(hole.signature);
+  const mapFeature = isIsland
+    ? "Island green"
+    : hole.hazard === "water"
+      ? "Water in play"
+      : hole.hazard === "ocean"
+        ? "Ocean in play"
+        : hole.hazard === "sand"
+          ? "Bunkers"
+          : hole.dogleg === "L"
+            ? "Dogleg left"
+            : hole.dogleg === "R"
+              ? "Dogleg right"
+              : null;
 
   return (
-    <div className={`play ${pending ? "is-result" : "is-decision"}`}>
-      {/* progress hairline, pinned over everything */}
+    <div className="play">
+      {/* progress hairline, above the card */}
       <div className="play-progress"><i style={{ width: `${(holeIdx / 18) * 100}%` }} /></div>
 
-      {/* ============ THE MAP (HoleMap seam) ============ */}
-      {/* Full-bleed in decision mode; shrinks to a hero strip in result mode.
-          HoleMap wraps HoleArt today; OSM geometry drops into HoleMap later. */}
-      <div className="play-map">
-        {stage === "putt" && puttCtx ? (
-          <PuttView putt={puttCtx} />
-        ) : (
-          <HoleMap hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
-        )}
-
-        {/* header floats over the top scrim */}
-        <div className="pm-head">
-          <div>
-            <div className="pm-num">{hole.number}</div>
-            <div className="pm-sub">Par {hole.par} · SI {hole.strokeIndex}</div>
-          </div>
-          <div className="pm-right">
-            <div className="pm-topar"><b>{relativeLabel(rel)}</b><span>to par</span></div>
-            {!pending && <div className="pm-yards">{approachYards ?? hole.yardage} yards</div>}
-          </div>
-        </div>
-
-        {/* course/mode label + condition chips — decision mode only */}
-        {!pending && (
-          <div className="pm-chips">
-            <span className="pm-chip pm-chip-course">
-              {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
-            </span>
-            {cues.map((c, i) => (
-              <span className="pm-chip" key={i}>{c.text}</span>
-            ))}
-          </div>
-        )}
-
-      </div>
-
-      {/* opponent strip (challenges) — below the map banner, in flow */}
-      {challengeId && !pending ? (
-        <div className="pm-opponent">
-          <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} />
-        </div>
-      ) : null}
-
-      {/* ============ DECISION controls: normal flow below the map ============ */}
-      {!pending && (
-        <div className="pm-controls">
-          <div className="pm-reads">
-            {stage === "tee" && situation && <div className={`pm-situation s-${situation.tone}`}>{situation.text}</div>}
-            {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
-          </div>
-
-          <div className="pm-prompt">{stagePrompt(stage, hole.par)}</div>
-          <div className="pm-choices">
-            {choices.map((d) => {
-              const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
-              const isAggro = d.id === "aggressive";
-              const outOfBudget = budgeted && isAggro && aggressiveLeft <= 0;
-              return (
-                <button
-                  key={d.id}
-                  className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
-                  disabled={busy || outOfBudget}
-                  onClick={() => choose(d.id)}
-                  aria-label={`${d.label}: ${d.blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
-                >
-                  <span className="pm-choice-top">
-                    <span className="pm-lbl"><span className="pm-dot" /><span className="pm-name">{d.label}</span></span>
-                    {budgeted && isAggro && <span className="pm-budget">{outOfBudget ? "spent" : `${aggressiveLeft} left`}</span>}
-                  </span>
-                  <span className="pm-desc">{d.blurb}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ============ RESULT mode: content opens below the map hero ============ */}
-      {pending && (
-        <div className="play-result">
-          <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
-            <div className="pr-tag">{OUTCOME_META[pending].label}</div>
-            {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
-            <div className="pr-run">running <b>{relativeLabel(rel)}</b></div>
-          </div>
-
-          {shotLog.length > 0 && holeDecisions.length > 0 && (
-            <OddsReveal
-              shots={shotLog}
-              decisions={holeDecisions}
-              hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
-              conditions={conditions}
-              greens={course.greens}
-            />
+      {/* ============ THE CARD: one surface (HoleMap seam owns the art) ============ */}
+      <div className={`pm-card ${pending ? "is-result" : "is-decision"}`}>
+        <div className="pm-card-art">
+          {stage === "putt" && puttCtx ? (
+            <PuttView putt={puttCtx} />
+          ) : (
+            <HoleMap hole={hole} wind={course.wind} windDir={course.windDir} greens={course.greens} ballT={ballT} />
           )}
 
-          <button className="pr-cta" onClick={next}>
-            {holeIdx >= 17 ? "See your card" : "Next hole"}
-          </button>
+          {/* header floats over the art's own baked-in top scrim */}
+          <div className="pm-head">
+            <div>
+              <div className="pm-num">{hole.number}</div>
+              <div className="pm-sub">Par {hole.par} · SI {hole.strokeIndex}</div>
+            </div>
+            <div className="pm-right">
+              <div className="pm-topar"><b>{relativeLabel(rel)}</b><span>to par</span></div>
+              {!pending && <div className="pm-yards">{approachYards ?? hole.yardage} yards</div>}
+            </div>
+          </div>
 
-          <Scorecard holes={course.holes} outcomes={outcomes} currentHole={holeIdx} />
+          {/* The original concept used this rail for three terse conditions,
+              leaving the map itself unobstructed and the bottom rail thin. */}
+          {!pending && (
+            <div className="pm-chips">
+              <span className="pm-chip">{course.wind} mph</span>
+              <span className="pm-chip">{course.greens.toLowerCase()} greens</span>
+              {mapFeature && <span className="pm-chip">{mapFeature}</span>}
+            </div>
+          )}
+
+          {/* ============ DECISION controls: float on the bottom scrim ============ */}
+          {!pending && (
+            <div className="pm-controls">
+              {challengeId && (
+                <div className="pm-opponent">
+                  <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} />
+                </div>
+              )}
+
+              {!openingRead && (
+                <div className="pm-reads">
+                  {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
+                </div>
+              )}
+
+              <div className="pm-prompt">{openingRead ? "Tee shot" : compactStageLabel(stage)}</div>
+              <div className="pm-choices">
+                {choices.map((d) => {
+                  const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
+                  const blurb = decisionBlurb(stage, d.id, hole.par, d.blurb);
+                  const isAggro = d.id === "aggressive";
+                  const outOfBudget = budgeted && isAggro && aggressiveLeft <= 0;
+                  return (
+                    <button
+                      key={d.id}
+                      className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
+                      disabled={busy || outOfBudget}
+                      onClick={() => choose(d.id)}
+                      aria-label={`${d.label}: ${blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
+                    >
+                      <span className="pm-choice-top">
+                        <span className="pm-lbl"><span className="pm-dot" /><span className="pm-name">{d.label}</span></span>
+                        {budgeted && isAggro && (
+                          <span className="pm-budget">
+                            {outOfBudget ? "spent" : <><b>{aggressiveLeft}</b><i> left</i></>}
+                          </span>
+                        )}
+                      </span>
+                      <span className="pm-desc">{blurb}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ============ RESULT: a panel over the bottom of the SAME card ============ */}
+          {pending && (
+            <div className="pm-result-panel">
+              <div className="pr-holeline">Hole {hole.number} · {hole.yardage} yards · SI {hole.strokeIndex}</div>
+              <div className={`pr-outcome o-${OUTCOME_META[pending].tone}`} role="status" aria-live="polite">
+                <div className="pr-tag">{OUTCOME_META[pending].label}</div>
+                {shotLog.length > 0 && <div className="pr-quote">“{shotLog[shotLog.length - 1].note}”</div>}
+                <div className="pr-run">running <b>{relativeLabel(rel)}</b></div>
+              </div>
+
+              {shotLog.length > 0 && holeDecisions.length > 0 && (
+                <OddsReveal
+                  shots={shotLog}
+                  decisions={holeDecisions}
+                  hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
+                  conditions={conditions}
+                  greens={course.greens}
+                />
+              )}
+
+              <button className="pr-cta" onClick={next}>
+                {holeIdx >= 17 ? "See your card" : "Next hole"}
+              </button>
+
+              <Scorecard holes={course.holes} outcomes={outcomes} currentHole={holeIdx} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 // --- helpers ---------------------------------------------------------------
 
-function stageTag(stage: ShotRecord["stage"]): string {
-  return stage === "tee" ? "Tee" : stage === "approach" ? "Approach" : stage === "layup" ? "Wedge" : stage === "putt" ? "Putt" : "Chip";
+function compactStageLabel(stage: SwingStage): string {
+  if (stage === "tee") return "Tee shot";
+  if (stage === "approach") return "Approach";
+  if (stage === "putt") return "Putt";
+  return "Short game";
 }
 
-function toneIcon(tone: "good" | "even" | "bad"): string {
-  return tone === "good" ? "●" : tone === "even" ? "◆" : "▲";
+function decisionBlurb(stage: SwingStage, decision: Decision, par: number, fallback: string): string {
+  if (stage === "tee") {
+    if (decision === "safe") return "Find the fairway";
+    if (decision === "normal") return "Play your line";
+    return "Challenge the trouble";
+  }
+  // A par-3 "approach" is its tee shot; retain the original concept language.
+  if (stage === "approach") {
+    if (decision === "safe") return par === 3 ? "Middle of the green" : "Center of the green";
+    if (decision === "normal") return "Favor the fat side";
+    return "Hunt the pin";
+  }
+  return fallback;
+}
+
+function stageTag(stage: ShotRecord["stage"]): string {
+  return stage === "tee" ? "Tee" : stage === "approach" ? "Approach" : stage === "layup" ? "Wedge" : stage === "putt" ? "Putt" : "Chip";
 }
 
 /** The position/read banner above the choices, per stage. */
@@ -444,7 +480,7 @@ function positionBanner(
   if (stage === "approach" && lie) {
     return (
       <div className={`lie-banner l-${LIE_META[lie].tone}`}>
-        <span className="le">{toneIcon(LIE_META[lie].tone)}</span>
+        <span className="le"><span className={`lie-dot tone-${LIE_META[lie].tone}`} /></span>
         <span className="lt"><b>{LIE_META[lie].label}</b><span>{LIE_META[lie].note}</span></span>
       </div>
     );
@@ -459,7 +495,7 @@ function positionBanner(
     return (
       <>
         <div className={`lie-banner l-${GREEN_META[green].tone === "even" ? "even" : GREEN_META[green].tone === "good" ? "good" : "bad"}`}>
-          <span className="le">{toneIcon(GREEN_META[green].tone)}</span>
+          <span className="le"><span className={`lie-dot tone-${GREEN_META[green].tone}`} /></span>
           <span className="lt"><b>{puttTitle}</b><span>{gr.text}</span></span>
         </div>
         <div className="cues" style={{ marginTop: 10 }}>
@@ -475,7 +511,7 @@ function positionBanner(
     const gr = greenRead(green);
     return (
       <div className={`lie-banner l-bad`}>
-        <span className="le">{toneIcon(GREEN_META[green].tone)}</span>
+        <span className="le"><span className="lie-dot tone-bad" /></span>
         <span className="lt"><b>{GREEN_META[green].label}</b><span>{gr.text}</span></span>
       </div>
     );
@@ -501,7 +537,7 @@ function OddsReveal({
   if (!open) {
     return (
       <button className="odds-toggle" onClick={() => setOpen(true)} aria-expanded="false">
-        📊 See the odds you faced
+        See the odds you faced
       </button>
     );
   }
@@ -518,7 +554,7 @@ function OddsReveal({
       teeLie = (s.lie as Lie) ?? null;
       const rows = teeOddsReveal(hole, conditions);
       blocks.push(
-        <StageOdds key="tee" title="🏌️ Tee shot" chosen={s.decision} order={order}
+        <StageOdds key="tee" title="Tee shot" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].pct.dialed + rows[d].pct.fairway }, { cls: "rough", w: rows[d].pct.rough }, { cls: "trouble", w: rows[d].pct.trouble }],
             right: `${rows[d].goodPct}%` }))}
@@ -529,7 +565,7 @@ function OddsReveal({
       const source: GreenSource = isPar3 ? "tee" : (teeLie ?? "fairway");
       const rows = approachOddsReveal(source, hole, conditions);
       blocks.push(
-        <StageOdds key="approach" title="🎯 Approach" chosen={s.decision} order={order}
+        <StageOdds key="approach" title="Approach" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].kickinPct + rows[d].makeablePct }, { cls: "rough", w: rows[d].lagPct }, { cls: "trouble", w: rows[d].scramblePct }],
             right: `${rows[d].greenPct}%` }))}
@@ -540,7 +576,7 @@ function OddsReveal({
       const bucket = s.green === "makeable" ? "short" : "long";
       const rows = puttOddsReveal(bucket, greens);
       blocks.push(
-        <StageOdds key="putt" title="⛳ Putt" chosen={s.decision} order={order}
+        <StageOdds key="putt" title="Putt" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
             right: `${rows[d].onePct}%` }))}
@@ -550,7 +586,7 @@ function OddsReveal({
     } else if (s.stage === "scramble" && s.decision) {
       const rows = scrambleOddsReveal(hole, conditions);
       blocks.push(
-        <StageOdds key="scramble" title="🌿 Short game" chosen={s.decision} order={order}
+        <StageOdds key="scramble" title="Short game" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].updownPct }, { cls: "rough", w: rows[d].twochipPct }, { cls: "trouble", w: rows[d].blowupPct + rows[d].disasterPct }],
             right: `${rows[d].savePct}%` }))}
@@ -562,7 +598,7 @@ function OddsReveal({
 
   return (
     <div className="odds-reveal" role="region" aria-label="Odds you faced this hole">
-      <div className="odds-reveal-title">📊 The odds you faced · every decision</div>
+      <div className="odds-reveal-title">The odds you faced · every decision</div>
       {blocks}
     </div>
   );
