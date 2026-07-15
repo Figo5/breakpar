@@ -170,12 +170,14 @@ export function puttRead(
 export function puttRiskRead(
   decision: Decision,
   bucket: Exclude<PuttBucket, "tap">,
-  speed: GreenSpeed
+  speed: GreenSpeed,
+  distanceFt: number
 ): { tone: Tone; text: string } {
   const slick = speed === "Fast" || speed === "Firm";
   if (decision === "safe") return { tone: "good", text: "Lag it close" };
   if (decision === "normal") return { tone: "good", text: "Good speed" };
   // aggressive — Charge
+  if (bucket === "short" && distanceFt <= 9) return { tone: "good", text: "Green light" };
   if (bucket === "short") return { tone: slick ? "warn" : "good", text: slick ? "Risky pace" : "Make it" };
   return { tone: "bad", text: "Three-jack risk" };
 }

@@ -4,6 +4,7 @@ import {
   puttWeights,
   scrambleWeights,
   composeOutcome,
+  puttDistanceModifiers,
   GREEN_META,
   GREEN_RESULTS,
   PUTT_RESULTS,
@@ -45,21 +46,39 @@ describe("greenWeights", () => {
 
 describe("puttWeights", () => {
   it("Charge makes more putts AND three-jacks more than Lag", () => {
-    const lag = puttWeights("short", "safe", "Medium");
-    const charge = puttWeights("short", "aggressive", "Medium");
+    const lag = puttWeights("short", "safe", "Medium", 12);
+    const charge = puttWeights("short", "aggressive", "Medium", 12);
     expect(charge.oneputt).toBeGreaterThan(lag.oneputt);
     expect(charge.threeputt).toBeGreaterThan(lag.threeputt);
   });
   it("faster greens raise both the make rate and the three-jack rate", () => {
-    const med = puttWeights("long", "normal", "Medium");
-    const fast = puttWeights("long", "normal", "Fast");
+    const med = puttWeights("long", "normal", "Medium", 35);
+    const fast = puttWeights("long", "normal", "Fast", 35);
     expect(fast.oneputt).toBeGreaterThan(med.oneputt);
     expect(fast.threeputt).toBeGreaterThan(med.threeputt);
   });
   it("long putts make less often than short ones", () => {
-    expect(puttWeights("long", "normal", "Medium").oneputt).toBeLessThan(
-      puttWeights("short", "normal", "Medium").oneputt
+    expect(puttWeights("long", "normal", "Medium", 35).oneputt).toBeLessThan(
+      puttWeights("short", "normal", "Medium", 12).oneputt
     );
+  });
+  it("make chance falls and three-putt risk rises with exact distance", () => {
+    const six = puttWeights("short", "normal", "Medium", 6);
+    const eighteen = puttWeights("short", "normal", "Medium", 18);
+    expect(six.oneputt).toBeGreaterThan(eighteen.oneputt);
+    expect(six.threeputt).toBeLessThan(eighteen.threeputt);
+
+    const twentyFive = puttWeights("long", "normal", "Medium", 25);
+    const fortyFive = puttWeights("long", "normal", "Medium", 45);
+    expect(twentyFive.oneputt).toBeGreaterThan(fortyFive.oneputt);
+    expect(twentyFive.threeputt).toBeLessThan(fortyFive.threeputt);
+  });
+  it("distance modifiers average to the calibrated midpoint baseline", () => {
+    for (const [bucket, min, max] of [["short", 6, 18], ["long", 25, 45]] as const) {
+      const mods = Array.from({ length: max - min + 1 }, (_, i) => puttDistanceModifiers(bucket, min + i));
+      expect(mods.reduce((sum, m) => sum + m.make, 0) / mods.length).toBeCloseTo(1);
+      expect(mods.reduce((sum, m) => sum + m.three, 0) / mods.length).toBeCloseTo(1);
+    }
   });
 });
 

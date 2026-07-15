@@ -149,8 +149,8 @@ function puttToPct(w: Record<PuttResult, number>): { one: number; two: number; t
   return { one: m.oneputt, two: m.twoputt, three: m.threeputt };
 }
 
-function puttRowFor(decision: Decision, bucket: Exclude<PuttBucket, "tap">, speed: GreenSpeed): PuttOddsRow {
-  const p = puttToPct(puttWeights(bucket, decision, speed));
+function puttRowFor(decision: Decision, bucket: Exclude<PuttBucket, "tap">, speed: GreenSpeed, distanceFt: number): PuttOddsRow {
+  const p = puttToPct(puttWeights(bucket, decision, speed, distanceFt));
   return { decision, label: PUTT_DECISION_LABEL[decision], onePct: p.one, twoPct: p.two, threePct: p.three };
 }
 
@@ -158,12 +158,13 @@ function puttRowFor(decision: Decision, bucket: Exclude<PuttBucket, "tap">, spee
  * Charge), at the bucket + green speed of the putt they had. */
 export function puttOddsReveal(
   bucket: Exclude<PuttBucket, "tap">,
-  speed: GreenSpeed
+  speed: GreenSpeed,
+  distanceFt: number
 ): { safe: PuttOddsRow; normal: PuttOddsRow; aggressive: PuttOddsRow } {
   return {
-    safe: puttRowFor("safe", bucket, speed),
-    normal: puttRowFor("normal", bucket, speed),
-    aggressive: puttRowFor("aggressive", bucket, speed),
+    safe: puttRowFor("safe", bucket, speed, distanceFt),
+    normal: puttRowFor("normal", bucket, speed, distanceFt),
+    aggressive: puttRowFor("aggressive", bucket, speed, distanceFt),
   };
 }
 
@@ -172,12 +173,13 @@ export function puttOddsReveal(
 export function puttOddsTakeaway(
   chosen: Decision,
   bucket: Exclude<PuttBucket, "tap">,
-  speed: GreenSpeed
+  speed: GreenSpeed,
+  distanceFt: number
 ): string {
-  const rows = puttOddsReveal(bucket, speed);
+  const rows = puttOddsReveal(bucket, speed, distanceFt);
   const mine = rows[chosen];
   const lag = rows.safe;
-  const dist = bucket === "short" ? "makeable" : "long";
+  const dist = `${distanceFt}-foot`;
   if (chosen === "safe") {
     return `Lagging a ${dist} putt gave you the lowest three-putt risk (${mine.threePct}%) — you cozy it close and tap in. Fewer one-putts (${mine.onePct}%), but you protect against the three-jack.`;
   }

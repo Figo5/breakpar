@@ -20,6 +20,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Added yardage-book-style hole maps with distinct layouts for par, doglegs, bunkers, water, and island greens.",
       "Updated the play screen with a map-focused layout and a scorecard-style hole result view.",
       "Added contextual hole guidance and visible green, yellow, and red risk ratings to shot choices.",
+      "Putt make and three-putt rates now change with the exact distance to the hole.",
+      "Hole results now state the putt count explicitly, including three-putt pars.",
       "Updated the visual design across Home, Courses, Tournament, Challenges, Leaderboard, Hall of Fame, and other screens.",
       "Fixed ball markers appearing in water after non-penalty shots.",
     ],

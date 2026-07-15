@@ -349,7 +349,7 @@ export function resolveHoleChain(
     };
 
   const fDec = decisions[fIdx];
-  const pw = puttWeights(bucket, fDec, greens);
+  const pw = puttWeights(bucket, fDec, greens, distanceFt);
   const pEv = rollEvent("putt", opts.eventSeed(fIdx), { recent });
   if (pEv) applyEvent(pEv.def, "putt", pw as Record<string, number>);
   const pres = pick(pw, ctxRng); // continues the stream after distance + break

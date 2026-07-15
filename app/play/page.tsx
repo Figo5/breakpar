@@ -588,14 +588,15 @@ function OddsReveal({
       );
     } else if (s.stage === "putt" && s.decision) {
       const bucket = s.green === "makeable" ? "short" : "long";
-      const rows = puttOddsReveal(bucket, greens);
+      const distanceFt = s.distanceFt ?? (bucket === "short" ? 12 : 35);
+      const rows = puttOddsReveal(bucket, greens, distanceFt);
       blocks.push(
         <StageOdds key="putt" title="Putt" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
             right: `${rows[d].onePct}%` }))}
           legend={[["good", "one-putt"], ["rough", "two-putt"], ["trouble", "three-putt"]]}
-          takeaway={puttOddsTakeaway(s.decision, bucket, greens)} />
+          takeaway={puttOddsTakeaway(s.decision, bucket, greens, distanceFt)} />
       );
     } else if (s.stage === "scramble" && s.decision) {
       const rows = scrambleOddsReveal(hole, conditions);
@@ -668,6 +669,6 @@ function riskFor(
 ): { tone: "good" | "warn" | "bad"; text: string } {
   if (stage === "tee") return riskRead(d, hole, conditions);
   if (stage === "approach") return lie ? lieRiskRead(lie, d) : riskRead(d, hole, conditions);
-  if (stage === "putt" && puttCtx) return puttRiskRead(d, puttCtx.bucket, puttCtx.speed);
+  if (stage === "putt" && puttCtx) return puttRiskRead(d, puttCtx.bucket, puttCtx.speed, puttCtx.distanceFt);
   return shortGameRiskRead(d);
 }
