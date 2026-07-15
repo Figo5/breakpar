@@ -1,5 +1,6 @@
 import type { CourseHole } from "@/data/courses";
 import { decodeBallDisplay } from "@/lib/ballDisplay";
+import { pickDryBallPosition } from "@/lib/holeMapPosition";
 
 /**
  * Crafted, yardage-book-style hole diagram. Every shape is derived from the
@@ -298,20 +299,12 @@ export function HoleArt({ hole, ballT = 0.05 }: {
   function midpoint(a: { x: number; y: number }, b: { x: number; y: number }) {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
-  const lineBallPt = t < 0.5 ? bez(shotP0, midpoint(shotP0, shotP1), shotP1, t * 2) : bez(shotP1, midpoint(shotP1, shotP2), shotP2, (t - 0.5) * 2);
-  const ballNormal = routePerp(t);
+  function linePointAt(u: number) {
+    return u < 0.5
+      ? bez(shotP0, midpoint(shotP0, shotP1), shotP1, u * 2)
+      : bez(shotP1, midpoint(shotP1, shotP2), shotP2, (u - 0.5) * 2);
+  }
   const lieSide = (hashSeed(`${par}:${yardage}:${number}:ball-side`) & 1) === 0 ? -1 : 1;
-  const lieOffset = ballState === "rough"
-    ? fairwayHalfWidthAt(t) + 24
-    : ballState === "trouble"
-      ? fairwayHalfWidthAt(t) + 62
-      : 0;
-  const ballPt = ballState === "short"
-    ? { x: gx - greenRx * 0.72, y: gy + greenRy + 22 }
-    : {
-        x: lineBallPt.x + ballNormal.x * lieOffset * lieSide,
-        y: lineBallPt.y + ballNormal.y * lieOffset * lieSide,
-      };
 
   // ---- Water body: seeded placement + size (front / left / right / cross),
   // always guarding — never surrounding — the green, so a water hole never
@@ -340,6 +333,48 @@ export function HoleArt({ hole, ballT = 0.05 }: {
     }
   }
   const waterSideRight = !!water && water.cx > gx; // for greenside-bunker placement
+
+  // A missed green should read as an off-green short-game lie, never as an
+  // unmodelled penalty ball sitting in a pond. Prefer the front fringe, then
+  // move around the green's collar until the marker clears the water shape.
+  const shortCandidates = [
+    { x: gx - greenRx * 0.72, y: gy + greenRy + 22 },
+    { x: gx + greenRx * 0.72, y: gy + greenRy + 22 },
+    { x: gx - greenRx - 20, y: gy + greenRy * 0.32 },
+    { x: gx + greenRx + 20, y: gy + greenRy * 0.32 },
+  ].map((p) => ({
+    x: Math.min(620, Math.max(60, p.x)),
+    y: Math.min(510, Math.max(92, p.y)),
+  }));
+  const waterEllipse = water ? { x: water.cx, y: water.cy, rx: water.rx, ry: water.ry } : null;
+  const shortBallPt = pickDryBallPosition(
+    shortCandidates,
+    waterEllipse,
+  );
+
+  // Fairway/rough/trouble states use the same safety contract. Start at the
+  // engine's progress, then try nearby points along the route. Off-fairway
+  // lies can also switch sides, but retain their rough/trouble offset.
+  const nearbyProgress = [t, t - 0.06, t + 0.06, t - 0.12, t + 0.12, t - 0.18, t + 0.18]
+    .map((u) => Math.max(0.04, Math.min(0.96, u)));
+  function liePointAt(u: number, side: number) {
+    const line = linePointAt(u);
+    const normal = routePerp(u);
+    const offset = ballState === "rough"
+      ? fairwayHalfWidthAt(u) + 24
+      : ballState === "trouble"
+        ? fairwayHalfWidthAt(u) + 62
+        : 0;
+    return { x: line.x + normal.x * offset * side, y: line.y + normal.y * offset * side };
+  }
+  const lieCandidates = nearbyProgress.flatMap((u) => {
+    const preferred = liePointAt(u, lieSide);
+    return ballState === "rough" || ballState === "trouble"
+      ? [preferred, liePointAt(u, -lieSide)]
+      : [preferred];
+  });
+  const lieBallPt = pickDryBallPosition(lieCandidates, waterEllipse);
+  const ballPt = ballState === "short" ? shortBallPt : lieBallPt;
 
   // ---- Bunkers: seeded count / position / size, biased by hazard + difficulty.
   // Sand holes carry more (and sometimes clusters); harder holes carry more. ----
