@@ -59,7 +59,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 
 /* ============================================================================
    SHARED COMPONENTS (Phase 3) — concept palette primitives every screen reuses.
-   Tokens (--pm-*) are defined in the PLAY SCREEN v2 block below; :root blocks
+   Tokens (--pm-*) are defined in the PLAY SCREEN v3 block below; :root blocks
    merge, so they're available here too.
    ============================================================================ */
 .chip{display:inline-flex;align-items:center;gap:6px;font-family:'Inter',sans-serif;font-size:10.5px;
@@ -98,11 +98,6 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .hole-info .par{font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em}
 .hole-info .yards{font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;text-align:right;color:var(--fairway)}
 .hole-info .yards small{display:block;font-size:10px;letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase}
-
-.hole-art{border-radius:14px;overflow:hidden;border:1px solid var(--line);position:relative}
-.hole-art svg{display:block;width:100%;height:auto}
-.wind-tag{position:absolute;top:10px;left:10px;background:rgba(19,32,26,.78);color:var(--cream);font-family:'Oswald',sans-serif;font-size:11px;padding:4px 9px;border-radius:8px;display:flex;gap:6px}
-.sig-tag{position:absolute;bottom:10px;right:10px;max-width:62%;background:rgba(224,160,43,.92);color:#1a1205;font-family:'Oswald',sans-serif;font-weight:600;font-size:10.5px;line-height:1.25;padding:4px 9px;border-radius:8px;text-align:right}
 
 .course-list{display:flex;flex-direction:column;gap:12px;margin-top:4px}
 .course-card{display:block;text-decoration:none;color:var(--pm-ink);background:var(--pm-paper-2);border:1px solid var(--pm-line);border-radius:14px;padding:15px 16px;transition:transform .1s,border-color .15s}
@@ -149,9 +144,6 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .lie-banner.l-even{border-color:var(--gold);background:rgba(196,150,40,.10)}
 .lie-banner.l-bad{border-color:var(--flag);background:rgba(215,64,47,.09)}
 .c-safe .dot{background:var(--safe)} .c-normal .dot{background:var(--gold)} .c-aggressive .dot{background:var(--flag)}
-
-.putt-view svg{display:block;width:100%;height:auto}
-.putt-break{position:absolute;bottom:10px;left:10px;background:rgba(19,32,26,.78);color:var(--cream);font-family:'Oswald',sans-serif;font-size:11px;padding:4px 9px;border-radius:8px}
 
 .budget-note{text-align:center;font-family:'Oswald',sans-serif;font-weight:500;font-size:11px;letter-spacing:.04em;color:var(--ink-soft);margin:-6px 0 12px}
 .shotlog{display:flex;flex-direction:column;gap:7px;margin:12px 0 0}
@@ -589,38 +581,62 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .tourn-last-champion-name { font-size: 22px; font-weight: 700; color: var(--pm-ink); }
 .tourn-last-champion-score { font-size: 16px; font-weight: 600; color: var(--pm-flag); }
 
+
 /* ============================================================================
-   PLAY SCREEN v2 — banner map + flowing controls (fits HoleArt's real 400x150)
+   PLAY SCREEN v3 — one layered card (the approved Sawgrass-17 concept), not a
+   banner glued to a page. The map SVG bakes its own top/bottom scrims; the
+   header, chips, and controls float over it as one surface, decision and
+   result mode alike. No content sits in normal flow below the card.
+
+   SIZING CONTRACT — read this before touching width/max-width on .play or
+   .pm-card. Three separate bugs shipped from not having this written down:
+     - .app owns the responsive width CAP: it intentionally grows on desktop
+       (440 -> 600 at >=680px -> 760 at >=1024px, see the responsive-shell
+       media queries above) so grid screens (courses, trophies) use the extra
+       space. That growth is correct — do not "fix" it away.
+     - .play is a BACKDROP, not the card. It fills 100% of whatever width
+       .app gives it and only paints the dark background + centers the card.
+       It must use width:100% (never bare `margin:0 auto` with no width) —
+       a block/flex box with only auto margins and no explicit width SHRINKS
+       TO FIT its content instead of filling its parent. That mechanism is
+       exactly what caused the original 277px collapse in result mode (result
+       content happened to be narrower than decision-mode content, so the
+       shrink-to-fit width collapsed with it).
+     - .pm-card is the actual card and OWNS max-width:440px + margin:0 auto.
+       It stays phone-width and centered no matter how wide .play/.app get on
+       desktop — a phone-card layout doesn't benefit from extra width, so it
+       intentionally doesn't take any, on any viewport.
    ============================================================================ */
+/* Concept palette tokens — used across EVERY screen (Home's dark banner/CTAs,
+   chips, cards, etc.), not just the play screen. They live here with the play
+   block for historical reasons; if this block ever moves or is rewritten, these
+   MUST be preserved — dropping them un-defines 200+ var(--pm-*) references app-
+   wide and silently blanks every dark surface. */
 :root{
   --pm-paper:#F7F4EA; --pm-paper-2:#FBF9F1; --pm-ink:#1B2A17; --pm-ink-soft:#5A6B52;
   --pm-flag:#C8493A; --pm-flag-soft:#F3C9BE; --pm-amber:#F2C14E;
   --pm-safe:#3A6B33; --pm-normal:#C99A2E;
   --pm-line:rgba(27,42,23,.16); --pm-line-strong:rgba(27,42,23,.26);
 }
-.play{position:relative;width:100%;background:var(--pm-paper);
-  min-height:100dvh;display:flex;flex-direction:column;padding-bottom:24px}
-.play-progress{height:3px;background:rgba(27,42,23,.1);margin:0}
+.play{width:100%;min-height:100dvh;background:var(--pm-ink);display:flex;flex-direction:column;padding:20px 16px 40px}
+.play-progress{width:100%;max-width:440px;height:3px;background:rgba(255,255,255,.14);margin:0 auto 14px;border-radius:99px;overflow:hidden;flex:none}
 .play-progress>i{display:block;height:100%;background:var(--pm-flag);transition:width .3s ease}
 
-/* ===== MAP: a banner at natural height. header + chips float on IT. ===== */
-.play-map{position:relative;width:100%;overflow:hidden;background:var(--pm-ink)}
-/* HoleArt/PuttView render inside; let them size naturally. Add a min-height so
-   the banner is a real surface for the header/chips even for short art. */
-.play-map>.hole-art,.play-map>.puttview{display:block;width:100%;min-height:190px}
-.play-map>.hole-art svg,.play-map>.puttview svg{display:block;width:100%;height:100%}
-/* Result mode: the map shrinks to a small "hero strip" (a reminder of the hole
-   just played) so the result content below — outcome, next-hole, scorecard —
-   gets the vertical space instead of sitting under a full-height banner. */
-.play.is-result .play-map>.hole-art,.play.is-result .play-map>.puttview{min-height:0;height:112px}
-/* scrims painted by CSS (HoleArt has none of its own) */
-.play-map::before{content:"";position:absolute;top:0;left:0;right:0;height:96px;
-  background:linear-gradient(180deg,rgba(21,36,24,.62),transparent);z-index:1;pointer-events:none}
-.play.is-result .play-map::before{height:56px}
-.play.is-decision .play-map::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;
-  background:linear-gradient(0deg,rgba(21,36,24,.55),transparent);z-index:1;pointer-events:none}
+/* ===== THE CARD: one surface. The art (HoleArt/PuttView, an <svg> with its
+   own viewBox aspect-ratio) defines the card's natural height via
+   width:100% + intrinsic height — no CSS forces a height on it, so it's
+   never distorted. Everything else overlays it. ===== */
+/* margin:auto (all sides) centers the card horizontally AND vertically: the
+   top/bottom auto margins absorb the free space between the pinned progress bar
+   and the bottom of .play, matching the concept's place-items:center dark
+   field. Auto margins collapse to 0 if the card ever exceeds the viewport
+   (long result panel), so the top never becomes unreachable — no clipping. */
+.pm-card{position:relative;width:100%;max-width:440px;margin:auto;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.pm-card-art{position:relative;border-radius:16px;overflow:hidden;background:var(--pm-ink);
+  border:1.5px solid rgba(197,210,184,.5)}
+.pm-card-art>svg{display:block;width:100%}
 
-.pm-head{position:absolute;top:12px;left:16px;right:16px;z-index:2;
+.pm-head{position:absolute;top:16px;left:20px;right:20px;z-index:2;
   display:flex;align-items:flex-start;justify-content:space-between}
 .pm-num{font-family:'Anton',sans-serif;font-size:34px;line-height:.9;color:#fff}
 .pm-sub{font-family:'Oswald',sans-serif;font-size:10.5px;font-weight:500;letter-spacing:.14em;
@@ -632,19 +648,24 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-topar span{font-family:'Oswald',sans-serif;font-size:9.5px;letter-spacing:.1em;
   text-transform:uppercase;color:#CBDCC0}
 .pm-yards{font-family:'Oswald',sans-serif;font-size:10.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:#D5E2C9;margin-top:6px}
+  text-transform:uppercase;color:#D5E2C9;margin-top:6px;text-align:right}
 
-.pm-chips{position:absolute;bottom:10px;left:16px;right:16px;z-index:2;display:flex;gap:6px;flex-wrap:wrap}
-.play.is-result .pm-chips{display:none}
-.pm-chip{font-family:'Inter',sans-serif;font-size:10px;font-weight:500;color:#EAF1E4;
+.pm-chips{position:absolute;top:72px;left:20px;right:20px;z-index:2;display:flex;gap:6px;flex-wrap:wrap}
+.pm-chip{font-family:'Inter',sans-serif;font-size:10.5px;font-weight:500;color:#EAF1E4;
   background:rgba(21,36,24,.55);border:1px solid rgba(255,255,255,.16);
-  padding:3px 9px;border-radius:999px;line-height:1.3}
+  padding:4px 10px;border-radius:999px;line-height:1.3}
 .pm-chip-course{background:rgba(21,36,24,.7);font-weight:600}
+.pm-chip-sig{background:rgba(224,160,43,.88);color:#1a1205;border-color:rgba(224,160,43,.5);font-weight:600}
 
-.pm-opponent{position:relative;z-index:2;padding:8px 14px 0}
-
-/* ===== CONTROLS: normal flow BELOW the map (no absolute pile-up) ===== */
-.pm-controls{padding:14px 16px 4px}
+/* ===== CONTROLS: float on the card's baked-in bottom scrim (position:absolute
+   bottom:0, INSIDE .pm-card-art). This keeps the MAP dominant — the art fills
+   the whole card and the controls sit on its lower scrim band, rather than the
+   controls growing the card downward and shrinking the map to a thumbnail.
+   The tall 680x1040 canvas gives the map plenty of visible height above the
+   controls. Decision controls are short (reads + prompt + 3 buttons) and never
+   exceed the card height, so no scroll/clip guard is needed here. */
+.pm-controls{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 16px 16px}
+.pm-opponent{margin-bottom:8px}
 .pm-reads{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;align-items:stretch}
 .pm-situation{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--pm-ink);
   background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:7px 12px;border-radius:9px;text-align:center}
@@ -659,10 +680,10 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:7px 12px;border-radius:9px;text-align:center}
 
 .pm-prompt{font-family:'Oswald',sans-serif;font-size:11px;font-weight:500;letter-spacing:.18em;
-  text-transform:uppercase;color:var(--pm-ink-soft);text-align:center;margin-bottom:11px}
+  text-transform:uppercase;color:#EAF1E4;text-shadow:0 1px 3px rgba(0,0,0,.4);text-align:center;margin-bottom:11px}
 .pm-choices{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .pm-choice{appearance:none;cursor:pointer;text-align:left;line-height:1.3;
-  background:var(--pm-paper-2);border:1.5px solid var(--pm-line-strong);
+  background:rgba(247,244,234,.96);border:1.5px solid rgba(247,244,234,.5);
   border-radius:12px;padding:11px 11px 12px;transition:transform .1s ease,opacity .15s ease}
 .pm-choice:hover:not(:disabled){transform:translateY(-1px)}
 .pm-choice:disabled{opacity:.5;cursor:not-allowed}
@@ -677,13 +698,21 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-desc{font-family:'Inter',sans-serif;font-size:10.5px;color:var(--pm-ink-soft);margin-top:5px}
 .pm-budget{font-family:'Oswald',sans-serif;font-size:9px;font-weight:500;letter-spacing:.06em;
   text-transform:uppercase;color:var(--pm-flag);flex:none}
-.pm-choice.c-aggressive.hot{background:var(--pm-flag);border-color:rgba(255,255,255,.3)}
+.pm-choice.c-aggressive.hot{background:rgba(200,73,58,.95);border-color:rgba(255,255,255,.3)}
 .pm-choice.c-aggressive.hot .pm-name{color:#FFF6F1}
 .pm-choice.c-aggressive.hot .pm-desc{color:var(--pm-flag-soft)}
 .pm-choice.c-aggressive.hot .pm-budget{color:var(--pm-flag-soft)}
 
-/* ===== RESULT content ===== */
-.play-result{padding:22px 16px 24px;display:flex;flex-direction:column;gap:16px}
+/* ===== RESULT: a variant of the SAME card, not a different layout. A solid
+   paper panel sits on the bottom of the art (position:absolute bottom:0), so
+   the top of the art — hole number, to-par, and a glimpse of the green just
+   played — stays visible above it. max-height + overflow-y:auto caps the panel
+   at (card height − 48px) and lets it scroll INTERNALLY if the odds reveal is
+   expanded, so tall result content never clips against the card's overflow. ===== */
+.pm-result-panel{position:absolute;left:0;right:0;bottom:0;z-index:2;
+  max-height:calc(100% - 48px);overflow-y:auto;background:var(--pm-paper);
+  border-top:1.5px solid rgba(197,210,184,.5);border-radius:20px 20px 0 0;
+  padding:20px 16px 22px;display:flex;flex-direction:column;gap:16px}
 .pr-outcome{text-align:center}
 .pr-tag{font-family:'Anton',sans-serif;font-size:30px;line-height:1;color:var(--pm-ink)}
 .pr-outcome.o-great .pr-tag,.pr-outcome.o-good .pr-tag{color:var(--pm-safe)}
@@ -694,3 +723,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pr-cta{display:block;width:100%;appearance:none;cursor:pointer;font-family:'Oswald',sans-serif;
   font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#fff;
   background:var(--pm-ink);border:none;border-radius:12px;padding:14px}
+
+/* Card frame stays phone-width even on a wide desktop window (see the sizing
+   contract above) — nothing to do here for >=680/1024px, .pm-card's own
+   max-width already holds regardless of how wide .play/.app get. */
