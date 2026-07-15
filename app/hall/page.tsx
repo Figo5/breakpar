@@ -42,7 +42,7 @@ export default async function Hall() {
             No records yet. Play any course and your best card lands here.
           </div>
           <div className="btn-stack">
-            <Link href="/play" className="cta">Play today&apos;s round ⛳</Link>
+            <Link href="/play" className="cta">Play today&apos;s round</Link>
             <Link href="/courses" className="cta ghost">Browse courses</Link>
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>

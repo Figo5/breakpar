@@ -34,14 +34,14 @@ export const SCORE_DELTA: Record<Outcome, number> = {
 /** Display metadata used by the UI and the share grid. */
 export const OUTCOME_META: Record<
   Outcome,
-  { label: string; emoji: string; square: string; tone: "good" | "even" | "bad" }
+  { label: string; square: string; tone: "good" | "even" | "bad" }
 > = {
-  eagle: { label: "Eagle", emoji: "🦅", square: "🟦", tone: "good" },
-  birdie: { label: "Birdie", emoji: "🐦", square: "🟩", tone: "good" },
-  par: { label: "Par", emoji: "🏌️", square: "⬜", tone: "even" },
-  bogey: { label: "Bogey", emoji: "😬", square: "🟨", tone: "bad" },
-  double: { label: "Double Bogey", emoji: "💥", square: "🟧", tone: "bad" },
-  triple: { label: "Triple+", emoji: "🌋", square: "🟥", tone: "bad" },
+  eagle: { label: "Eagle", square: "🟦", tone: "good" },
+  birdie: { label: "Birdie", square: "🟩", tone: "good" },
+  par: { label: "Par", square: "⬜", tone: "even" },
+  bogey: { label: "Bogey", square: "🟨", tone: "bad" },
+  double: { label: "Double Bogey", square: "🟧", tone: "bad" },
+  triple: { label: "Triple+", square: "🟥", tone: "bad" },
 };
 
 /** How hole / course / conditions combine into a 0..1 difficulty scalar. */

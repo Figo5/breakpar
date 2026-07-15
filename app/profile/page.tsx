@@ -45,7 +45,7 @@ export default async function Profile() {
             No rounds yet. Play your first round to start your card.
           </div>
           <div className="btn-stack">
-            <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
+            <Link href="/hall" className="cta ghost">Hall of Fame</Link>
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>
           {!me?.signedIn && (
@@ -57,22 +57,22 @@ export default async function Profile() {
       ) : (
         <>
           <div className="start-stats">
-            <div className="stat-card">
+            <div className="card stat-card">
               <div className="n">{me.roundsPlayed}</div>
               <div className="k">Rounds played</div>
             </div>
-            <div className="stat-card">
+            <div className="card stat-card">
               <div className="n">{me.bestToPar !== null ? relativeLabel(me.bestToPar) : "—"}</div>
               <div className="k">Best to par</div>
             </div>
-            <div className="stat-card">
+            <div className="card stat-card">
               <div className="n">{me.underParRounds || "—"}</div>
               <div className="k">Under par</div>
             </div>
           </div>
 
           <div className="stats-line">
-            {me.dayStreak > 0 ? `🔥 ${me.dayStreak}-day streak` : "No active streak"} · best run {me.bestStreak}
+            {me.dayStreak > 0 ? `${me.dayStreak}-day streak` : "No active streak"} · best run {me.bestStreak}
           </div>
 
           <div className="section-title">Recent Games</div>
@@ -90,8 +90,8 @@ export default async function Profile() {
           )}
 
           <div className="btn-stack">
-            <Link href="/hall" className="cta ghost">Hall of Fame 🏆</Link>
-            {me.signedIn && <Link href="/friends" className="cta ghost">Friends 👥</Link>}
+            <Link href="/hall" className="cta ghost">Hall of Fame</Link>
+            {me.signedIn && <Link href="/friends" className="cta ghost">Friends</Link>}
             {me.signedIn && <Link href={`/u/${me.username}`} className="cta ghost">View public profile ↗</Link>}
             <Link href="/" className="cta ghost">Back to today</Link>
           </div>

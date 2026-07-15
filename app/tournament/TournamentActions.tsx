@@ -144,7 +144,7 @@ export function TournamentActions({
                 >
                   <span className="trb-n">R{n}</span>
                   <span className="trb-state">
-                    {done ? relativeLabel(r!.relativeToPar ?? 0) : playable ? "Play" : n <= 2 ? "—" : "🔒"}
+                    {done ? relativeLabel(r!.relativeToPar ?? 0) : playable ? "Play" : n <= 2 ? "—" : "Locked"}
                   </span>
                 </button>
               );

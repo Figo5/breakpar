@@ -125,10 +125,6 @@ export function HoleArt({ hole, wind, windDir, greens, ballT = 0.05 }: {
           </g>
         </svg>
 
-        <div className="wind-tag">
-          <span style={{ display: "inline-block", transform: `rotate(${windDir}deg)` }}>↑</span>
-          {wind} mph · {greens} greens
-        </div>
         {signature && <div className="sig-tag">★ {signature}</div>}
       </div>
     );
@@ -288,11 +284,6 @@ export function HoleArt({ hole, wind, windDir, greens, ballT = 0.05 }: {
           <circle cx={ballPt.x} cy={ballPt.y} r="2" fill="#13201A" opacity=".35" />
         </g>
       </svg>
-
-      <div className="wind-tag">
-        <span style={{ display: "inline-block", transform: `rotate(${windDir}deg)` }}>↑</span>
-        {wind} mph · {greens} greens
-      </div>
 
       {signature && <div className="sig-tag">★ {signature}</div>}
     </div>

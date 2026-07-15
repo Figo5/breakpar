@@ -45,12 +45,12 @@ export type GreenSpeed = "Slow" | "Medium" | "Firm" | "Fast";
 
 export const GREEN_META: Record<
   GreenResult,
-  { label: string; emoji: string; note: string; tone: "good" | "even" | "bad"; bucket: PuttBucket }
+  { label: string; note: string; tone: "good" | "even" | "bad"; bucket: PuttBucket }
 > = {
-  kickin: { label: "Kick-in", emoji: "🎯", note: "Stuffed it — gimme range.", tone: "good", bucket: "tap" },
-  makeable: { label: "Birdie look", emoji: "🟢", note: "On the dance floor with a real chance.", tone: "good", bucket: "short" },
-  lag: { label: "Long putt", emoji: "🟡", note: "On in reg, but a long way home.", tone: "even", bucket: "long" },
-  scramble: { label: "Missed the green", emoji: "🌿", note: "Short-game test — get it up and down.", tone: "bad", bucket: "tap" },
+  kickin: { label: "Kick-in", note: "Stuffed it — gimme range.", tone: "good", bucket: "tap" },
+  makeable: { label: "Birdie look", note: "On the dance floor with a real chance.", tone: "good", bucket: "short" },
+  lag: { label: "Long putt", note: "On in reg, but a long way home.", tone: "even", bucket: "long" },
+  scramble: { label: "Missed the green", note: "Short-game test — get it up and down.", tone: "bad", bucket: "tap" },
 };
 
 export const PUTT_META: Record<PuttResult, { label: string }> = {

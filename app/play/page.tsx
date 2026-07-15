@@ -325,15 +325,14 @@ function PlayInner() {
           </div>
         </div>
 
-        {/* course/mode label + condition chips — decision mode only */}
+        {/* course/mode label — decision mode only. The full cue list (wind,
+            greens, dogleg, hazard, signature test, etc.) reads once, below
+            the map in .pm-reads — it doesn't repeat here. */}
         {!pending && (
           <div className="pm-chips">
             <span className="pm-chip pm-chip-course">
               {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
             </span>
-            {cues.map((c, i) => (
-              <span className="pm-chip" key={i}>{c.text}</span>
-            ))}
           </div>
         )}
 
@@ -440,7 +439,7 @@ function positionBanner(
   if (stage === "approach" && lie) {
     return (
       <div className={`lie-banner l-${LIE_META[lie].tone}`}>
-        <span className="le">{LIE_META[lie].emoji}</span>
+        <span className="le"><span className={`lie-dot tone-${LIE_META[lie].tone}`} /></span>
         <span className="lt"><b>{LIE_META[lie].label}</b><span>{LIE_META[lie].note}</span></span>
       </div>
     );
@@ -455,7 +454,7 @@ function positionBanner(
     return (
       <>
         <div className={`lie-banner l-${GREEN_META[green].tone === "even" ? "even" : GREEN_META[green].tone === "good" ? "good" : "bad"}`}>
-          <span className="le">{GREEN_META[green].emoji}</span>
+          <span className="le"><span className={`lie-dot tone-${GREEN_META[green].tone}`} /></span>
           <span className="lt"><b>{puttTitle}</b><span>{gr.text}</span></span>
         </div>
         <div className="cues" style={{ marginTop: 10 }}>
@@ -471,7 +470,7 @@ function positionBanner(
     const gr = greenRead(green);
     return (
       <div className={`lie-banner l-bad`}>
-        <span className="le">{GREEN_META[green].emoji}</span>
+        <span className="le"><span className="lie-dot tone-bad" /></span>
         <span className="lt"><b>{GREEN_META[green].label}</b><span>{gr.text}</span></span>
       </div>
     );
@@ -497,7 +496,7 @@ function OddsReveal({
   if (!open) {
     return (
       <button className="odds-toggle" onClick={() => setOpen(true)} aria-expanded="false">
-        📊 See the odds you faced
+        See the odds you faced
       </button>
     );
   }
@@ -514,7 +513,7 @@ function OddsReveal({
       teeLie = (s.lie as Lie) ?? null;
       const rows = teeOddsReveal(hole, conditions);
       blocks.push(
-        <StageOdds key="tee" title="🏌️ Tee shot" chosen={s.decision} order={order}
+        <StageOdds key="tee" title="Tee shot" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].pct.dialed + rows[d].pct.fairway }, { cls: "rough", w: rows[d].pct.rough }, { cls: "trouble", w: rows[d].pct.trouble }],
             right: `${rows[d].goodPct}%` }))}
@@ -525,7 +524,7 @@ function OddsReveal({
       const source: GreenSource = isPar3 ? "tee" : (teeLie ?? "fairway");
       const rows = approachOddsReveal(source, hole, conditions);
       blocks.push(
-        <StageOdds key="approach" title="🎯 Approach" chosen={s.decision} order={order}
+        <StageOdds key="approach" title="Approach" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].kickinPct + rows[d].makeablePct }, { cls: "rough", w: rows[d].lagPct }, { cls: "trouble", w: rows[d].scramblePct }],
             right: `${rows[d].greenPct}%` }))}
@@ -536,7 +535,7 @@ function OddsReveal({
       const bucket = s.green === "makeable" ? "short" : "long";
       const rows = puttOddsReveal(bucket, greens);
       blocks.push(
-        <StageOdds key="putt" title="⛳ Putt" chosen={s.decision} order={order}
+        <StageOdds key="putt" title="Putt" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
             right: `${rows[d].onePct}%` }))}
@@ -546,7 +545,7 @@ function OddsReveal({
     } else if (s.stage === "scramble" && s.decision) {
       const rows = scrambleOddsReveal(hole, conditions);
       blocks.push(
-        <StageOdds key="scramble" title="🌿 Short game" chosen={s.decision} order={order}
+        <StageOdds key="scramble" title="Short game" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].updownPct }, { cls: "rough", w: rows[d].twochipPct }, { cls: "trouble", w: rows[d].blowupPct + rows[d].disasterPct }],
             right: `${rows[d].savePct}%` }))}
@@ -558,7 +557,7 @@ function OddsReveal({
 
   return (
     <div className="odds-reveal" role="region" aria-label="Odds you faced this hole">
-      <div className="odds-reveal-title">📊 The odds you faced · every decision</div>
+      <div className="odds-reveal-title">The odds you faced · every decision</div>
       {blocks}
     </div>
   );

@@ -21,3 +21,6 @@ next-env.d.ts
 
 # OS
 .DS_Store
+
+# ad-hoc review screenshots (not build artifacts, not source)
+/review-screenshots/

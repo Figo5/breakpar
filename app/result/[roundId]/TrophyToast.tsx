@@ -35,11 +35,12 @@ export function TrophyToast({ roundId, signedIn }: { roundId: string; signedIn: 
       <button className="convert-x" onClick={() => setTrophies(null)} aria-label="Dismiss">
         ×
       </button>
-      <div className="tt-head">🎉 {trophies.length > 1 ? "Trophies unlocked!" : "Trophy unlocked!"}</div>
+      <div className="tt-head">{trophies.length > 1 ? "Trophies unlocked!" : "Trophy unlocked!"}</div>
       <div className="tt-list">
         {trophies.map((t) => (
           <span key={t.id} className={`tt-badge t-${t.tier}`}>
-            {TIER_ICON[t.tier] ?? "🏅"} {t.label}
+            <span className={`tier-dot t-${t.tier}`} />
+            {t.label}
             <em>{TIER_META[t.tier]?.label ?? ""}</em>
           </span>
         ))}
@@ -60,11 +61,3 @@ interface NewTrophy {
   label: string;
   tier: TrophyTier;
 }
-
-const TIER_ICON: Record<TrophyTier, string> = {
-  common: "🎖️",
-  rare: "🏅",
-  elite: "🏆",
-  legendary: "👑",
-  special: "✦",
-};

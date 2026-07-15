@@ -54,27 +54,27 @@ export function holeCues(h: CourseHole, c: Conditions, greens?: string): Cue[] {
 
   cues.push(
     bucket === 0
-      ? { icon: "🟢", text: "Gettable — green light" }
+      ? { icon: "", text: "Gettable — green light" }
       : bucket === 1
-        ? { icon: "🟡", text: "Pick your moment" }
-        : { icon: "🔴", text: "Card-wrecker — respect it" }
+        ? { icon: "", text: "Pick your moment" }
+        : { icon: "", text: "Card-wrecker — respect it" }
   );
 
-  if (h.strokeIndex <= 4) cues.push({ icon: "⚠️", text: `Signature test · SI ${h.strokeIndex}` });
-  if (h.par === 5) cues.push({ icon: "🏌️", text: bucket === 0 ? "Reachable par 5" : "Long par 5" });
-  if (h.par === 3) cues.push({ icon: "🎯", text: "One-shot par 3" });
+  if (h.strokeIndex <= 4) cues.push({ icon: "", text: `Signature test · SI ${h.strokeIndex}` });
+  if (h.par === 5) cues.push({ icon: "", text: bucket === 0 ? "Reachable par 5" : "Long par 5" });
+  if (h.par === 3) cues.push({ icon: "", text: "One-shot par 3" });
 
-  if (h.hazard === "ocean") cues.push({ icon: "🌊", text: "Ocean carry" });
-  else if (h.hazard === "water") cues.push({ icon: "💧", text: "Water in play" });
-  else if (h.hazard === "sand") cues.push({ icon: "🏖️", text: "Bunkers guard it" });
+  if (h.hazard === "ocean") cues.push({ icon: "", text: "Ocean carry" });
+  else if (h.hazard === "water") cues.push({ icon: "", text: "Water in play" });
+  else if (h.hazard === "sand") cues.push({ icon: "", text: "Bunkers guard it" });
 
-  if (h.dogleg === "L") cues.push({ icon: "↩️", text: "Dogleg left" });
-  else if (h.dogleg === "R") cues.push({ icon: "↪️", text: "Dogleg right" });
+  if (h.dogleg === "L") cues.push({ icon: "", text: "Dogleg left" });
+  else if (h.dogleg === "R") cues.push({ icon: "", text: "Dogleg right" });
 
-  if (c.wind >= 18) cues.push({ icon: "💨", text: `Howling · ${c.wind} mph` });
-  else if (c.wind >= 12) cues.push({ icon: "💨", text: `Breezy · ${c.wind} mph` });
+  if (c.wind >= 18) cues.push({ icon: "", text: `Howling · ${c.wind} mph` });
+  else if (c.wind >= 12) cues.push({ icon: "", text: `Breezy · ${c.wind} mph` });
 
-  if (greens === "Fast" || greens === "Firm") cues.push({ icon: "⚡", text: "Slick greens" });
+  if (greens === "Fast" || greens === "Firm") cues.push({ icon: "", text: "Slick greens" });
 
   return cues.slice(0, 4);
 }
@@ -149,18 +149,18 @@ export function puttRead(
   const cues: Cue[] = [];
   cues.push(
     bucket === "short"
-      ? { icon: "🎯", text: `${puttForLabel(puttFor)} · ~${distanceFt} ft` }
-      : { icon: "📏", text: `Long putt · ~${distanceFt} ft` }
+      ? { icon: "", text: `${puttForLabel(puttFor)} · ~${distanceFt} ft` }
+      : { icon: "", text: `Long putt · ~${distanceFt} ft` }
   );
 
   const slick = speed === "Fast" || speed === "Firm";
-  if (slope === "downhill") cues.push({ icon: "⏬", text: slick ? "Slick — downhill" : "Downhill" });
-  else if (slope === "uphill") cues.push({ icon: "⏫", text: "Uphill — firm it" });
-  else if (slick) cues.push({ icon: "⚡", text: "Quick green" });
+  if (slope === "downhill") cues.push({ icon: "", text: slick ? "Slick — downhill" : "Downhill" });
+  else if (slope === "uphill") cues.push({ icon: "", text: "Uphill — firm it" });
+  else if (slick) cues.push({ icon: "", text: "Quick green" });
 
-  if (breakDir === "L") cues.push({ icon: "↩️", text: "Breaks right-to-left" });
-  else if (breakDir === "R") cues.push({ icon: "↪️", text: "Breaks left-to-right" });
-  else cues.push({ icon: "➡️", text: "Dead straight" });
+  if (breakDir === "L") cues.push({ icon: "", text: "Breaks right-to-left" });
+  else if (breakDir === "R") cues.push({ icon: "", text: "Breaks left-to-right" });
+  else cues.push({ icon: "", text: "Dead straight" });
 
   return { cues: cues.slice(0, 3) };
 }
