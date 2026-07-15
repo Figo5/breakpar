@@ -15,8 +15,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-15",
+    items: [
+      "Added yardage-book-style hole maps with distinct layouts for par, doglegs, bunkers, water, and island greens.",
+      "Updated the play screen with a map-focused layout and a scorecard-style hole result view.",
+      "Added contextual hole guidance and visible green, yellow, and red risk ratings to shot choices.",
+      "Updated the visual design across Home, Courses, Tournament, Challenges, Leaderboard, Hall of Fame, and other screens.",
+      "Fixed ball markers appearing in water after non-penalty shots.",
+    ],
+  },
+  {
+    date: "2026-07-13",
+    items: [
+      "Course selection now shows your lowest completed round for each course.",
+      "Weekly tournaments now begin on Tuesday and automatically repair missing or stale tournament schedules.",
+      "Added the previous tournament champion to the tournament results banner.",
+    ],
+  },
+  {
     date: "2026-07-10",
     items: [
+      "Added bot challenges with live head-to-head progress during the round.",
       "Added 5 courses: The Country Club (Brookline), Los Angeles Country Club, National Golf Links of America, Muirfield, and Royal Melbourne. The roster is now 33.",
     ],
   },
