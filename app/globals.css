@@ -679,6 +679,16 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-reads .cue{font-family:'Inter',sans-serif;font-size:11px;color:var(--pm-ink-soft);
   background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:5px 10px;border-radius:8px}
 .pm-reads .cue .ci{opacity:.7;margin-right:4px}
+.pm-reads .hole-read .cue-primary{order:-1;flex-basis:100%;display:flex;align-items:center;
+  justify-content:center;font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;padding:7px 10px}
+.cue-light{width:8px;height:8px;border-radius:50%;margin-right:7px;flex:none}
+.cue-primary.cue-good{color:#285E32;border-color:rgba(63,138,69,.48);background:#EDF5E8}
+.cue-primary.cue-good .cue-light{background:#3F8A45;box-shadow:0 0 0 3px rgba(63,138,69,.15)}
+.cue-primary.cue-warn{color:#76540D;border-color:rgba(224,160,43,.5);background:#FBF3DD}
+.cue-primary.cue-warn .cue-light{background:#E0A02B;box-shadow:0 0 0 3px rgba(224,160,43,.16)}
+.cue-primary.cue-bad{color:#8B3027;border-color:rgba(212,79,64,.48);background:#FAE8E3}
+.cue-primary.cue-bad .cue-light{background:#D44F40;box-shadow:0 0 0 3px rgba(212,79,64,.15)}
 .pm-reads .lie-banner{font-family:'Inter',sans-serif;font-size:12px;color:var(--pm-ink);
   background:var(--pm-paper-2);border:1px solid var(--pm-line);padding:7px 12px;border-radius:9px;text-align:center}
 
@@ -694,20 +704,22 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-choice-top{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .pm-lbl{display:flex;align-items:center;gap:6px;min-width:0}
 .pm-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none;background:var(--pm-ink-soft)}
-/* Preserve the original at-a-glance decision legend on every shot. */
-.pm-choice.c-safe .pm-dot{background:#3F8A45;box-shadow:0 0 0 2px rgba(63,138,69,.18)}
-.pm-choice.c-normal .pm-dot{background:#E0A02B;box-shadow:0 0 0 2px rgba(224,160,43,.2)}
-.pm-choice.c-aggressive .pm-dot{background:#D44F40;box-shadow:0 0 0 2px rgba(255,246,241,.72)}
+/* Traffic lights describe this shot's contextual read, not the decision name. */
+.pm-choice.risk-good{border-color:rgba(63,138,69,.7)}
+.pm-choice.risk-warn{border-color:rgba(224,160,43,.78)}
+.pm-choice.risk-bad{border-color:rgba(212,79,64,.75)}
+.pm-choice.risk-good .pm-dot{background:#3F8A45;box-shadow:0 0 0 2px rgba(63,138,69,.18)}
+.pm-choice.risk-warn .pm-dot{background:#E0A02B;box-shadow:0 0 0 2px rgba(224,160,43,.2)}
+.pm-choice.risk-bad .pm-dot{background:#D44F40;box-shadow:0 0 0 2px rgba(212,79,64,.18)}
 .pm-name{font-family:'Oswald',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.02em;
   text-transform:uppercase;color:var(--pm-ink);white-space:nowrap}
 .pm-desc{font-family:'Inter',sans-serif;font-size:10px;color:var(--pm-ink-soft);margin-top:4px;white-space:nowrap}
+.pm-risk{display:block;margin-top:5px;font-family:'Oswald',sans-serif;font-size:9.5px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase}
+.risk-good .pm-risk{color:#32713B}.risk-warn .pm-risk{color:#9A6D12}.risk-bad .pm-risk{color:#B23E32}
 .pm-budget{font-family:'Oswald',sans-serif;font-size:9px;font-weight:500;letter-spacing:.06em;
   text-transform:uppercase;color:var(--pm-flag);flex:none}
 .pm-budget b{font-size:11px}.pm-budget i{font-style:normal}
-.pm-choice.c-aggressive.hot{background:rgba(200,73,58,.95);border-color:rgba(255,255,255,.3)}
-.pm-choice.c-aggressive.hot .pm-name{color:#FFF6F1}
-.pm-choice.c-aggressive.hot .pm-desc{color:var(--pm-flag-soft)}
-.pm-choice.c-aggressive.hot .pm-budget{color:var(--pm-flag-soft)}
 
 /* ===== RESULT: a variant of the SAME card, not a different layout. A solid
    paper panel sits on the bottom of the art (position:absolute bottom:0), so

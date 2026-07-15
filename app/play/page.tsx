@@ -358,11 +358,9 @@ function PlayInner() {
                 </div>
               )}
 
-              {!openingRead && (
-                <div className="pm-reads">
-                  {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
-                </div>
-              )}
+              <div className="pm-reads">
+                {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
+              </div>
 
               <div className="pm-prompt">{openingRead ? "Tee shot" : compactStageLabel(stage)}</div>
               <div className="pm-choices">
@@ -374,7 +372,7 @@ function PlayInner() {
                   return (
                     <button
                       key={d.id}
-                      className={`pm-choice c-${d.id}${isAggro ? " hot" : ""}`}
+                      className={`pm-choice c-${d.id} risk-${risk.tone}`}
                       disabled={busy || outOfBudget}
                       onClick={() => choose(d.id)}
                       aria-label={`${d.label}: ${blurb}. ${outOfBudget ? "No aggressive plays left." : risk.text + "."}`}
@@ -388,6 +386,7 @@ function PlayInner() {
                         )}
                       </span>
                       <span className="pm-desc">{blurb}</span>
+                      {!outOfBudget && <span className="pm-risk">{risk.text}</span>}
                     </button>
                   );
                 })}
@@ -469,9 +468,15 @@ function positionBanner(
   // Tee, or a par-3 tee shot (no lie yet) -> hole cues.
   if (stage === "tee" || (stage === "approach" && !lie)) {
     return (
-      <div className="cues">
+      <div className="cues hole-read">
         {cues.map((c, i) => (
-          <span className="cue" key={i}><span className="ci">{c.icon}</span>{c.text}</span>
+          <span
+            className={`cue${i === 0 ? ` cue-primary cue-${holeCueTone(c.text)}` : ""}`}
+            key={i}
+          >
+            {i === 0 && <span className="cue-light" />}
+            <span className="ci">{c.icon}</span>{c.text}
+          </span>
         ))}
       </div>
     );
@@ -517,6 +522,12 @@ function positionBanner(
     );
   }
   return null;
+}
+
+function holeCueTone(text: string): "good" | "warn" | "bad" {
+  if (text.startsWith("Gettable")) return "good";
+  if (text.startsWith("Card-wrecker")) return "bad";
+  return "warn";
 }
 
 function OddsReveal({
