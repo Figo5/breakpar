@@ -50,7 +50,6 @@ export default async function TournamentPage() {
           {showPrior && prior && (
             <div className="tourn-last-champion">
               <div className="tourn-last-champion-head">
-                <span className="tourn-last-champion-crown">🏆</span>
                 <span>{prior.tournamentName} — Champion</span>
               </div>
               <div className="tourn-last-champion-body">
@@ -68,13 +67,12 @@ export default async function TournamentPage() {
           </p>
 
           {view.isPreview && (
-            <div className="tourn-preview-badge">👁️ Preview mode — you can play all rounds before the public start</div>
+            <div className="tourn-preview-badge">Preview mode — you can play all rounds before the public start</div>
           )}
 
           {/* Champion banner (once complete) */}
           {view.phase === "complete" && view.champion && (
             <div className="tourn-champion">
-              <div className="tourn-champion-crown">🏆</div>
               <div className="tourn-champion-label">Champion</div>
               <div className="tourn-champion-name">{view.champion.username}</div>
               <div className="tourn-champion-score">{relativeLabel(view.champion.cumulativeToPar)}</div>

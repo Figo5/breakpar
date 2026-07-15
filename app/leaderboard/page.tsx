@@ -46,7 +46,7 @@ export default async function LeaderboardPage() {
         </div>
       </div>
 
-      <div className="nameplate">
+      <div className="banner nameplate">
         <div className="lbl">Today&apos;s Course</div>
         <h2>{course.name}</h2>
         <div className="loc">{course.location} · Par {coursePar(course)}</div>
@@ -70,9 +70,9 @@ export default async function LeaderboardPage() {
 
       <div className="btn-stack">
         {!you && (
-          <Link href="/play" className="cta">Play today&apos;s round ⛳</Link>
+          <Link href="/play" className="cta">Play today&apos;s round</Link>
         )}
-        <Link href="/friends" className="cta ghost">Friends 👥</Link>
+        <Link href="/friends" className="cta ghost">Friends</Link>
         <Link href="/" className="cta ghost">Back to today</Link>
       </div>
     </div>

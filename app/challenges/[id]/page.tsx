@@ -37,9 +37,9 @@ export default async function ChallengeDetail({ params }: { params: Promise<{ id
           </div>
 
           <div className="ch-versus">
-            <SideCard side={c!.me} you badge={c!.verdict === "win" ? "🏆" : null} />
+            <SideCard side={c!.me} you badge={c!.verdict === "win" ? "✓" : null} />
             <div className="ch-vs">vs</div>
-            <SideCard side={c!.them} badge={c!.verdict === "loss" ? "🏆" : null} />
+            <SideCard side={c!.them} badge={c!.verdict === "loss" ? "✓" : null} />
           </div>
 
           {c!.status !== "complete" && (
@@ -68,7 +68,7 @@ export default async function ChallengeDetail({ params }: { params: Promise<{ id
 }
 
 function statusLine(status: string, verdict: string | null) {
-  if (status === "complete") return verdict === "win" ? "You won 🏆" : verdict === "loss" ? "You lost" : "Draw";
+  if (status === "complete") return verdict === "win" ? "You won" : verdict === "loss" ? "You lost" : "Draw";
   return "In progress — waiting for both to finish";
 }
 

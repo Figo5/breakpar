@@ -45,11 +45,11 @@ export const MAX_DECISIONS = 3;
 
 export type Lie = "dialed" | "fairway" | "rough" | "trouble";
 
-export const LIE_META: Record<Lie, { label: string; emoji: string; note: string; tone: "good" | "even" | "bad" }> = {
-  dialed: { label: "Dialed in", emoji: "🎯", note: "Perfect position — attack.", tone: "good" },
-  fairway: { label: "In the fairway", emoji: "⛳", note: "Clean look at the green.", tone: "good" },
-  rough: { label: "In the rough", emoji: "🌿", note: "Awkward — pick your spot.", tone: "even" },
-  trouble: { label: "In trouble", emoji: "🌋", note: "Scrambling — punch out or gamble?", tone: "bad" },
+export const LIE_META: Record<Lie, { label: string; note: string; tone: "good" | "even" | "bad" }> = {
+  dialed: { label: "Dialed in", note: "Perfect position — attack.", tone: "good" },
+  fairway: { label: "In the fairway", note: "Clean look at the green.", tone: "good" },
+  rough: { label: "In the rough", note: "Awkward — pick your spot.", tone: "even" },
+  trouble: { label: "In trouble", note: "Scrambling — punch out or gamble?", tone: "bad" },
 };
 
 const LIES: Lie[] = ["dialed", "fairway", "rough", "trouble"];

@@ -30,12 +30,12 @@ export default async function Courses() {
               <div className="cc-loc">{c.location}</div>
               <div className="cc-blurb">{c.blurb}</div>
               <div className="chips" style={{ marginTop: 10 }}>
-                <div className="chip">💨 {c.wind} mph</div>
-                <div className="chip">🟢 {c.greens}</div>
-                <div className="chip">🎯 {c.difficulty}/10</div>
+                <div className="chip">Wind {c.wind}</div>
+                <div className="chip">Greens {c.greens}</div>
+                <div className="chip">Difficulty {c.difficulty}/10</div>
                 {low !== undefined ? (
                   <div className="chip cc-best" title="Your low round on this course">
-                    ⛳ Your best {toParLabel(low)}
+                    Your best {toParLabel(low)}
                   </div>
                 ) : null}
               </div>

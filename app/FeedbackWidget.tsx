@@ -51,7 +51,10 @@ export function FeedbackWidget() {
         aria-label="Send feedback"
         title="Send feedback"
       >
-        💬
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="13" rx="3" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M7 17 L7 20.5 L10.5 17" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
       </button>
 
       {open && (
@@ -59,7 +62,7 @@ export function FeedbackWidget() {
           <div className="fb-sheet" onClick={(e) => e.stopPropagation()}>
             {state === "done" ? (
               <div className="fb-done">
-                <div className="fb-done-emoji">✅</div>
+                <div className="fb-done-emoji">✓</div>
                 <h3>Thanks!</h3>
                 <p>Got it — we read every message.</p>
                 <button className="cta" onClick={close}>Close</button>

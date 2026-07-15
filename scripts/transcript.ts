@@ -53,8 +53,8 @@ function printHole(label: string, course: (typeof COURSES)[number], holeIdx: num
   for (const s of res.shots) {
     const dec = s.decision ? `[${s.decision}]` : "[auto]";
     const pos =
-      s.lie ? `${LIE_META[s.lie].emoji} ${LIE_META[s.lie].label}` :
-      s.green ? `${GREEN_META[s.green].emoji} ${GREEN_META[s.green].label}` : "";
+      s.lie ? LIE_META[s.lie].label :
+      s.green ? GREEN_META[s.green].label : "";
     const detail =
       s.puttResult ? ` (${PUTT_META[s.puttResult].label}${s.distanceFt ? `, ${s.distanceFt}ft` : ""})` :
       s.scrambleResult ? ` (${SCRAMBLE_META[s.scrambleResult].label})` : "";
@@ -62,7 +62,7 @@ function printHole(label: string, course: (typeof COURSES)[number], holeIdx: num
     console.log(`  ${s.stage.padEnd(9)} ${dec.padEnd(13)} ${(pos + detail).padEnd(30)} “${s.note}”${ev}`);
   }
   const o = res.outcome!;
-  console.log(`  → ${OUTCOME_META[o].emoji} ${OUTCOME_META[o].label} (${res.scoreDelta! >= 0 ? "+" : ""}${res.scoreDelta}) · ${res.shots.filter((s) => s.decision).length} decisions`);
+  console.log(`  → ${OUTCOME_META[o].label} (${res.scoreDelta! >= 0 ? "+" : ""}${res.scoreDelta}) · ${res.shots.filter((s) => s.decision).length} decisions`);
 }
 
 const pebble = COURSES[0];

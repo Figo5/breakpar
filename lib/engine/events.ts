@@ -69,7 +69,7 @@ const EVENTS: EventDef[] = [
   {
     id: "GOOD_KICK",
     label: "Good kick",
-    narration: "A friendly kick funnels it back into play. 🍀",
+    narration: "A friendly kick funnels it back into play.",
     tone: "good",
     stages: ["tee", "approach"],
     weight: 2.5,
@@ -89,7 +89,7 @@ const EVENTS: EventDef[] = [
   {
     id: "BAD_BOUNCE",
     label: "Bad bounce",
-    narration: "Took an awful bounce off the slope. 😖",
+    narration: "Took an awful bounce off the slope.",
     tone: "bad",
     stages: ["tee", "approach"],
     weight: 2.5,
@@ -149,7 +149,7 @@ const EVENTS: EventDef[] = [
 const MOMENTUM_UP: EventDef = {
   id: "MOMENTUM_UP",
   label: "In the zone",
-  narration: "Back-to-back birdies — you're in the zone. 🔥",
+  narration: "Back-to-back birdies — you're in the zone.",
   tone: "good",
   stages: ["tee", "approach"],
   weight: 0,

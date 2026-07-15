@@ -67,7 +67,7 @@ async function ChallengesBody({ meId, prefillOpponent }: { meId: string; prefill
       <Section title="Complete" items={groups.complete} empty="" hideIfEmpty />
 
       <div className="btn-stack">
-        <Link href="/friends" className="cta ghost">Friends 👥</Link>
+        <Link href="/friends" className="cta ghost">Friends</Link>
         <Link href="/" className="cta ghost">Back to today</Link>
       </div>
     </>

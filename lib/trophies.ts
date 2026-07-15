@@ -78,13 +78,13 @@ export interface TrophyBoard {
   featured: string[]; // the owner's pinned trophy ids (ordered), for the picker
 }
 
-export const CATEGORY_META: Record<TrophyCategory, { label: string; emoji: string }> = {
-  special: { label: "Special", emoji: "✦" },
-  "breaking-par": { label: "Breaking Par", emoji: "🏌️" },
-  scoring: { label: "Scoring Feats", emoji: "⛳" },
-  dedication: { label: "Dedication", emoji: "🔥" },
-  conquer: { label: "Conquer", emoji: "🏆" },
-  competition: { label: "Competition", emoji: "🥇" },
+export const CATEGORY_META: Record<TrophyCategory, { label: string }> = {
+  special: { label: "Special" },
+  "breaking-par": { label: "Breaking Par" },
+  scoring: { label: "Scoring Feats" },
+  dedication: { label: "Dedication" },
+  conquer: { label: "Conquer" },
+  competition: { label: "Competition" },
 };
 
 export const CATEGORY_ORDER: TrophyCategory[] = [

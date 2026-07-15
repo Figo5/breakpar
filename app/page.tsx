@@ -45,27 +45,27 @@ export default async function Home() {
       <div className="wordmark">Break&nbsp;<span>Par</span></div>
       <div className="tagline">One round. 18 holes. ~2 minutes.</div>
 
-      <div className="nameplate">
+      <div className="banner nameplate">
         <div className="lbl">Today&apos;s Course</div>
         <h2>{course.name}</h2>
         <div className="loc">{course.location} · Par {par}</div>
         <div className="chips">
-          <div className="chip">💨 {course.wind} mph</div>
-          <div className="chip">🟢 {course.greens}</div>
-          <div className="chip">🎯 {course.difficulty}/10</div>
+          <div className="chip dark">Wind {course.wind}</div>
+          <div className="chip dark">Greens {course.greens}</div>
+          <div className="chip dark">Difficulty {course.difficulty}/10</div>
         </div>
       </div>
 
       <div className="start-stats">
-        <div className="stat-card">
-          <div className="n">{me.streak > 0 ? `🔥${streakLabel}` : streakLabel}</div>
+        <div className="card stat-card">
+          <div className="n">{streakLabel}</div>
           <div className="k">Day streak</div>
         </div>
-        <div className="stat-card">
+        <div className="card stat-card">
           <div className="n">{me.maxStreak || "—"}</div>
           <div className="k">Best streak</div>
         </div>
-        <div className="stat-card">
+        <div className="card stat-card">
           <div className="n">{bestLabel}</div>
           <div className="k">Best to par</div>
         </div>
@@ -82,7 +82,7 @@ export default async function Home() {
       {playedToday ? (
         <>
           <div className="home-note">
-            ✓ You&apos;ve played today.{me.streak > 0 ? ` 🔥 ${me.streak}-day streak.` : ""} New course in <NextCourseTimer />
+            You&apos;ve played today.{me.streak > 0 ? ` ${me.streak}-day streak.` : ""} New course in <NextCourseTimer />
           </div>
           <Link href={`/result/${me.playedTodayRoundId}`} className="cta">See today&apos;s result</Link>
           <Link href="/courses" className="cta ghost" style={{ marginTop: 10 }}>Play unlimited · Browse courses</Link>
@@ -91,15 +91,15 @@ export default async function Home() {
         <>
           <div className={`home-note${me.streakStatus === "at-risk" ? " at-risk" : ""}`}>
             {me.streakStatus === "at-risk"
-              ? `⚠️ Play today to save your ${me.streak}-day streak.`
+              ? `Play today to save your ${me.streak}-day streak.`
               : me.streakStatus === "safe"
-                ? `🔥 Keep your ${me.streak}-day streak alive — play today.`
+                ? `Keep your ${me.streak}-day streak alive — play today.`
                 : me.inProgressRoundId
                   ? "Pick up where you left off."
                   : "Can you break par today?"}
           </div>
           <Link href="/play" className="cta">
-            {me.inProgressRoundId ? "Resume round ⛳" : "Tee Off ⛳"}
+            {me.inProgressRoundId ? "Resume round" : "Tee Off"}
           </Link>
           <Link href="/courses" className="cta ghost" style={{ marginTop: 10 }}>Play unlimited · Browse courses</Link>
         </>

@@ -85,8 +85,8 @@ export default async function FriendsPage() {
       )}
 
       <div className="btn-stack">
-        <Link href="/challenges" className="cta ghost">Challenges ⚔️</Link>
-        <Link href="/leaderboard" className="cta ghost">Today&apos;s leaderboard 🏆</Link>
+        <Link href="/challenges" className="cta ghost">Challenges</Link>
+        <Link href="/leaderboard" className="cta ghost">Today&apos;s leaderboard</Link>
         <Link href="/" className="cta ghost">Back to today</Link>
       </div>
     </div>

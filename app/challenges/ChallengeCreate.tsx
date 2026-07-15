@@ -52,7 +52,7 @@ export function ChallengeCreate({
   if (!open) {
     return (
       <button className="cta" style={{ marginTop: 14 }} onClick={() => setOpen(true)}>
-        New challenge ⚔️
+        New challenge
       </button>
     );
   }
@@ -73,7 +73,7 @@ export function ChallengeCreate({
       </select>
       <div className="ch-create-actions">
         <button className="cta" disabled={busy || !opponent.trim()} onClick={create}>
-          {busy ? "Creating…" : "Challenge & play ⚔️"}
+          {busy ? "Creating…" : "Challenge & play"}
         </button>
         <button className="cta ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
       </div>

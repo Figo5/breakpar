@@ -145,16 +145,16 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
         {relativeLabel(round.relativeToPar)} · {made ? "Under par ✓" : `Missed par by ${round.score - par + 1}`}
       </div>
       <div className="verdict">
-        {made ? "You broke par. 🔥" : isDaily ? "So close — run it back tomorrow." : "So close — go again."}
+        {made ? "You broke par." : isDaily ? "So close — run it back tomorrow." : "So close — go again."}
       </div>
       {standing && <span className="pct">{standingLabel(standing)}</span>}
       {streakBadge && (
         <div className="streak-line">
           {streakBadge.streak === 1
-            ? "🔥 Streak started — come back tomorrow to keep it going."
+            ? "Streak started — come back tomorrow to keep it going."
             : streakBadge.isBest
-              ? `🔥 ${streakBadge.streak}-day streak — your best yet!`
-              : `🔥 ${streakBadge.streak}-day streak`}
+              ? `${streakBadge.streak}-day streak — your best yet!`
+              : `${streakBadge.streak}-day streak`}
         </div>
       )}
       {showConvert && (

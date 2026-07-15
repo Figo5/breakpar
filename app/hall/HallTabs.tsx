@@ -59,15 +59,15 @@ export function HallTabs({
       {tab === "records" ? (
         <>
           <div className="start-stats">
-            <div className="stat-card">
+            <div className="card stat-card">
               <div className="n">{coursesPlayed}<span style={{ fontSize: 14, opacity: 0.6 }}>/{coursesTotal}</span></div>
               <div className="k">Courses conquered</div>
             </div>
-            <div className="stat-card">
+            <div className="card stat-card">
               <div className="n">{recordsUnderPar || "—"}</div>
               <div className="k">Records under par</div>
             </div>
-            <div className="stat-card">
+            <div className="card stat-card">
               <div className="n">{bestOverall !== null ? relativeLabel(bestOverall) : "—"}</div>
               <div className="k">Best card</div>
             </div>
@@ -89,7 +89,7 @@ export function HallTabs({
 function RecordRow({ r }: { r: CourseRecord }) {
   if (r.played) {
     const tag = r.mode === "daily" ? (r.puzzleNo ? `#${r.puzzleNo}` : "Daily") : "Practice";
-    const badge = r.relativeToPar! < 0 ? "🏆" : "";
+    const badge = r.relativeToPar! < 0 ? "✓" : "";
     return (
       <Link href={`/result/${r.roundId}`} className="lb-row prow">
         <span className="rank">{badge}</span>
@@ -203,7 +203,7 @@ function TrophyCase({ trophies }: { trophies: TrophyBoard | null }) {
         return (
           <div key={cat}>
             <div className="section-title">
-              {CATEGORY_META[cat].emoji} {CATEGORY_META[cat].label}
+              {CATEGORY_META[cat].label}
             </div>
             <div className="trophy-grid">
               {sorted.map((t) => (
@@ -243,7 +243,7 @@ function TrophyTile({
 
   const inner = (
     <>
-      <div className="trophy-badge">{t.earned ? TIER_ICON[t.tier] : "🔒"}</div>
+      <div className="trophy-badge">{t.earned ? <span className={`tier-dot t-${t.tier}`} /> : <span className="tier-dot locked" />}</div>
       {isFeatured && <span className="fe-rank">{featuredRank + 1}</span>}
       {!editing && isFeatured && <span className="fe-star" title="Featured">⭐</span>}
       <div className="trophy-name">{t.label}</div>
@@ -281,11 +281,3 @@ function TrophyTile({
     <div className={cls}>{inner}</div>
   );
 }
-
-const TIER_ICON: Record<TrophyState["tier"], string> = {
-  common: "🎖️",
-  rare: "🏅",
-  elite: "🏆",
-  legendary: "👑",
-  special: "✦",
-};

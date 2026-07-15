@@ -86,7 +86,7 @@ export function TournamentTeaser({ isAccount }: { isAccount: boolean }) {
   return (
     <div className="tease" aria-label="Weekly Tournaments">
       <div className="tease-head">
-        <h3>🏆 Weekly Tournaments</h3>
+        <h3>Weekly Tournaments</h3>
         <span className={`tease-soon ${isLive ? "live" : ""}`}>
           {isLive ? "Live" : isComplete ? "Done" : "Soon"}
         </span>
@@ -103,12 +103,12 @@ export function TournamentTeaser({ isAccount }: { isAccount: boolean }) {
         className={`tease-btn ${isLive ? "live" : ""}`}
         onClick={() => router.push("/tournament")}
       >
-        🏆 {isLive ? "Play now" : "View tournament"}
+        {isLive ? "Play now" : "View tournament"}
       </button>
 
       {isAccount ? (
         <div className="tease-ready">
-          {isLive ? "✓ You're in — tee it up." : isComplete ? "See the final standings." : "✓ You're all set."}
+          {isLive ? "You're in — tee it up." : isComplete ? "See the final standings." : "You're all set."}
         </div>
       ) : (
         <SignUpButton mode="modal">

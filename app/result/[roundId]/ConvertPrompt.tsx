@@ -46,16 +46,13 @@ export function ConvertPrompt({
     ? "Create a free account to keep your streak, rounds & Hall of Fame across devices."
     : "Create a free account to keep your records & rounds across devices.";
   const button = daily ? "Save my streak" : "Save to Hall of Fame";
-  const emoji = daily ? "🔥" : "🏆";
 
   return (
     <div className="convert">
       <button className="convert-x" onClick={dismiss} aria-label="Dismiss">
         ×
       </button>
-      <div className="convert-head">
-        {emoji} {headline}
-      </div>
+      <div className="convert-head">{headline}</div>
       <div className="convert-body">{body}</div>
       <SignUpButton mode="modal">
         <button className="convert-cta" onClick={dismiss}>

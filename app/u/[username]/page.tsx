@@ -110,21 +110,21 @@ function ProfileBody({ p, follow }: { p: PublicProfile; follow: FollowContext })
 
       <div className="section-title">Stats</div>
       <div className="start-stats">
-        <div className="stat-card">
+        <div className="card stat-card">
           <div className="n">{p.coursesConquered}<span style={{ fontSize: 14, opacity: 0.6 }}>/{p.coursesTotal}</span></div>
           <div className="k">Courses conquered</div>
         </div>
-        <div className="stat-card">
+        <div className="card stat-card">
           <div className="n">{p.bestToPar !== null ? relativeLabel(p.bestToPar) : "—"}</div>
           <div className="k">Best to par</div>
         </div>
-        <div className="stat-card">
+        <div className="card stat-card">
           <div className="n">{p.roundsPlayed}</div>
           <div className="k">Rounds</div>
         </div>
       </div>
       <div className="stats-line">
-        {p.currentStreak > 0 ? `🔥 ${p.currentStreak}-day streak` : "No active streak"} · best run {p.bestStreak}
+        {p.currentStreak > 0 ? `${p.currentStreak}-day streak` : "No active streak"} · best run {p.bestStreak}
       </div>
 
       {p.records.length > 0 && (
@@ -133,7 +133,7 @@ function ProfileBody({ p, follow }: { p: PublicProfile; follow: FollowContext })
           <div className="lb">
             {p.records.map((r) => (
               <div key={r.slug} className="lb-row">
-                <span className="rank">{r.relativeToPar! < 0 ? "🏆" : ""}</span>
+                <span className="rank">{r.relativeToPar! < 0 ? "✓" : ""}</span>
                 <span className="nm">{r.courseName}</span>
                 <span className="tm">Par {r.par}</span>
                 <span className="sc">{relativeLabel(r.relativeToPar!)}</span>
@@ -142,7 +142,7 @@ function ProfileBody({ p, follow }: { p: PublicProfile; follow: FollowContext })
           </div>
           {p.isOwner && (
             <Link href="/hall" className="cta ghost" style={{ marginTop: 10 }}>
-              View full Hall of Fame 🏆
+              View full Hall of Fame
             </Link>
           )}
         </>
@@ -173,17 +173,9 @@ function ProfileBody({ p, follow }: { p: PublicProfile; follow: FollowContext })
 function FeaturedTrophy({ t }: { t: TrophyState }) {
   return (
     <div className={`trophy earned t-${t.tier}`}>
-      <div className="trophy-badge">{TIER_ICON[t.tier]}</div>
+      <div className="trophy-badge"><span className={`tier-dot t-${t.tier}`} /></div>
       <div className="trophy-name">{t.label}</div>
       {!t.special && <div className="trophy-tier-label">{TIER_META[t.tier].label}</div>}
     </div>
   );
 }
-
-const TIER_ICON: Record<TrophyState["tier"], string> = {
-  common: "🎖️",
-  rare: "🏅",
-  elite: "🏆",
-  legendary: "👑",
-  special: "✦",
-};
