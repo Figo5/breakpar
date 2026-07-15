@@ -598,7 +598,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   --pm-safe:#3A6B33; --pm-normal:#C99A2E;
   --pm-line:rgba(27,42,23,.16); --pm-line-strong:rgba(27,42,23,.26);
 }
-.play{position:relative;max-width:var(--app-w,440px);margin:0 auto;background:var(--pm-paper);
+.play{position:relative;width:100%;background:var(--pm-paper);
   min-height:100dvh;display:flex;flex-direction:column;padding-bottom:24px}
 .play-progress{height:3px;background:rgba(27,42,23,.1);margin:0}
 .play-progress>i{display:block;height:100%;background:var(--pm-flag);transition:width .3s ease}
@@ -609,9 +609,14 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
    the banner is a real surface for the header/chips even for short art. */
 .play-map>.hole-art,.play-map>.puttview{display:block;width:100%;min-height:190px}
 .play-map>.hole-art svg,.play-map>.puttview svg{display:block;width:100%;height:100%}
+/* Result mode: the map shrinks to a small "hero strip" (a reminder of the hole
+   just played) so the result content below — outcome, next-hole, scorecard —
+   gets the vertical space instead of sitting under a full-height banner. */
+.play.is-result .play-map>.hole-art,.play.is-result .play-map>.puttview{min-height:0;height:112px}
 /* scrims painted by CSS (HoleArt has none of its own) */
 .play-map::before{content:"";position:absolute;top:0;left:0;right:0;height:96px;
   background:linear-gradient(180deg,rgba(21,36,24,.62),transparent);z-index:1;pointer-events:none}
+.play.is-result .play-map::before{height:56px}
 .play.is-decision .play-map::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;
   background:linear-gradient(0deg,rgba(21,36,24,.55),transparent);z-index:1;pointer-events:none}
 
@@ -678,7 +683,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .pm-choice.c-aggressive.hot .pm-budget{color:var(--pm-flag-soft)}
 
 /* ===== RESULT content ===== */
-.play-result{padding:16px 16px 22px;display:flex;flex-direction:column;gap:14px}
+.play-result{padding:22px 16px 24px;display:flex;flex-direction:column;gap:16px}
 .pr-outcome{text-align:center}
 .pr-tag{font-family:'Anton',sans-serif;font-size:30px;line-height:1;color:var(--pm-ink)}
 .pr-outcome.o-great .pr-tag,.pr-outcome.o-good .pr-tag{color:var(--pm-safe)}

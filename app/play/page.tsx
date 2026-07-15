@@ -325,15 +325,14 @@ function PlayInner() {
           </div>
         </div>
 
-        {/* course/mode label + condition chips — decision mode only */}
+        {/* course/mode label — decision mode only. The full cue list (wind,
+            greens, dogleg, hazard, signature test, etc.) reads once, below
+            the map in .pm-reads — it doesn't repeat here. */}
         {!pending && (
           <div className="pm-chips">
             <span className="pm-chip pm-chip-course">
               {tournamentRoundNo ? `Tournament R${tournamentRoundNo}` : unlimited ? "Practice" : course.name.split("—")[0].trim()}
             </span>
-            {cues.map((c, i) => (
-              <span className="pm-chip" key={i}>{c.text}</span>
-            ))}
           </div>
         )}
 
