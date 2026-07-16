@@ -17,16 +17,22 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-07-16",
     items: [
-      "Added yardage-book-style hole maps with distinct layouts for par, doglegs, bunkers, water, and island greens.",
-      "Updated the play screen with a map-focused layout and a scorecard-style hole result view.",
-      "Added contextual hole guidance and visible green, yellow, and red risk ratings to shot choices.",
-      "Putt make and three-putt rates now change with the exact distance to the hole.",
-      "Hole results now state the putt count explicitly, including three-putt pars.",
       "Par-5 choices now distinguish a layup-and-wedge from going for the green in two, and results state whether you reached in two or three.",
       "Added 5 courses: Royal Dornoch, Carnoustie, Royal Troon, Whispering Pines, and Camargo Club. The roster is now 38.",
       "Expanded weekly tournament rotation to every eligible regular course, including TPC Sawgrass.",
       "Added hazard-aware shot results: water and ocean penalties now add a stroke, with specific narration for water, island greens, coastal hazards, and bunkers.",
       "Added rare, fully scored golf moments including holes-in-one, approach and wedge hole-outs, chip-ins, bunker hole-outs, and albatrosses.",
+      "Improved round reliability during temporary sign-in service rate limits.",
+    ],
+  },
+  {
+    date: "2026-07-15",
+    items: [
+      "Added yardage-book-style hole maps with distinct layouts for par, doglegs, bunkers, water, and island greens.",
+      "Updated the play screen with a map-focused layout and a scorecard-style hole result view.",
+      "Added contextual hole guidance and visible green, yellow, and red risk ratings to shot choices.",
+      "Putt make and three-putt rates now change with the exact distance to the hole.",
+      "Hole results now state the putt count explicitly, including three-putt pars.",
       "Updated the visual design across Home, Courses, Tournament, Challenges, Leaderboard, Hall of Fame, and other screens.",
       "Fixed ball markers appearing in water after non-penalty shots.",
     ],
