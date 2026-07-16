@@ -51,12 +51,58 @@ export async function getOrStartUser(): Promise<{ user: User; newGuestId: string
 }
 
 /**
+ * Clerk's Backend API (used by `currentUser()`) throttles under load and throws
+ * a 429. Duck-typed rather than importing @clerk/shared internals: it's a
+ * transitive dep with no stable `/error` subpath export.
+ */
+function isClerkRateLimited(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    (e as { clerkError?: unknown }).clerkError === true &&
+    (e as { status?: unknown }).status === 429
+  );
+}
+
+// Ride out brief Clerk rate-limit spikes with a couple of short backoffs before
+// giving up. Kept small so we never hold a serverless invocation open for long.
+const CLERK_RETRY_BACKOFF_MS = [150, 400];
+
+async function currentUserWithRetry() {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await currentUser();
+    } catch (e) {
+      if (isClerkRateLimited(e) && attempt < CLERK_RETRY_BACKOFF_MS.length) {
+        await new Promise((r) => setTimeout(r, CLERK_RETRY_BACKOFF_MS[attempt]));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
+/**
  * Find or create the Clerk-backed user. If the visitor was playing as a guest,
  * we ADOPT that guest row (attach the clerkId) so their rounds and streak carry
  * over seamlessly instead of starting fresh.
  */
 async function upsertClerkUser(clerkId: string, guestId?: string | null): Promise<User> {
-  const cu = await currentUser();
+  let cu: Awaited<ReturnType<typeof currentUser>>;
+  try {
+    cu = await currentUserWithRetry();
+  } catch (e) {
+    // Clerk still rate-limiting after retries. This call only re-syncs display
+    // identity (username/avatar/handle), which tolerates being one request stale,
+    // so degrade to the last-known DB row rather than 500-ing the route. A brand-
+    // new user we've never stored can't be identified without Clerk — let that
+    // propagate; the API wrapper turns it into a retryable 503, not a 500.
+    if (isClerkRateLimited(e)) {
+      const known = await prisma.user.findUnique({ where: { clerkId } });
+      if (known) return known;
+    }
+    throw e;
+  }
   // The X/Twitter @handle lives on the OAuth external account's `username`
   // (confirmed via scripts/inspect-x-handle.ts). Validate to handle-only form.
   const xHandle = normalizeXHandle(
