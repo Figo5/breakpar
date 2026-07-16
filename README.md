@@ -210,7 +210,8 @@ npm run db:migrate:deploy     # prod: apply pending migrations (run by Vercel bu
 ```
 
 Vercel's build command (`vercel.json`) runs `prisma migrate deploy` automatically on every
-deploy. A **fresh** database (e.g. a new prod DB) applies the `init` migration cleanly.
+production deploy, then idempotently upserts the static course catalogue. Preview builds
+never migrate or seed. A **fresh** database (e.g. a new prod DB) applies the `init` migration cleanly.
 For an **existing** database that was set up with `db push`, baseline it once so Prisma
 doesn't try to recreate the tables:
 
