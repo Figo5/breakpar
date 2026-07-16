@@ -15,7 +15,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: "2026-07-15",
+    date: "2026-07-16",
     items: [
       "Added yardage-book-style hole maps with distinct layouts for par, doglegs, bunkers, water, and island greens.",
       "Updated the play screen with a map-focused layout and a scorecard-style hole result view.",
