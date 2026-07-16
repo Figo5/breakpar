@@ -10,6 +10,7 @@
 import type { Lie } from "./shots";
 import type { GreenResult, PuttResult, ScrambleResult, PuttBucket } from "./putting";
 import type { Decision, Outcome } from "./probabilities";
+import type { HazardPenalty, NarrativeContext } from "./hazards";
 
 function pick(pool: string[], rng: () => number): string {
   return pool[Math.floor(rng() * pool.length) % pool.length];
@@ -21,6 +22,7 @@ function pick(pool: string[], rng: () => number): string {
 // putt-label fix. A par-5 reached in two shifts every outcome one notch better
 // (oneputt=eagle, twochip=par, blowup=bogey), and the words follow automatically.
 const SCORE_WORD: Record<Outcome, string> = {
+  albatross: "albatross",
   eagle: "eagle",
   birdie: "birdie",
   par: "par",
@@ -35,6 +37,18 @@ const TEE_NOTES: Record<Lie, string[]> = {
   rough: ["Drifted into the rough", "Caught the first cut", "Tugged it off the fairway"],
   trouble: ["Way offline — that's jail", "Blocked it into real trouble", "Yanked it dead into the hazard"],
 };
+
+const WATER_TEE_TROUBLE_NOTES = [
+  "Water dictated the miss — recovery mode",
+  "Lost the line with water looming",
+  "The hazard forced it into trouble",
+];
+
+const OCEAN_TEE_TROUBLE_NOTES = [
+  "The coastal hazard swallowed the safe line",
+  "Leaked it toward the ocean — trouble now",
+  "Ocean-side miss, difficult recovery ahead",
+];
 
 const APPROACH_NOTES: Record<GreenResult, string[]> = {
   kickin: ["Stuffed it to a foot", "Dialed the approach — kick-in range", "Threw a dart, gimme left"],
@@ -63,6 +77,56 @@ const PAR3_TEE_NOTES: Record<GreenResult, string[]> = {
   lag: ["On the green, long way from the cup", "Safe tee shot, long putt left", "Found the putting surface, lag left"],
   scramble: ["Missed the green off the tee", "Bunkered it off the tee", "Pushed the tee shot, scrambling now"],
 };
+
+const WATER_APPROACH_MISS_NOTES = [
+  "Water guarded the target and forced the miss",
+  "Bailed away from the water — short game next",
+  "The hazard won that approach — recovery needed",
+];
+
+const OCEAN_APPROACH_MISS_NOTES = [
+  "Ocean-side miss — short game next",
+  "Bailed away from the coastal trouble",
+  "The shoreline squeezed the approach off target",
+];
+
+const ISLAND_TEE_MISS_NOTES = [
+  "Came up short of the island target — recovery needed",
+  "Missed the island green with no bailout",
+  "Water won the carry — short game next",
+];
+
+const WATER_PENALTY_NOTES: Record<HazardPenalty["stage"], string[]> = {
+  tee: [
+    "Found the water off the tee — one-stroke penalty",
+    "Tee shot in the hazard — add one and take the drop",
+    "Water off the tee — one penalty stroke",
+  ],
+  approach: [
+    "Approach found the water — one-stroke penalty",
+    "In the hazard by the green — add one and take the drop",
+    "Water on the approach — one penalty stroke",
+  ],
+};
+
+const OCEAN_PENALTY_NOTES: Record<HazardPenalty["stage"], string[]> = {
+  tee: [
+    "Tee shot into the ocean hazard — one-stroke penalty",
+    "Lost it over the coastal edge — add one and take the drop",
+    "Ocean off the tee — one penalty stroke",
+  ],
+  approach: [
+    "Approach into the ocean hazard — one-stroke penalty",
+    "Missed over the coastal edge — add one and take the drop",
+    "Ocean on the approach — one penalty stroke",
+  ],
+};
+
+const ISLAND_PENALTY_NOTES = [
+  "Didn't carry the island — one-stroke penalty",
+  "Water short of the island green — add one and take the drop",
+  "Missed the island with no bailout — one penalty stroke",
+];
 
 // A lag/long putt (or a conservative one) that still three-putts is variance,
 // not a bad choice — these notes read as bad luck so the "lag it close" /
@@ -98,6 +162,13 @@ const SCRAMBLE_NOTES: Record<ScrambleResult, string[]> = {
   disaster: ["Total mess from there", "Chip-chip-putt disaster", "It all unravelled — big number"],
 };
 
+const BUNKER_SCRAMBLE_NOTES: Record<ScrambleResult, string[]> = {
+  updown: ["Splashed it close — easy save", "Clean bunker shot, putt saved", "Blasted out stiff — up and down"],
+  twochip: ["Out of the sand, two putts for {score}", "Bunker recovery left work — {score}", "Escaped the bunker, walked off with {score}"],
+  blowup: ["Buried lie made a mess of it — {score}", "Left it in the sand, {score} on the way", "Heavy bunker shot — scrambling for {score}"],
+  disaster: ["Never escaped the bunker cleanly", "The sand turned into a disaster", "Bunker trouble, then a big number"],
+};
+
 // A SAFE punch that still blows up is the rare (~8%) variance tail, not a chunk
 // you caused — these read as bad luck so the "kill the blow-up" framing on the
 // safe choice doesn't feel like a lie when it occasionally drops two. Mirrors
@@ -118,8 +189,19 @@ function fmt(s: string, ft?: number, outcome?: Outcome): string {
   return out;
 }
 
-export function teeNote(lie: Lie, rng: () => number): string {
+export function teeNote(lie: Lie, rng: () => number, context: NarrativeContext = {}): string {
+  if (lie === "trouble" && context.hazard === "ocean") return pick(OCEAN_TEE_TROUBLE_NOTES, rng);
+  if (lie === "trouble" && context.hazard === "water") return pick(WATER_TEE_TROUBLE_NOTES, rng);
   return pick(TEE_NOTES[lie], rng);
+}
+
+export function hazardPenaltyNote(
+  penalty: HazardPenalty,
+  rng: () => number,
+  context: NarrativeContext = {},
+): string {
+  if (context.island && penalty.stage === "approach") return pick(ISLAND_PENALTY_NOTES, rng);
+  return pick(penalty.kind === "ocean" ? OCEAN_PENALTY_NOTES[penalty.stage] : WATER_PENALTY_NOTES[penalty.stage], rng);
 }
 
 export function approachNote(
@@ -128,8 +210,14 @@ export function approachNote(
   rng: () => number,
   // The look a makeable approach is FOR: eagle on a par-5 reached in two, else
   // birdie. Par 3 (PAR3_TEE_NOTES) is always a birdie look and has no token.
-  lookFor: Outcome = "birdie"
+  lookFor: Outcome = "birdie",
+  context: NarrativeContext = {}
 ): string {
+  if (green === "scramble") {
+    if (isPar3 && context.island) return pick(ISLAND_TEE_MISS_NOTES, rng);
+    if (context.hazard === "ocean") return pick(OCEAN_APPROACH_MISS_NOTES, rng);
+    if (context.hazard === "water") return pick(WATER_APPROACH_MISS_NOTES, rng);
+  }
   return fmt(pick(isPar3 ? PAR3_TEE_NOTES[green] : APPROACH_NOTES[green], rng), undefined, lookFor);
 }
 
@@ -158,8 +246,11 @@ export function scrambleNote(
   result: ScrambleResult,
   rng: () => number,
   decision?: Decision,
-  outcome?: Outcome // actual scored Outcome; fills {score} so the word matches.
+  outcome?: Outcome, // actual scored Outcome; fills {score} so the word matches.
+  context: NarrativeContext = {}
 ): string {
+  if (context.hazard === "sand")
+    return fmt(pick(BUNKER_SCRAMBLE_NOTES[result], rng), undefined, outcome);
   // Bad-luck framing when a SAFE punch blows up: variance, not a bad call.
   if (decision === "safe" && (result === "blowup" || result === "disaster"))
     return fmt(pick(SAFE_SCRAMBLE_UNLUCKY, rng), undefined, outcome);

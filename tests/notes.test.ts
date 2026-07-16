@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { approachNote, puttNote, scrambleNote } from "@/lib/engine/notes";
+import { approachNote, hazardPenaltyNote, puttNote, scrambleNote, teeNote } from "@/lib/engine/notes";
 import { resolveHoleChain, type ChainResult } from "@/lib/engine/shots";
 import type { HoleSpec } from "@/lib/engine/resolveHole";
 import type { Decision, Outcome } from "@/lib/engine/probabilities";
@@ -9,7 +9,7 @@ import type { Decision, Outcome } from "@/lib/engine/probabilities";
 // pin the reached-in-two par-5 cases (the blind spot that caused two bugs) and
 // the par-independent safe+disaster bug.
 
-const SCORE_WORDS = ["eagle", "birdie", "par", "bogey", "double", "triple"] as const;
+const SCORE_WORDS = ["albatross", "eagle", "birdie", "par", "bogey", "double", "triple"] as const;
 // rng that deterministically selects pool index `i` out of `len`.
 const rngFor = (i: number, len: number) => () => (i + 0.5) / len;
 
@@ -48,6 +48,87 @@ describe("note {score} token is filled from the engine Outcome (never re-derived
     // index 1 ("On the dance floor, {score} chance")
     expect(approachNote("makeable", false, rngFor(1, 3), "eagle")).toMatch(/\beagle\b/);
     expect(approachNote("makeable", false, rngFor(1, 3), "birdie")).toMatch(/\bbirdie\b/);
+  });
+});
+
+describe("hazard-aware narration", () => {
+  it("uses water and ocean context for trouble without inventing a penalty stroke", () => {
+    const water = teeNote("trouble", rngFor(0, 3), { hazard: "water" });
+    const ocean = teeNote("trouble", rngFor(1, 3), { hazard: "ocean" });
+    expect(water.toLowerCase()).toMatch(/water|hazard/);
+    expect(ocean.toLowerCase()).toMatch(/ocean|coastal/);
+    expect(`${water} ${ocean}`.toLowerCase()).not.toContain("penalty");
+  });
+
+  it("gives an island-green miss the most specific carry narration", () => {
+    const island = approachNote("scramble", true, rngFor(0, 3), "birdie", {
+      hazard: "water",
+      island: true,
+    });
+    const guarded = approachNote("scramble", true, rngFor(0, 3), "birdie", {
+      hazard: "water",
+      island: false,
+    });
+    expect(island.toLowerCase()).toContain("island");
+    expect(guarded.toLowerCase()).not.toContain("island");
+  });
+
+  it("uses bunker-specific short-game narration on sand holes", () => {
+    const note = scrambleNote("updown", rngFor(0, 3), "normal", "par", { hazard: "sand" });
+    expect(note.toLowerCase()).toMatch(/sand|bunker|splashed/);
+  });
+
+  it("states the stroke when an actual water penalty is recorded", () => {
+    const note = hazardPenaltyNote(
+      { kind: "water", stage: "approach", strokes: 1 },
+      rngFor(0, 3),
+      { hazard: "water", island: true },
+    );
+    expect(note.toLowerCase()).toMatch(/one-stroke penalty|add one/);
+  });
+});
+
+describe("hazard narration is score-neutral", () => {
+  const conditions = { difficulty: 7, wind: 14 };
+  const holes: Array<{
+    spec: HoleSpec;
+    context: { hazard: "sand" | "water" | "ocean"; signature?: string };
+  }> = [
+    { spec: { number: 17, par: 3, strokeIndex: 7 }, context: { hazard: "water", signature: "The Island Green" } },
+    { spec: { number: 4, par: 4, strokeIndex: 3 }, context: { hazard: "water" } },
+    { spec: { number: 8, par: 4, strokeIndex: 5 }, context: { hazard: "ocean" } },
+    { spec: { number: 11, par: 5, strokeIndex: 1 }, context: { hazard: "sand" } },
+  ];
+  const seeds = (base: number) => ({
+    shotSeed: (i: number) => ((base * 2654435761 + i * 40503 + 1) >>> 0) || 1,
+    eventSeed: (i: number) => ((base * 374761393 + i * 668265263 + 7) >>> 0) || 1,
+    greens: "Firm" as const,
+  });
+  const withoutNotes = (result: ChainResult): ChainResult => ({
+    ...result,
+    shots: result.shots.map((shot) => ({ ...shot, note: "" })),
+  });
+
+  it("changes only note text for identical decisions and seeds", () => {
+    let contextualNotes = 0;
+    for (const { spec, context } of holes) {
+      for (let base = 1; base <= 250; base++) {
+        const decisions: Decision[] = ["normal", "normal", "normal"];
+        const plain = resolveHoleChain(decisions, spec, conditions, {
+          ...seeds(base),
+          scoringEvents: false,
+        });
+        const contextual = resolveHoleChain(decisions, spec, conditions, {
+          ...seeds(base),
+          holeContext: context,
+          hazardPenalties: false,
+          scoringEvents: false,
+        });
+        expect(withoutNotes(contextual)).toEqual(withoutNotes(plain));
+        if (contextual.shots.some((shot, i) => shot.note !== plain.shots[i]?.note)) contextualNotes++;
+      }
+    }
+    expect(contextualNotes).toBeGreaterThan(0);
   });
 });
 

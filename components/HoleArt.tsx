@@ -160,8 +160,8 @@ export function HoleArt({ hole, ballT = 0.05 }: {
     const shotP2 = { x: 392, y: 206 };
     const lineBallX = shotP0.x + (shotP2.x - shotP0.x) * t;
     const lineBallY = shotP0.y + (shotP2.y - shotP0.y) * t;
-    const ballX = ballState === "short" ? 332 : lineBallX;
-    const ballY = ballState === "short" ? 292 : lineBallY;
+    const ballX = ballState === "water" ? 314 : ballState === "short" ? 332 : lineBallX;
+    const ballY = ballState === "water" ? 338 : ballState === "short" ? 292 : lineBallY;
 
     return (
       <svg viewBox="0 0 680 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -374,7 +374,12 @@ export function HoleArt({ hole, ballT = 0.05 }: {
       : [preferred];
   });
   const lieBallPt = pickDryBallPosition(lieCandidates, waterEllipse);
-  const ballPt = ballState === "short" ? shortBallPt : lieBallPt;
+  const penaltyBallPt = water
+    ? { x: water.cx, y: water.cy }
+    : isOcean
+      ? { x: 340, y: 514 }
+      : lieBallPt;
+  const ballPt = ballState === "water" ? penaltyBallPt : ballState === "short" ? shortBallPt : lieBallPt;
 
   // ---- Bunkers: seeded count / position / size, biased by hazard + difficulty.
   // Sand holes carry more (and sometimes clusters); harder holes carry more. ----

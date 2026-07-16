@@ -20,6 +20,7 @@ const hardConds = { difficulty: 9, wind: 22 };
 
 describe("putt labels reflect what the putt is FOR (not the distance bucket)", () => {
   it("puttForLabel maps outcome -> label per the eagle/birdie/par/bogey spec", () => {
+    expect(puttForLabel("albatross")).toBe("Albatross look");
     expect(puttForLabel("eagle")).toBe("Eagle look");
     expect(puttForLabel("birdie")).toBe("Birdie look");
     expect(puttForLabel("par")).toBe("Par putt");

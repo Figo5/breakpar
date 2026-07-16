@@ -61,6 +61,7 @@ import {
   puttOddsReveal,
   puttOddsTakeaway,
   approachOddsReveal,
+  approachOddsTakeaway,
   scrambleOddsReveal,
 } from "@/lib/oddsReveal";
 
@@ -119,6 +120,18 @@ describe("approachOddsReveal", () => {
     const r = approachOddsReveal("fairway", hole2, conditions);
     expect(r.aggressive.scramblePct).toBeGreaterThan(r.safe.scramblePct);
   });
+  it("exposes the rare hole-out chance without folding it into green percentages", () => {
+    const r = approachOddsReveal("fairway", hole2, conditions);
+    expect(r.aggressive.holeOutPct).toBeGreaterThan(r.safe.holeOutPct);
+    expect(r.normal.holeOutPct).toBeCloseTo(0.05);
+  });
+  it("explains that a normal par-5 play includes an automatic third-shot wedge", () => {
+    const par5: HoleSpec = { number: 8, par: 5, strokeIndex: 1 };
+    expect(approachOddsTakeaway("normal", "rough", par5, conditions).toLowerCase())
+      .toMatch(/laid up.*automatic wedge.*third shot/);
+    expect(approachOddsTakeaway("aggressive", "rough", par5, conditions).toLowerCase())
+      .toContain("green in two");
+  });
 });
 
 describe("scrambleOddsReveal", () => {
@@ -128,6 +141,12 @@ describe("scrambleOddsReveal", () => {
     for (const row of [r.safe, r.normal, r.aggressive]) {
       expect(row.updownPct + row.twochipPct + row.blowupPct + row.disasterPct).toBe(100);
     }
+  });
+  it("shows the higher hole-out upside of the aggressive short-game play", () => {
+    const r = scrambleOddsReveal(hole3, conditions);
+    expect(r.safe.holeOutPct).toBe(1.5);
+    expect(r.normal.holeOutPct).toBe(3);
+    expect(r.aggressive.holeOutPct).toBe(5);
   });
   it("Flop saves more than Punch but blows up more", () => {
     const r = scrambleOddsReveal(hole3, conditions);

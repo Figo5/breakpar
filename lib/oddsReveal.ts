@@ -32,6 +32,10 @@ import {
   type PuttBucket,
   type GreenSpeed,
 } from "@/lib/engine/putting";
+import {
+  approachScoringEventRate,
+  scrambleScoringEventRate,
+} from "@/lib/engine/scoringEvents";
 
 export interface OddsRow {
   decision: Decision;
@@ -199,6 +203,7 @@ export interface ApproachOddsRow {
   lagPct: number;
   scramblePct: number;
   greenPct: number; // kickin + makeable + lag = hit the green
+  holeOutPct: number;
 }
 
 function greenToPct(w: Record<GreenResult, number>): Record<GreenResult, number> {
@@ -217,6 +222,8 @@ function greenToPct(w: Record<GreenResult, number>): Record<GreenResult, number>
 
 function approachRowFor(decision: Decision, source: GreenSource, hole: HoleSpec, c: Conditions): ApproachOddsRow {
   const p = greenToPct(greenWeights(source, decision, hole, c));
+  const reachedInTwo = hole.par === 5 && decision === "aggressive";
+  const layupWedge = hole.par === 5 && !reachedInTwo;
   return {
     decision,
     label: DECISION_LABEL[decision],
@@ -225,6 +232,7 @@ function approachRowFor(decision: Decision, source: GreenSource, hole: HoleSpec,
     lagPct: p.lag,
     scramblePct: p.scramble,
     greenPct: p.kickin + p.makeable + p.lag,
+    holeOutPct: approachScoringEventRate(hole.par, source, decision, reachedInTwo, layupWedge) * 100,
   };
 }
 
@@ -246,10 +254,17 @@ export function approachOddsTakeaway(chosen: Decision, source: GreenSource, hole
   const rows = approachOddsReveal(source, hole, c);
   const mine = rows[chosen];
   const safe = rows.safe;
-  if (chosen === "safe") {
-    return `Playing it safe gave you a ${mine.greenPct}% chance to hit the green and the lowest miss risk (${mine.scramblePct}%). Steady — you take your par look and move on.`;
+  if (hole.par === 5 && chosen !== "aggressive") {
+    const play = chosen === "safe" ? "The safe play" : "The normal play";
+    return `${play} laid up, then attacked with the automatic wedge. That third shot had a ${mine.greenPct}% chance to hit the green and a ${mine.holeOutPct.toFixed(2)}% hole-out chance.`;
   }
-  return `Going ${DECISION_LABEL[chosen].toLowerCase()} raised your kick-in/birdie-look odds but pushed the missed-green risk to ${mine.scramblePct}% (vs ${safe.scramblePct}% safe). You bought a better look at the cost of more short-side trouble.`;
+  if (hole.par === 5) {
+    return `Going for the green in two raised the hole-out chance to ${mine.holeOutPct.toFixed(2)}% but pushed missed-green risk to ${mine.scramblePct}%. More reward, more risk.`;
+  }
+  if (chosen === "safe") {
+    return `Playing it safe gave you a ${mine.greenPct}% chance to hit the green, a ${mine.holeOutPct.toFixed(2)}% hole-out chance, and the lowest miss risk (${mine.scramblePct}%).`;
+  }
+  return `Going ${DECISION_LABEL[chosen].toLowerCase()} raised the hole-out chance to ${mine.holeOutPct.toFixed(2)}% (vs ${safe.holeOutPct.toFixed(2)}% safe) but pushed missed-green risk to ${mine.scramblePct}% (vs ${safe.scramblePct}% safe).`;
 }
 
 // ===========================================================================
@@ -265,6 +280,7 @@ export interface ScrambleOddsRow {
   blowupPct: number;
   disasterPct: number;
   savePct: number; // updown = saved par (or better)
+  holeOutPct: number;
 }
 
 function scrambleToPct(w: Record<ScrambleResult, number>): Record<ScrambleResult, number> {
@@ -291,6 +307,7 @@ function scrambleRowFor(decision: Decision, hole: HoleSpec, c: Conditions): Scra
     blowupPct: p.blowup,
     disasterPct: p.disaster,
     savePct: p.updown,
+    holeOutPct: scrambleScoringEventRate(decision) * 100,
   };
 }
 
@@ -311,7 +328,7 @@ export function scrambleOddsTakeaway(chosen: Decision, hole: HoleSpec, c: Condit
   const punch = rows.safe;
   const doublePlus = (r: ScrambleOddsRow) => r.blowupPct + r.disasterPct;
   if (chosen === "safe") {
-    return `The punch was the card-protector: lowest blow-up risk (${doublePlus(mine)}% double or worse) with a ${mine.savePct}% up-and-down. You take the safe recovery and keep the round intact.`;
+    return `The punch was the card-protector: ${mine.holeOutPct.toFixed(1)}% hole-out chance, lowest blow-up risk (${doublePlus(mine)}% double or worse), and a ${mine.savePct}% up-and-down.`;
   }
-  return `${SHORT_DECISION_LABEL[chosen]} chased the save — ${mine.savePct}% up-and-down (vs ${punch.savePct}% punch) — but raised the blow-up risk to ${doublePlus(mine)}% double-or-worse (vs ${doublePlus(punch)}% punch). Chase-the-save vs protect-the-card.`;
+  return `${SHORT_DECISION_LABEL[chosen]} raised the hole-out chance to ${mine.holeOutPct.toFixed(1)}% (vs ${punch.holeOutPct.toFixed(1)}% punch) and the save to ${mine.savePct}%, but raised double-or-worse risk to ${doublePlus(mine)}% (vs ${doublePlus(punch)}% punch).`;
 }

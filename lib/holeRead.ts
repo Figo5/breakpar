@@ -122,6 +122,8 @@ export function lieRiskRead(lie: Lie, decision: Decision): { tone: Tone; text: s
  */
 export function puttForLabel(puttFor: Outcome): string {
   switch (puttFor) {
+    case "albatross":
+      return "Albatross look";
     case "eagle":
       return "Eagle look";
     case "birdie":

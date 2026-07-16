@@ -3,7 +3,7 @@ import { holeDifficulty, type HoleSpec, type Conditions } from "@/lib/engine/res
 import { resolveHoleChain, type ChainResult, type Lie } from "@/lib/engine/shots";
 import type { Decision, Outcome } from "@/lib/engine/probabilities";
 import type { GreenSpeed } from "@/lib/engine/putting";
-import { holeShotSeed, eventSeed } from "@/lib/engine/rng";
+import { holeShotSeed, eventSeed, hazardSeed, scoringEventSeed } from "@/lib/engine/rng";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 
 /**
@@ -186,9 +186,12 @@ export function simulateBotRound(seedKey: string, courseSlug: string, botKey: st
     const opts = {
       shotSeed: (s: number) => holeShotSeed(botSeedRef, h.number, s),
       eventSeed: (s: number) => eventSeed(botSeedRef, h.number, s),
+      hazardSeed: (s: number) => hazardSeed(botSeedRef, h.number, s),
+      scoringEventSeed: (s: number) => scoringEventSeed(botSeedRef, h.number, s),
       greens: course.greens as GreenSpeed,
       recent,
       narration: false as const,
+      holeContext: { hazard: h.hazard, signature: h.signature },
     };
 
     const decisions: Decision[] = [];

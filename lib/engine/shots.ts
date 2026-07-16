@@ -22,7 +22,7 @@
  */
 
 import { holeDifficulty, type HoleSpec, type Conditions } from "./resolveHole";
-import { SCORE_DELTA, type Decision, type Outcome } from "./probabilities";
+import { applyPenaltyStrokes, outcomeFromScoreDelta, type Decision, type Outcome } from "./probabilities";
 import { mulberry32, type RNG } from "./rng";
 import {
   greenWeights,
@@ -38,7 +38,27 @@ import {
   type ScrambleResult,
 } from "./putting";
 import { rollEvent, applyEvent, type EventInstance } from "./events";
-import { teeNote, approachNote, puttNote, scrambleNote, layupNote, layupApproachNote } from "./notes";
+import {
+  teeNote,
+  approachNote,
+  puttNote,
+  scrambleNote,
+  layupNote,
+  layupApproachNote,
+  hazardPenaltyNote,
+} from "./notes";
+import {
+  isIslandHole,
+  rollHazardPenalty,
+  type HazardPenalty,
+  type HoleHazardContext,
+  type NarrativeContext,
+} from "./hazards";
+import {
+  rollApproachScoringEvent,
+  rollScrambleScoringEvent,
+  type ScoringEvent,
+} from "./scoringEvents";
 
 /** Hard cap on decisions per hole — keeps a round fast. */
 export const MAX_DECISIONS = 3;
@@ -177,6 +197,8 @@ export interface ShotRecord {
   scrambleResult?: ScrambleResult;
   distanceFt?: number;
   yards?: number; // display-only: tee = drive distance; layup wedge = yards to pin
+  penalty?: HazardPenalty;
+  scoringEvent?: ScoringEvent;
   event: EventInstance | null;
   note: string;
 }
@@ -209,6 +231,7 @@ export interface ChainResult {
   outcome?: Outcome;
   scoreDelta?: number;
   strokes?: number;
+  penaltyStrokes?: number;
 }
 
 export interface ChainOpts {
@@ -218,6 +241,12 @@ export interface ChainOpts {
   recent?: Outcome[]; // prior holes' outcomes (for momentum)
   narration?: boolean; // default true; calibration turns it off for speed
   holeYards?: number; // display-only; when set, yards-to-target + tee distance are derived
+  holeContext?: HoleHazardContext;
+  hazardSeed?: (shotIndex: number) => number;
+  hazardPenalties?: boolean; // defaults true; false isolates narration in invariant tests
+  scoringEventSeed?: (shotIndex: number) => number;
+  scoringEvents?: boolean; // defaults true; false provides a calibration/invariant baseline
+  forceScoringEvent?: (stage: "approach" | "scramble", shotIndex: number) => boolean; // tests/simulator only
 }
 
 /**
@@ -235,9 +264,17 @@ export function resolveHoleChain(
   const greens = opts.greens ?? "Medium";
   const recent = opts.recent ?? [];
   const narrate = opts.narration !== false;
+  const island = isIslandHole(hole.par, opts.holeContext);
+  const narrativeContext: NarrativeContext = {
+    hazard: opts.holeContext?.hazard,
+    island,
+  };
   const shots: ShotRecord[] = [];
+  let penaltyStrokes = 0;
 
   const noteRng = (i: number, salt: number) => mulberry32((opts.shotSeed(i) ^ salt) >>> 0);
+  const penaltySeed = (i: number) => opts.hazardSeed?.(i) ?? ((opts.eventSeed(i) ^ 0x48415a) >>> 0);
+  const scoreEventSeed = (i: number) => opts.scoringEventSeed?.(i) ?? ((opts.eventSeed(i) ^ 0x53434f) >>> 0);
 
   // Display-only yardage (independent of the outcome RNG; see helpers above).
   const holeYards = opts.holeYards ?? null;
@@ -255,10 +292,19 @@ export function resolveHoleChain(
     const ev = rollEvent("tee", opts.eventSeed(0), { recent, firstShotOfHole: true });
     if (ev) applyEvent(ev.def, "tee", w as Record<string, number>);
     lie = pick(w, mulberry32(opts.shotSeed(0)));
+    const penalty = opts.hazardPenalties === false
+      ? null
+      : rollHazardPenalty("tee", lie === "trouble", dec, opts.holeContext, island, penaltySeed(0));
+    penaltyStrokes += penalty?.strokes ?? 0;
     if (holeYards) drive = driveYards(holeYards, lie, noteRng(0, YARD_SALT));
     shots.push({
-      index: 0, stage: "tee", decision: dec, lie, yards: drive ?? undefined, event: ev?.instance ?? null,
-      note: narrate ? teeNote(lie, noteRng(0, 0x777)) : "",
+      index: 0, stage: "tee", decision: dec, lie, yards: drive ?? undefined,
+      penalty: penalty ?? undefined, event: ev?.instance ?? null,
+      note: narrate
+        ? penalty
+          ? hazardPenaltyNote(penalty, noteRng(0, 0x777), narrativeContext)
+          : teeNote(lie, noteRng(0, 0x777), narrativeContext)
+        : "",
     });
     aIdx = 1;
   }
@@ -272,7 +318,7 @@ export function resolveHoleChain(
   if (decisions.length <= aIdx)
     return {
       complete: false, used: aIdx, shots, next: "approach", lie,
-      approachYards, ballT: ballProgress("approach", null, drive, holeYards),
+      approachYards, ballT: ballProgress("approach", null, drive, holeYards), penaltyStrokes,
     };
   const aDec = decisions[aIdx];
   const source: GreenSource = isPar3 ? "tee" : (lie as Lie);
@@ -283,9 +329,50 @@ export function resolveHoleChain(
   const reachedInTwo = hole.par === 5 && aDec === "aggressive";
   // Non-aggressive par 5 = lay up: the approach is the lay-up, narrated as such.
   const isPar5Layup = hole.par === 5 && !reachedInTwo;
+  const scoringEvent = opts.scoringEvents === false ? null : rollApproachScoringEvent(
+    hole.par,
+    source,
+    aDec,
+    reachedInTwo,
+    isPar5Layup,
+    scoreEventSeed(aIdx),
+    opts.forceScoringEvent?.("approach", aIdx) ?? false,
+  );
+  if (scoringEvent) {
+    if (isPar5Layup) {
+      shots.push({
+        index: aIdx, stage: "approach", decision: aDec, event: aEv?.instance ?? null,
+        note: narrate ? layupApproachNote(noteRng(aIdx, 0x777)) : "",
+      });
+      shots.push({
+        index: -1, stage: "layup", decision: null, scoringEvent,
+        yards: holeYards && approachYards ? wedgeYards(approachYards, noteRng(aIdx, YARD_SALT)) : undefined,
+        event: null, note: narrate ? scoringEvent.narration : "",
+      });
+    } else {
+      shots.push({
+        index: aIdx, stage: "approach", decision: aDec, scoringEvent,
+        event: aEv?.instance ?? null, note: narrate ? scoringEvent.narration : "",
+      });
+    }
+    const scored = outcomeFromScoreDelta(scoringEvent.strokesTaken + penaltyStrokes - hole.par);
+    return finalize(hole, shots, aIdx + 1, lie, undefined, scored.outcome, scored.scoreDelta, penaltyStrokes);
+  }
+  const approachPenalty = opts.hazardPenalties === false
+    ? null
+    : rollHazardPenalty("approach", green === "scramble", aDec, opts.holeContext, island, penaltySeed(aIdx));
+  penaltyStrokes += approachPenalty?.strokes ?? 0;
   shots.push({
-    index: aIdx, stage: "approach", decision: aDec, green: isPar5Layup ? undefined : green, event: aEv?.instance ?? null,
-    note: narrate ? (isPar5Layup ? layupApproachNote(noteRng(aIdx, 0x777)) : approachNote(green, isPar3, noteRng(aIdx, 0x777), reachedInTwo ? "eagle" : "birdie")) : "",
+    index: aIdx, stage: "approach", decision: aDec, green: isPar5Layup ? undefined : green,
+    penalty: !isPar5Layup && approachPenalty ? approachPenalty : undefined,
+    event: aEv?.instance ?? null,
+    note: narrate
+      ? isPar5Layup
+        ? layupApproachNote(noteRng(aIdx, 0x777))
+        : approachPenalty
+          ? hazardPenaltyNote(approachPenalty, noteRng(aIdx, 0x777), narrativeContext)
+          : approachNote(green, isPar3, noteRng(aIdx, 0x777), reachedInTwo ? "eagle" : "birdie", narrativeContext)
+      : "",
   });
   // VISIBLE LAYUP THIRD: a narration-only wedge record so a laid-up par 5 plainly
   // takes three to the green (two-putt = par now reads correctly). NOT a decision
@@ -294,8 +381,13 @@ export function resolveHoleChain(
     shots.push({
       index: -1, stage: "layup", decision: null, green,
       yards: holeYards && approachYards ? wedgeYards(approachYards, noteRng(aIdx, YARD_SALT)) : undefined,
+      penalty: approachPenalty ?? undefined,
       event: null,
-      note: narrate ? layupNote(green, noteRng(aIdx, 0x515)) : "",
+      note: narrate
+        ? approachPenalty
+          ? hazardPenaltyNote(approachPenalty, noteRng(aIdx, 0x515), narrativeContext)
+          : layupNote(green, noteRng(aIdx, 0x515))
+        : "",
     });
   }
 
@@ -303,30 +395,46 @@ export function resolveHoleChain(
 
   // ---- KICK-IN: auto-resolve, no extra decision ----
   if (green === "kickin") {
-    const outcome = composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" });
+    const scored = applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" }), penaltyStrokes);
     shots.push({
       index: -1, stage: "putt", decision: null, puttResult: "oneputt",
       distanceFt: distanceFor("tap", mulberry32(opts.shotSeed(fIdx))), event: null,
-      note: narrate ? puttNote("oneputt", "tap", undefined, noteRng(fIdx, 0x999), undefined, outcome) : "",
+      note: narrate ? puttNote("oneputt", "tap", undefined, noteRng(fIdx, 0x999), undefined, scored.outcome) : "",
     });
-    return finalize(hole, shots, aIdx + 1, lie, green, outcome);
+    return finalize(hole, shots, aIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
   }
 
   // ---- SCRAMBLE: off the green, short-game decision ----
   if (green === "scramble") {
     if (decisions.length <= fIdx)
-      return { complete: false, used: fIdx, shots, next: "scramble", lie, green, ballT: ballProgress("scramble", green, drive, holeYards) };
+      return { complete: false, used: fIdx, shots, next: "scramble", lie, green, ballT: ballProgress("scramble", green, drive, holeYards), penaltyStrokes };
     const fDec = decisions[fIdx];
+    const scoringEvent = opts.scoringEvents === false ? null : rollScrambleScoringEvent(
+      hole.par,
+      fDec,
+      opts.holeContext?.hazard,
+      reachedInTwo,
+      scoreEventSeed(fIdx),
+      opts.forceScoringEvent?.("scramble", fIdx) ?? false,
+    );
+    if (scoringEvent) {
+      const scored = outcomeFromScoreDelta(scoringEvent.strokesTaken + penaltyStrokes - hole.par);
+      shots.push({
+        index: fIdx, stage: "scramble", decision: fDec, scoringEvent,
+        event: null, note: narrate ? scoringEvent.narration : "",
+      });
+      return finalize(hole, shots, fIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
+    }
     const sw = scrambleWeights(fDec, hole, c);
     const sEv = rollEvent("scramble", opts.eventSeed(fIdx), { recent });
     if (sEv) applyEvent(sEv.def, "scramble", sw as Record<string, number>);
     const sres = pick(sw, mulberry32(opts.shotSeed(fIdx)));
-    const outcome = composeOutcome(reachedInTwo, { kind: "scramble", result: sres });
+    const scored = applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "scramble", result: sres }), penaltyStrokes);
     shots.push({
       index: fIdx, stage: "scramble", decision: fDec, scrambleResult: sres, event: sEv?.instance ?? null,
-      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777), fDec, outcome) : "",
+      note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777), fDec, scored.outcome, narrativeContext) : "",
     });
-    return finalize(hole, shots, fIdx + 1, lie, green, outcome);
+    return finalize(hole, shots, fIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
   }
 
   // ---- PUTT: on the green (makeable / lag) ----
@@ -343,9 +451,9 @@ export function resolveHoleChain(
       putt: {
         bucket, distanceFt, breakDir, slope, speed: greens,
         // Display label source: outcome of holing this putt now (a one-putt).
-        puttFor: composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" }),
+        puttFor: applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" }), penaltyStrokes).outcome,
       },
-      ballT: ballProgress("putt", green, drive, holeYards),
+      ballT: ballProgress("putt", green, drive, holeYards), penaltyStrokes,
     };
 
   const fDec = decisions[fIdx];
@@ -353,12 +461,12 @@ export function resolveHoleChain(
   const pEv = rollEvent("putt", opts.eventSeed(fIdx), { recent });
   if (pEv) applyEvent(pEv.def, "putt", pw as Record<string, number>);
   const pres = pick(pw, ctxRng); // continues the stream after distance + break
-  const outcome = composeOutcome(reachedInTwo, { kind: "putt", result: pres });
+  const scored = applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "putt", result: pres }), penaltyStrokes);
   shots.push({
     index: fIdx, stage: "putt", decision: fDec, puttResult: pres, distanceFt, event: pEv?.instance ?? null,
-    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999), fDec, outcome) : "",
+    note: narrate ? puttNote(pres, bucket, distanceFt, noteRng(fIdx, 0x999), fDec, scored.outcome) : "",
   });
-  return finalize(hole, shots, fIdx + 1, lie, green, outcome);
+  return finalize(hole, shots, fIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
 }
 
 function finalize(
@@ -366,11 +474,12 @@ function finalize(
   shots: ShotRecord[],
   used: number,
   lie: Lie | undefined,
-  green: GreenResult,
-  outcome: Outcome
+  green: GreenResult | undefined,
+  outcome: Outcome,
+  scoreDelta: number,
+  penaltyStrokes: number,
 ): ChainResult {
-  const scoreDelta = SCORE_DELTA[outcome];
-  return { complete: true, used, shots, lie, green, outcome, scoreDelta, strokes: hole.par + scoreDelta };
+  return { complete: true, used, shots, lie, green, outcome, scoreDelta, strokes: hole.par + scoreDelta, penaltyStrokes };
 }
 
 /** Label for the stage the player is about to decide. */

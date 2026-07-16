@@ -10,7 +10,7 @@ import {
   approachDecisionCount,
   countTeeApproachAggressive,
 } from "@/lib/engine/shots";
-import { holeShotSeed, eventSeed } from "@/lib/engine/rng";
+import { holeShotSeed, eventSeed, hazardSeed, scoringEventSeed } from "@/lib/engine/rng";
 import type { Decision, Outcome } from "@/lib/engine/probabilities";
 import type { GreenSpeed } from "@/lib/engine/putting";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
@@ -117,9 +117,12 @@ export const PATCH = route(async (
   const step = resolveHoleChain(decisions, spec, { difficulty: course.difficulty, wind: course.wind }, {
     shotSeed: (shot) => holeShotSeed(seedRef, holeNumber, shot),
     eventSeed: (shot) => eventSeed(seedRef, holeNumber, shot),
+    hazardSeed: (shot) => hazardSeed(seedRef, holeNumber, shot),
+    scoringEventSeed: (shot) => scoringEventSeed(seedRef, holeNumber, shot),
     greens: course.greens as GreenSpeed,
     recent,
     holeYards: holeData.yardage, // display-only: drives yards-to-target + tee distance
+    holeContext: { hazard: holeData.hazard, signature: holeData.signature },
   });
 
   // Hole not finished: report the next stage + reads + play-by-play. Persist
@@ -137,6 +140,7 @@ export const PATCH = route(async (
       note: last?.note ?? null,
       event: last?.event ?? null,
       shots: step.shots,
+      penaltyStrokes: step.penaltyStrokes ?? 0,
     });
   }
 
@@ -193,6 +197,7 @@ export const PATCH = route(async (
     note: last?.note ?? null,
     event: last?.event ?? null,
     shots: step.shots,
+    penaltyStrokes: step.penaltyStrokes ?? 0,
     score: updated.score,
     relativeToPar: updated.relativeToPar,
   });

@@ -56,3 +56,16 @@ export function eventSeed(roundId: string, holeNumber: number, shotIndex: number
   const secret = process.env.SERVER_SEED ?? "dev-seed";
   return hashSeed(`${secret}:${roundId}:${holeNumber}:e${shotIndex}`);
 }
+
+/** Independent seed for scored water/ocean penalties. Keeping this namespace
+ * separate means adding hazard scoring cannot perturb shot or texture events. */
+export function hazardSeed(roundId: string, holeNumber: number, shotIndex: number): number {
+  const secret = process.env.SERVER_SEED ?? "dev-seed";
+  return hashSeed(`${secret}:${roundId}:${holeNumber}:h${shotIndex}`);
+}
+
+/** Independent seed for rare events that end the hole and change its score. */
+export function scoringEventSeed(roundId: string, holeNumber: number, shotIndex: number): number {
+  const secret = process.env.SERVER_SEED ?? "dev-seed";
+  return hashSeed(`${secret}:${roundId}:${holeNumber}:x${shotIndex}`);
+}

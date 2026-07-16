@@ -33,11 +33,17 @@ const EXPECTED_PAR: Record<string, number> = {
   "national-golf-links": 72,
   muirfield: 71,
   "royal-melbourne": 71,
+  // Batch 7 (cross-checked against current club/competition scorecards):
+  "royal-dornoch": 70,
+  carnoustie: 72,
+  "royal-troon": 71,
+  "whispering-pines": 72,
+  camargo: 70,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (33 after batch 6)", () => {
-    expect(COURSES.length).toBe(33);
+  it("roster is the expected size (38 after batch 7)", () => {
+    expect(COURSES.length).toBe(38);
   });
 
   it("every course has 18 holes", () => {
@@ -66,9 +72,8 @@ describe("course catalogue integrity", () => {
 
   it("splits stroke index one parity per nine, opposite nines", () => {
     // The standard derived-SI split: every front-nine hole shares one parity and
-    // every back-nine hole the other, so handicap strokes alternate nines. (Some
-    // existing courses are even-front, the new five odd-front — both are valid;
-    // the invariant is single-parity-per-nine, opposite to the other nine.)
+    // every back-nine hole the other, so handicap strokes alternate nines. Some
+    // courses are even-front and others odd-front; both satisfy the invariant.
     for (const c of COURSES) {
       const front = new Set(c.holes.slice(0, 9).map((h) => h.strokeIndex % 2));
       const back = new Set(c.holes.slice(9).map((h) => h.strokeIndex % 2));

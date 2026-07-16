@@ -32,6 +32,7 @@ describe("momentum (deterministic, no dice)", () => {
   it("boosts after back-to-back birdies", () => {
     expect(momentumFor(["birdie", "birdie"])?.id).toBe("MOMENTUM_UP");
     expect(momentumFor(["par", "eagle", "birdie"])?.id).toBe("MOMENTUM_UP");
+    expect(momentumFor(["par", "albatross", "birdie"])?.id).toBe("MOMENTUM_UP");
   });
   it("wobbles after a recent blow-up", () => {
     expect(momentumFor(["double"])?.id).toBe("MOMENTUM_DOWN");

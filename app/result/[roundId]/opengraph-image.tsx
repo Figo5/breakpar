@@ -16,6 +16,7 @@ export const contentType = "image/png";
 // Cell colours MIRROR the OUTCOME_META emoji squares (🟦🟩⬜🟨🟧🟥) — we render
 // solid cells instead of emoji because colour glyphs are unreliable in next/og.
 const CELL: Record<Outcome, string> = {
+  albatross: "#7657B5", // 🟪
   eagle: "#4A90D9", // 🟦
   birdie: "#46955F", // 🟩
   par: "#E9E3D2", // ⬜

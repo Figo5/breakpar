@@ -210,7 +210,7 @@ export function momentumFor(recent: Outcome[]): EventDef | null {
   if (recent.length === 0) return null;
   const last = recent[recent.length - 1];
   const prev = recent[recent.length - 2];
-  const isBirdieish = (o?: Outcome) => o === "birdie" || o === "eagle";
+  const isBirdieish = (o?: Outcome) => o === "birdie" || o === "eagle" || o === "albatross";
   if (isBirdieish(last) && isBirdieish(prev)) return MOMENTUM_UP;
   if (last === "double" || last === "triple") return MOMENTUM_DOWN;
   return null;

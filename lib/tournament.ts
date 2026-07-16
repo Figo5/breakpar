@@ -56,7 +56,28 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
   "harbour-town",
   "royal-portrush-dunluce",
   "pacific-dunes",
-  "winged-foot-west",
+  // Winged Foot is reserved by the W29 override below. Keeping an override in
+  // the regular pool would make it appear twice within a full rotation cycle.
+  "tpc-sawgrass",
+  "shinnecock-hills",
+  "cypress-point",
+  "pine-valley",
+  "cabot-links",
+  "merion-east",
+  "erin-hills",
+  "aronimink",
+  "doral-blue-monster",
+  "paynes-valley",
+  "the-country-club",
+  "lacc-north",
+  "national-golf-links",
+  "muirfield",
+  "royal-melbourne",
+  "royal-dornoch",
+  "carnoustie",
+  "royal-troon",
+  "whispering-pines",
+  "camargo",
 ];
 
 /**
