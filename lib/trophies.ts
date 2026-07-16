@@ -218,9 +218,9 @@ export function summarizeRounds(rows: RoundLite[], coursesTotal: number, maxStre
     let birdies = 0;
     let atOrUnder = 0;
     for (const h of r.holes) {
-      const good = h.outcome === "birdie" || h.outcome === "eagle";
+      const good = h.outcome === "birdie" || h.outcome === "eagle" || h.outcome === "albatross";
       if (good) birdies++;
-      if (h.outcome === "eagle") hasEagle = true;
+      if (h.outcome === "eagle" || h.outcome === "albatross") hasEagle = true;
       if (good) hasBirdie = true;
       if (h.scoreChange <= 0) atOrUnder++;
     }

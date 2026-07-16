@@ -103,14 +103,14 @@ describe("updateStreak", () => {
 describe("tally + shareGrid", () => {
   it("buckets outcomes by tone and builds a 2-line grid", () => {
     const outcomes = [
-      "birdie", "par", "bogey", "eagle", "double", "triple",
-      "par", "par", "par", "par", "par", "par",
+      "birdie", "par", "bogey", "eagle", "albatross", "double", "triple",
+      "par", "par", "par", "par", "par",
       "par", "par", "par", "par", "par", "par",
     ] as const;
     const t = tally([...outcomes]);
-    expect(t.birdiesOrBetter).toBe(2);
+    expect(t.birdiesOrBetter).toBe(3);
     expect(t.bogeysOrWorse).toBe(3);
-    expect(t.pars).toBe(13);
+    expect(t.pars).toBe(12);
     expect(shareGrid([...outcomes]).split("\n")).toHaveLength(2);
   });
 

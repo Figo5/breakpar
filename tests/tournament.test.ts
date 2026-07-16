@@ -203,6 +203,23 @@ describe("tournament course rotation", () => {
     }
   });
 
+  it("treats Sawgrass as a regular stop, not a crown jewel", () => {
+    expect(TOURNAMENT_COURSE_POOL).toContain("tpc-sawgrass");
+  });
+
+  it("includes every regular roster course", () => {
+    const reserved = new Set([
+      "pebble-beach",
+      "winged-foot-west",
+      "augusta-national",
+      "st-andrews-old",
+      "pinehurst-no2",
+      "royal-birkdale",
+    ]);
+    const expected = COURSES.map((course) => course.slug).filter((slug) => !reserved.has(slug));
+    expect(new Set(TOURNAMENT_COURSE_POOL)).toEqual(new Set(expected));
+  });
+
   it("pebble-beach is out of the pool (it was the launch tournament)", () => {
     expect(TOURNAMENT_COURSE_POOL.includes("pebble-beach")).toBe(false);
   });

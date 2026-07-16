@@ -21,4 +21,10 @@ describe("ball display position", () => {
     expect(short.state).toBe("short");
     expect(short.progress).toBeCloseTo(0.9);
   });
+
+  it("carries an explicit penalty state so HoleArt can place the ball in water", () => {
+    const water = decodeBallDisplay(encodeBallDisplay(0.62, "trouble", "approach", true));
+    expect(water.state).toBe("water");
+    expect(water.progress).toBeCloseTo(0.62);
+  });
 });

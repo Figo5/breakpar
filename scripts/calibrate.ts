@@ -105,6 +105,15 @@ interface Feel {
   threePutts: number;
   scrambles: number;
   upDowns: number;
+  penaltyStrokes: number;
+  scoringEvents: number;
+  aces: number;
+  albatrosses: number;
+  approachHoleOuts: number;
+  wedgeHoleOuts: number;
+  chipIns: number;
+  bunkerHoleOuts: number;
+  blowups: number;
 }
 
 console.log(`Break Par calibration · VARIABLE CHAIN · ${N.toLocaleString()} rounds/strategy · budget ${AGGRESSIVE_BUDGET}\n`);
@@ -115,7 +124,15 @@ for (const [name, p] of Object.entries(players)) {
   let broke = 0;
   let sumRel = 0;
   let sumRelSq = 0;
-  const feel: Feel = { decisions: 0, holes: 0, greenHoles: 0, onePutts: 0, threePutts: 0, scrambles: 0, upDowns: 0 };
+  let baselineBroke = 0;
+  let baselineSumRel = 0;
+  const roundScores: number[] = [];
+  const feel: Feel = {
+    decisions: 0, holes: 0, greenHoles: 0, onePutts: 0, threePutts: 0,
+    scrambles: 0, upDowns: 0, penaltyStrokes: 0, scoringEvents: 0,
+    aces: 0, albatrosses: 0, approachHoleOuts: 0, wedgeHoleOuts: 0,
+    chipIns: 0, bunkerHoleOuts: 0, blowups: 0,
+  };
 
   for (let i = 0; i < N; i++) {
     const c = COURSES[i % COURSES.length];
@@ -123,6 +140,7 @@ for (const [name, p] of Object.entries(players)) {
     const cond = { difficulty: c.difficulty, wind: c.wind };
     const st: State = { rel: 0, holesLeft: c.holes.length, aggrLeft: AGGRESSIVE_BUDGET };
     let total = 0;
+    let baselineTotal = 0;
     const recent: Outcome[] = [];
 
     for (let hi = 0; hi < c.holes.length; hi++) {
@@ -133,7 +151,18 @@ for (const [name, p] of Object.entries(players)) {
 
       const shotSeed = (s: number) => (((i * 2 + 1) * 0x9e3779b1 + hi * 2654435761 + s * 40503 + 1) >>> 0) || 1;
       const eventSeed = (s: number) => (((i * 2 + 1) * 0x85ebca77 + hi * 374761393 + s * 668265263 + 5) >>> 0) || 1;
-      const opts = { shotSeed, eventSeed, greens: c.greens, recent, narration: false as const };
+      const hazardSeed = (s: number) => (((i * 2 + 1) * 0xc2b2ae3d + hi * 2246822519 + s * 3266489917 + 9) >>> 0) || 1;
+      const scoringEventSeed = (s: number) => (((i * 2 + 1) * 0x27d4eb2f + hi * 3266489917 + s * 668265263 + 11) >>> 0) || 1;
+      const opts = {
+        shotSeed,
+        eventSeed,
+        hazardSeed,
+        scoringEventSeed,
+        greens: c.greens,
+        recent,
+        narration: false as const,
+        holeContext: { hazard: h.hazard, signature: h.signature },
+      };
 
       const decisions: Decision[] = [];
       let res: ChainResult = resolveHoleChain(decisions, spec, cond, opts);
@@ -155,9 +184,38 @@ for (const [name, p] of Object.entries(players)) {
       st.rel += res.scoreDelta ?? 0;
       recent.push(outcome);
 
+      // Same-decision no-event counterfactual. Independent event RNG means this
+      // is identical on ordinary holes; on an early hole-out, finish the old
+      // chain with the player's normal final-stage policy for a fair comparison.
+      const baselineDecisions = [...decisions];
+      let baseline = resolveHoleChain(baselineDecisions, spec, cond, { ...opts, scoringEvents: false });
+      let baselineGuard = 0;
+      while (!baseline.complete && baselineGuard++ < 2) {
+        const dec = baseline.next === "putt"
+          ? p.putt(spec, baseline.putt!.bucket, st)
+          : baseline.next === "scramble"
+            ? p.scramble(spec, st)
+            : "normal";
+        baselineDecisions.push(dec);
+        baseline = resolveHoleChain(baselineDecisions, spec, cond, { ...opts, scoringEvents: false });
+      }
+      baselineTotal += h.par + (baseline.scoreDelta ?? 0);
+
       // feel metrics
       feel.holes++;
       feel.decisions += res.shots.filter((s) => s.decision).length;
+      feel.penaltyStrokes += res.penaltyStrokes ?? 0;
+      const scoredEvent = res.shots.find((shot) => shot.scoringEvent)?.scoringEvent;
+      if (scoredEvent) {
+        feel.scoringEvents++;
+        if (scoredEvent.kind === "hole-in-one") feel.aces++;
+        if (scoredEvent.kind === "albatross") feel.albatrosses++;
+        if (scoredEvent.kind === "approach-hole-out") feel.approachHoleOuts++;
+        if (scoredEvent.kind === "wedge-hole-out") feel.wedgeHoleOuts++;
+        if (scoredEvent.kind === "chip-in") feel.chipIns++;
+        if (scoredEvent.kind === "bunker-hole-out") feel.bunkerHoleOuts++;
+      }
+      if (outcome === "double" || outcome === "triple") feel.blowups++;
       const green = res.green;
       if (green === "scramble") {
         feel.scrambles++;
@@ -172,14 +230,22 @@ for (const [name, p] of Object.entries(players)) {
     }
 
     const rel = total - par;
+    const baselineRel = baselineTotal - par;
     if (total < par) broke++;
+    if (baselineTotal < par) baselineBroke++;
     sumRel += rel;
     sumRelSq += rel * rel;
+    baselineSumRel += baselineRel;
+    roundScores.push(rel);
   }
 
   const mean = sumRel / N;
   const stdev = Math.sqrt(Math.max(0, sumRelSq / N - mean * mean));
   const breakPct = (broke / N) * 100;
+  const baselineBreakPct = (baselineBroke / N) * 100;
+  const baselineMean = baselineSumRel / N;
+  roundScores.sort((a, b) => a - b);
+  const median = (roundScores[N / 2 - 1] + roundScores[N / 2]) / 2;
   results[name] = breakPct;
   const meanStr = mean >= 0 ? `+${mean.toFixed(1)}` : mean.toFixed(1);
   const dec = (feel.decisions / feel.holes).toFixed(2);
@@ -187,9 +253,19 @@ for (const [name, p] of Object.entries(players)) {
   const one = ((feel.onePutts / Math.max(1, feel.greenHoles)) * 100).toFixed(0);
   const three = ((feel.threePutts / Math.max(1, feel.greenHoles)) * 100).toFixed(0);
   const ud = ((feel.upDowns / Math.max(1, feel.scrambles)) * 100).toFixed(0);
+  const penalties = (feel.penaltyStrokes / feel.holes).toFixed(2);
+  const scored = ((feel.scoringEvents / feel.holes) * 100).toFixed(2);
+  const blowups = ((feel.blowups / feel.holes) * 100).toFixed(1);
   console.log(
-    `${name.padEnd(9)} breakPar ${breakPct.toFixed(1).padStart(4)}%   avg ${meanStr.padStart(5)}   stdev ${stdev.toFixed(2)}` +
-      `   ·  dec/hole ${dec}  GIR ${gir}%  1putt ${one}%  3putt ${three}%  u&d ${ud}%`
+    `${name.padEnd(9)} breakPar ${breakPct.toFixed(1).padStart(4)}%   avg ${meanStr.padStart(5)}   median ${median >= 0 ? "+" : ""}${median.toFixed(1)}   stdev ${stdev.toFixed(2)}` +
+      `   ·  dec/hole ${dec}  GIR ${gir}%  1putt ${one}%  3putt ${three}%  u&d ${ud}%  blowup ${blowups}%  pen/hole ${penalties}  scoreEv ${scored}%`
+  );
+  console.log(
+    `           rare events: aces ${feel.aces} · albatrosses ${feel.albatrosses} · approach HOs ${feel.approachHoleOuts}` +
+      ` · wedge HOs ${feel.wedgeHoleOuts} · chip-ins ${feel.chipIns} · bunker HOs ${feel.bunkerHoleOuts}`
+  );
+  console.log(
+    `           same-choice no-event baseline: breakPar ${baselineBreakPct.toFixed(1)}% · avg ${baselineMean >= 0 ? "+" : ""}${baselineMean.toFixed(1)}`
   );
 }
 

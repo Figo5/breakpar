@@ -23,6 +23,7 @@ import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabil
 import { relativeLabel } from "@/lib/scoring";
 import { encodeBallDisplay } from "@/lib/ballDisplay";
 import { finishSummary } from "@/lib/finishSummary";
+import type { HazardPenalty } from "@/lib/engine/hazards";
 import {
   teeOddsReveal, teeOddsTakeaway,
   puttOddsReveal, puttOddsTakeaway,
@@ -239,7 +240,8 @@ function PlayInner() {
         setPuttCtx((data.putt as PuttContext) ?? null);
         setApproachYards((data.approachYards as number) ?? null);
         const progress = typeof data.ballT === "number" ? data.ballT : 0.05;
-        setBallT(encodeBallDisplay(progress, nextLie, nextStage));
+        const latestShot = Array.isArray(data.shots) ? data.shots[data.shots.length - 1] as ShotRecord | undefined : undefined;
+        setBallT(encodeBallDisplay(progress, nextLie, nextStage, !!latestShot?.penalty));
       }
     } catch {
       setError("That shot didn't register. Tap to retry.");
@@ -313,7 +315,7 @@ function PlayInner() {
             : hole.dogleg === "R"
               ? "Dogleg right"
               : null;
-  const pendingFinish = pending ? finishSummary(shotLog, pending) : null;
+  const pendingFinish = pending ? finishSummary(shotLog, pending, hole.par) : null;
 
   return (
     <div className="play">
@@ -361,7 +363,7 @@ function PlayInner() {
               )}
 
               <div className="pm-reads">
-                {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues)}
+                {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues, shotLog[shotLog.length - 1]?.penalty)}
               </div>
 
               <div className="pm-prompt">{openingRead ? "Tee shot" : compactStageLabel(stage)}</div>
@@ -447,6 +449,11 @@ function decisionBlurb(stage: SwingStage, decision: Decision, par: number, fallb
   }
   // A par-3 "approach" is its tee shot; retain the original concept language.
   if (stage === "approach") {
+    if (par === 5) {
+      if (decision === "safe") return "Lay up for a wedge";
+      if (decision === "normal") return "Lay up, attack with wedge";
+      return "Go for the green in two";
+    }
     if (decision === "safe") return par === 3 ? "Middle of the green" : "Center of the green";
     if (decision === "normal") return "Favor the fat side";
     return "Hunt the pin";
@@ -466,8 +473,17 @@ function positionBanner(
   green: GreenResult | null,
   puttCtx: PuttContext | null,
   greens: Course["greens"],
-  cues: { icon: string; text: string }[]
+  cues: { icon: string; text: string }[],
+  penalty?: HazardPenalty,
 ) {
+  if (penalty) {
+    return (
+      <div className="lie-banner l-bad">
+        <span className="le"><span className="lie-dot tone-bad" /></span>
+        <span className="lt"><b>In the {penalty.kind === "ocean" ? "ocean hazard" : "water"}</b><span>One-stroke penalty — playing from the drop.</span></span>
+      </div>
+    );
+  }
   // Tee, or a par-3 tee shot (no lie yet) -> hole cues.
   if (stage === "tee" || (stage === "approach" && !lie)) {
     return (
@@ -579,10 +595,10 @@ function OddsReveal({
       const source: GreenSource = isPar3 ? "tee" : (teeLie ?? "fairway");
       const rows = approachOddsReveal(source, hole, conditions);
       blocks.push(
-        <StageOdds key="approach" title="Approach" chosen={s.decision} order={order}
+        <StageOdds key="approach" title={hole.par === 5 ? "Second shot" : "Approach"} chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].kickinPct + rows[d].makeablePct }, { cls: "rough", w: rows[d].lagPct }, { cls: "trouble", w: rows[d].scramblePct }],
-            right: `${rows[d].greenPct}%` }))}
+            right: `${rows[d].holeOutPct.toFixed(2)}% in` }))}
           legend={[["good", "birdie look"], ["rough", "long putt"], ["trouble", "missed green"]]}
           takeaway={approachOddsTakeaway(s.decision, source, hole, conditions)} />
       );
@@ -604,7 +620,7 @@ function OddsReveal({
         <StageOdds key="scramble" title="Short game" chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].updownPct }, { cls: "rough", w: rows[d].twochipPct }, { cls: "trouble", w: rows[d].blowupPct + rows[d].disasterPct }],
-            right: `${rows[d].savePct}%` }))}
+            right: `${rows[d].holeOutPct.toFixed(1)}% in` }))}
           legend={[["good", "up & down"], ["rough", "chip & two-putt"], ["trouble", "blow-up"]]}
           takeaway={scrambleOddsTakeaway(s.decision, hole, conditions)} />
       );
