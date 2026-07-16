@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickDryBallPosition, pointClearsEllipse } from "../lib/holeMapPosition";
+import { coastalPenaltyPosition, pickDryBallPosition, pointClearsEllipse } from "../lib/holeMapPosition";
 
 describe("missed-green map position", () => {
   const candidates = [
@@ -32,5 +32,17 @@ describe("missed-green map position", () => {
 
     expect(picked).toEqual(fairwayCandidates[2]);
     expect(pointClearsEllipse(picked, water)).toBe(true);
+  });
+});
+
+describe("coastal penalty position", () => {
+  it("keeps an ocean miss level with the shot instead of sending it back to the tee", () => {
+    expect(coastalPenaltyPosition({ x: 390, y: 188 }, "right"))
+      .toEqual({ x: 608, y: 188 });
+  });
+
+  it("keeps the marker inside the visible map", () => {
+    expect(coastalPenaltyPosition({ x: 340, y: 30 }, "left"))
+      .toEqual({ x: 72, y: 82 });
   });
 });
