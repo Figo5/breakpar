@@ -1,6 +1,6 @@
 import type { CourseHole } from "@/data/courses";
 import { decodeBallDisplay } from "@/lib/ballDisplay";
-import { pickDryBallPosition } from "@/lib/holeMapPosition";
+import { coastalPenaltyPosition, pickDryBallPosition } from "@/lib/holeMapPosition";
 
 /**
  * Crafted, yardage-book-style hole diagram. Every shape is derived from the
@@ -58,6 +58,8 @@ export function HoleArt({ hole, ballT = 0.05 }: {
   const isOcean = hazard === "ocean";
   const isWater = hazard === "water";
   const isSand = hazard === "sand";
+  const isOceanCarry = isOcean && /over|chasm|carry/i.test(signature ?? "");
+  const oceanSide = (hashSeed(`${par}:${yardage}:${number}:ocean-side`) & 1) === 0 ? "left" : "right";
   // An island hole has no fairway at all — a full carry over water to a green
   // surrounded on every side. The signal already exists in the data: a par 3
   // over water whose signature note calls it out as an island green. A normal
@@ -101,7 +103,6 @@ export function HoleArt({ hole, ballT = 0.05 }: {
 
   // Seeded tree framing along the LEFT/RIGHT edges (never the central playable
   // band), varied in count/position/size so no two holes frame identically.
-  // Ocean holes keep the bottom clear (water band lives there).
   function seededTrees(minY: number, maxY: number, count: number) {
     const out: { x: number; y: number; s: number }[] = [];
     for (let i = 0; i < count; i++) {
@@ -311,13 +312,20 @@ export function HoleArt({ hole, ballT = 0.05 }: {
   // reads as an island. "cross" is a carry hazard across the fairway. ----
   type Water = { cx: number; cy: number; rx: number; ry: number };
   let water: Water | null = null;
-  if (isWater) {
+  if (isWater || isOceanCarry) {
     // Short holes have minimal fairway, so keep water at the green (no cross).
-    const mode = pick(short ? ["front", "left", "right"] : ["front", "left", "right", "cross"]);
+    const mode = isOceanCarry
+      ? "cross"
+      : pick(short ? ["front", "left", "right"] : ["front", "left", "right", "cross"]);
     if (mode === "cross") {
-      const u = rand(0.5, 0.72);
+      const u = isOceanCarry ? rand(0.68, 0.76) : rand(0.5, 0.72);
       const p = routePoint(u);
-      water = { cx: p.x, cy: p.y, rx: rand(120, 168), ry: rand(30, 42) };
+      water = {
+        cx: p.x,
+        cy: p.y,
+        rx: rand(isOceanCarry ? 148 : 120, isOceanCarry ? 188 : 168),
+        ry: rand(isOceanCarry ? 38 : 30, isOceanCarry ? 52 : 42),
+      };
     } else {
       const rx = rand(88, 126);
       const ry = rand(38, 52);
@@ -374,10 +382,11 @@ export function HoleArt({ hole, ballT = 0.05 }: {
       : [preferred];
   });
   const lieBallPt = pickDryBallPosition(lieCandidates, waterEllipse);
+  const oceanBallPt = coastalPenaltyPosition(linePointAt(t), oceanSide);
   const penaltyBallPt = water
     ? { x: water.cx, y: water.cy }
     : isOcean
-      ? { x: 340, y: 514 }
+      ? oceanBallPt
       : lieBallPt;
   const ballPt = ballState === "water" ? penaltyBallPt : ballState === "short" ? shortBallPt : lieBallPt;
 
@@ -427,18 +436,21 @@ export function HoleArt({ hole, ballT = 0.05 }: {
       {/* Base turf */}
       <rect width="680" height="560" fill="#8FAD7B" />
 
-      {/* Ocean band along the bottom edge (seeded height) */}
-      {isOcean && (() => {
-        const topY = 472 + rand(-12, 10);
-        return (
-          <>
-            <path d={`M0 560 L0 ${topY} C 190 ${topY + 30}, 500 ${topY - 24}, 680 ${topY + 4} L680 560 Z`} fill="url(#pond)" />
-            <path d={`M0 ${topY} C 190 ${topY + 30}, 500 ${topY - 24}, 680 ${topY + 4}`} fill="none" stroke="#2F5A76" strokeWidth="2.5" opacity=".85" />
-            <path d={`M70 ${topY + 44} Q 150 ${topY + 32} 230 ${topY + 44}`} fill="none" stroke="#79A8C4" strokeWidth="1.5" opacity=".5" />
-            <path d={`M420 ${topY + 38} Q 500 ${topY + 26} 580 ${topY + 37}`} fill="none" stroke="#79A8C4" strokeWidth="1.5" opacity=".5" />
-          </>
-        );
-      })()}
+      {/* Coastal ocean runs beside the hole. Carry/chasm signatures instead
+          use the cross-water body below, so the tee never appears submerged. */}
+      {isOcean && !isOceanCarry && (oceanSide === "left" ? (
+        <>
+          <path d="M0 0 L112 0 C146 92 106 176 132 270 C154 350 112 438 138 560 L0 560 Z" fill="url(#pond)" />
+          <path d="M112 0 C146 92 106 176 132 270 C154 350 112 438 138 560" fill="none" stroke="#2F5A76" strokeWidth="3" />
+          <path d="M28 150 Q72 134 112 154 M34 330 Q78 314 124 334" fill="none" stroke="#79A8C4" strokeWidth="2" opacity=".5" />
+        </>
+      ) : (
+        <>
+          <path d="M680 0 L568 0 C534 92 574 176 548 270 C526 350 568 438 542 560 L680 560 Z" fill="url(#pond)" />
+          <path d="M568 0 C534 92 574 176 548 270 C526 350 568 438 542 560" fill="none" stroke="#2F5A76" strokeWidth="3" />
+          <path d="M652 150 Q608 134 568 154 M646 330 Q602 314 556 334" fill="none" stroke="#79A8C4" strokeWidth="2" opacity=".5" />
+        </>
+      ))}
 
       {/* Tree framing — drawn first so the hole itself reads on top */}
       <g opacity=".78">{treesTopOnly.map((tr, i) => treeCluster(tr.x, tr.y, tr.s, `t${i}`))}</g>
@@ -495,6 +507,12 @@ export function HoleArt({ hole, ballT = 0.05 }: {
 
       {/* Ball marker along the shot-line at ballT */}
       <g>
+        {ballState === "water" && (
+          <>
+            <circle cx={ballPt.x} cy={ballPt.y} r="13" fill="none" stroke="#F7F4EA" strokeWidth="2" opacity=".8" />
+            <circle cx={ballPt.x} cy={ballPt.y} r="20" fill="none" stroke="#79A8C4" strokeWidth="2" opacity=".65" />
+          </>
+        )}
         <circle cx={ballPt.x} cy={ballPt.y} r="4.6" fill="#F7F4EA" stroke="#13201A" strokeWidth="1.4" />
         <circle cx={ballPt.x} cy={ballPt.y} r="1.3" fill="#13201A" opacity=".3" />
       </g>

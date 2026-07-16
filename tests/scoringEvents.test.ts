@@ -83,6 +83,15 @@ describe("scoring-event scramble finishes", () => {
     expect(result).toMatchObject({ complete: true, outcome: "birdie", scoreDelta: -1, strokes: 3 });
     expect(result.shots.at(-1)?.scoringEvent?.kind).toBe("chip-in");
     expect(resolveHoleChain(["normal", "normal", "normal"], par4, conditions, opts)).toEqual(result);
+
+    // A hole-out is an extra success lane before the unchanged short-game
+    // table. It must improve this exact shot, never replace an up-and-down
+    // with a worse result.
+    const withoutHoleOut = resolveHoleChain(["normal", "normal", "normal"], par4, conditions, {
+      ...seeds(base),
+      scoringEvents: false,
+    });
+    expect(result.scoreDelta).toBeLessThan(withoutHoleOut.scoreDelta!);
   });
 
   it("labels the same finish from sand as a bunker hole-out", () => {
