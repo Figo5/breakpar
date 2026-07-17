@@ -75,6 +75,7 @@ function PlayInner() {
   const tournamentRoundParam = params.get("tournament"); // present -> tournament round N (1..4)
   const tournamentRoundNo = tournamentRoundParam ? parseInt(tournamentRoundParam, 10) : null;
   const [course, setCourse] = useState<PlayCourse | null>(null);
+  const [puzzleNo, setPuzzleNo] = useState<number | null>(null); // daily puzzle number (label only)
   const [roundId, setRoundId] = useState<string | null>(null);
   const [holeIdx, setHoleIdx] = useState(0); // 0..17
   const [outcomes, setOutcomes] = useState<(Outcome | null)[]>(Array(18).fill(null));
@@ -123,6 +124,7 @@ function PlayInner() {
 
         const c = r.course as PlayCourse;
         setCourse(c);
+        setPuzzleNo(r.puzzleNumber ?? null);
         setRoundId(r.roundId);
         setAggressiveLeft((r.aggressiveBudget ?? AGGRESSIVE_BUDGET) - (r.aggressiveUsed ?? 0));
         const startIdx = r.playedHoles?.length ? Math.min(r.playedHoles.length, 17) : 0;
@@ -320,6 +322,19 @@ function PlayInner() {
               : null;
   const pendingFinish = pending ? finishSummary(shotLog, pending, hole.par) : null;
 
+  // Course + play-mode labels for the card header (practice / daily / tournament
+  // / challenge), plus the hole's signature note when it's a "special" hole.
+  const courseName = course.name.split("—")[0].trim();
+  const modeLabel = tournamentRoundNo
+    ? `Tournament · R${tournamentRoundNo}`
+    : challengeId
+      ? "Challenge"
+      : slug
+        ? "Practice"
+        : puzzleNo
+          ? `Daily · No. ${puzzleNo}`
+          : "Daily";
+
   return (
     <div className="play">
       {/* progress hairline, above the card */}
@@ -350,6 +365,8 @@ function PlayInner() {
               leaving the map itself unobstructed and the bottom rail thin. */}
           {!pending && (
             <div className="pm-chips">
+              <span className="pm-chip pm-chip-course">{courseName} · {modeLabel}</span>
+              {hole.signature && <span className="pm-chip pm-chip-sig">{hole.signature}</span>}
               <span className="pm-chip">{course.wind} mph</span>
               <span className="pm-chip">{course.greens.toLowerCase()} greens</span>
               {mapFeature && <span className="pm-chip">{mapFeature}</span>}

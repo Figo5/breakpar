@@ -247,7 +247,17 @@ function TrophyTile({
       {isFeatured && <span className="fe-rank">{featuredRank + 1}</span>}
       {!editing && isFeatured && <span className="fe-star" title="Featured">⭐</span>}
       <div className="trophy-name">{t.label}</div>
-      {t.comingSoon ? (
+      {t.counter ? (
+        // Ever-climbing tally: once earned, the live number replaces the bar.
+        t.earned ? (
+          <>
+            <div className="trophy-count">{t.current.toLocaleString()}</div>
+            <div className="trophy-count-unit">{t.unit}</div>
+          </>
+        ) : (
+          <div className="trophy-crit">{t.criteria}</div>
+        )
+      ) : t.comingSoon ? (
         <div className="trophy-crit">{t.criteria}</div>
       ) : t.earned ? (
         <>

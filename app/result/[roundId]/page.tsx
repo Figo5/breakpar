@@ -138,7 +138,14 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
       <ResultTracker meta={analyticsMeta} ownRound={ownRound} userId={viewer?.id ?? null} />
       {ownRound && <TrophyToast roundId={round.id} signedIn={!!viewer?.clerkId} />}
       <div className="final-course">
-        {isDaily ? `Break Par · No. ${puzzleNo} · ` : "Practice · "}{course.name}
+        {isDaily
+          ? `Break Par · No. ${puzzleNo} · `
+          : round.mode === "tournament"
+            ? "Tournament · "
+            : round.mode === "challenge"
+              ? "Challenge · "
+              : "Practice · "}
+        {course.name}
       </div>
       <div className="final-score">{round.score}</div>
       <div className={`final-rel ${made ? "made-it" : "missed"}`}>

@@ -130,7 +130,7 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
       select: {
         id: true, mode: true, dateKey: true, score: true, relativeToPar: true,
         durationMs: true, playedAt: true, course: { select: { slug: true } },
-        holeResults: { select: { outcome: true, scoreChange: true } },
+        holeResults: { select: { outcome: true, scoreChange: true, holeNumber: true } },
       },
     }),
     prisma.streak.findUnique({ where: { userId: profileUser.id } }),
@@ -154,9 +154,17 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
   // are flipped to earned from their award row — evaluateTrophies alone leaves
   // them earned:false and they'd never be featured.
   const dates = new Map(awards.map((a) => [a.trophyId, a.unlockedAt ? a.unlockedAt.toISOString() : null]));
-  const trophyRounds: TrophyRound[] = rows.map((r) => ({
-    relativeToPar: r.relativeToPar, courseKey: r.course.slug, holes: r.holeResults,
-  }));
+  const trophyRounds: TrophyRound[] = rows.map((r) => {
+    // Per-hole par (for the hole-in-one predicate) comes from the catalogue,
+    // keyed by hole number; unknown courses just yield par-less holes.
+    const parByHole = new Map((courseBySlug(r.course.slug)?.holes ?? []).map((h) => [h.number, h.par]));
+    return {
+      relativeToPar: r.relativeToPar,
+      courseKey: r.course.slug,
+      holes: r.holeResults.map((h) => ({ ...h, par: parByHole.get(h.holeNumber) })),
+      playedAt: r.playedAt.getTime(),
+    };
+  });
   const stats = summarizeRounds(trophyRounds, COURSES.length, streak?.maxStreak ?? 0);
   const earned = buildTrophyBoard(stats, true, dates).states.filter((s) => s.earned);
   const featured = pickFeatured(profileUser.featuredTrophies, earned);
