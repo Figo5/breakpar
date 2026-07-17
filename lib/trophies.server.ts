@@ -32,17 +32,23 @@ export async function getTrophies(): Promise<TrophyBoard | null> {
       select: {
         relativeToPar: true,
         courseId: true,
-        holeResults: { select: { outcome: true, scoreChange: true } },
+        playedAt: true,
+        holeResults: { select: { outcome: true, scoreChange: true, holeNumber: true } },
+        course: { select: { holes: { select: { holeNumber: true, par: true } } } },
       },
     }),
     prisma.streak.findUnique({ where: { userId: user.id } }),
   ]);
 
-  const lite: RoundLite[] = rows.map((r) => ({
-    relativeToPar: r.relativeToPar,
-    courseKey: r.courseId,
-    holes: r.holeResults,
-  }));
+  const lite: RoundLite[] = rows.map((r) => {
+    const parByHole = new Map(r.course.holes.map((h) => [h.holeNumber, h.par]));
+    return {
+      relativeToPar: r.relativeToPar,
+      courseKey: r.courseId,
+      holes: r.holeResults.map((h) => ({ ...h, par: parByHole.get(h.holeNumber) })),
+      playedAt: r.playedAt.getTime(),
+    };
+  });
 
   const stats = summarizeRounds(lite, COURSES.length, streak?.maxStreak ?? 0);
 
@@ -66,13 +72,23 @@ async function completedRounds(userId: string): Promise<{ id: string; lite: Roun
       id: true,
       relativeToPar: true,
       courseId: true,
-      holeResults: { select: { outcome: true, scoreChange: true } },
+      playedAt: true,
+      holeResults: { select: { outcome: true, scoreChange: true, holeNumber: true } },
+      course: { select: { holes: { select: { holeNumber: true, par: true } } } },
     },
   });
-  return rows.map((r) => ({
-    id: r.id,
-    lite: { relativeToPar: r.relativeToPar, courseKey: r.courseId, holes: r.holeResults },
-  }));
+  return rows.map((r) => {
+    const parByHole = new Map(r.course.holes.map((h) => [h.holeNumber, h.par]));
+    return {
+      id: r.id,
+      lite: {
+        relativeToPar: r.relativeToPar,
+        courseKey: r.courseId,
+        holes: r.holeResults.map((h) => ({ ...h, par: parByHole.get(h.holeNumber) })),
+        playedAt: r.playedAt.getTime(),
+      },
+    };
+  });
 }
 
 /**
