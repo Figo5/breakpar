@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeBallDisplay, encodeBallDisplay } from "../lib/ballDisplay";
+import { decodeBallDisplay, encodeBallDisplay, encodeStepBallDisplay } from "../lib/ballDisplay";
 
 describe("ball display position", () => {
   it("keeps fairway progress on the route", () => {
@@ -26,5 +26,34 @@ describe("ball display position", () => {
     const water = decodeBallDisplay(encodeBallDisplay(0.62, "trouble", "approach", true));
     expect(water.state).toBe("water");
     expect(water.progress).toBeCloseTo(0.62);
+  });
+
+  it("derives marker state from the latest resolved shot", () => {
+    const water = decodeBallDisplay(encodeStepBallDisplay({
+      progress: 0.63,
+      lie: "trouble",
+      nextStage: "approach",
+      shots: [{ penalty: { kind: "water", strokes: 1 } }],
+    }));
+    expect(water.state).toBe("water");
+    expect(water.progress).toBeCloseTo(0.63);
+
+    const short = decodeBallDisplay(encodeStepBallDisplay({
+      progress: 0.9,
+      lie: "fairway",
+      nextStage: "scramble",
+      shots: [{}],
+    }));
+    expect(short.state).toBe("short");
+    expect(short.progress).toBeCloseTo(0.9);
+  });
+
+  it("falls back to the tee when an older response omits display progress", () => {
+    expect(decodeBallDisplay(encodeStepBallDisplay({
+      progress: null,
+      lie: null,
+      nextStage: "tee",
+      shots: [],
+    }))).toEqual({ progress: 0.05, state: "line" });
   });
 });

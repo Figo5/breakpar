@@ -27,3 +27,24 @@ export function decodeBallDisplay(value: number): { progress: number; state: Bal
   if (value <= -1) return { progress: clamp(-value - 1), state: "rough" };
   return { progress: clamp(value), state: "line" };
 }
+
+/** Minimal server-step shape needed to choose the marker treatment. Keeping
+ * this adapter pure gives the play screen and regression tests one shared
+ * contract: a scored hazard must render in water, a missed green short of the
+ * target, and an ordinary lie on/off the fairway as resolved by the engine. */
+export interface BallDisplayStep {
+  progress: number | null | undefined;
+  lie: string | null | undefined;
+  nextStage: string;
+  shots: Array<{ penalty?: unknown }> | null | undefined;
+}
+
+export function encodeStepBallDisplay(step: BallDisplayStep): number {
+  const latest = step.shots?.[step.shots.length - 1];
+  return encodeBallDisplay(
+    typeof step.progress === "number" ? step.progress : 0.05,
+    step.lie ?? null,
+    step.nextStage,
+    !!latest?.penalty,
+  );
+}

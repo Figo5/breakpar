@@ -21,7 +21,7 @@ import { LIE_META, type Lie, type PuttContext, type ShotRecord } from "@/lib/eng
 import { GREEN_META, type GreenResult, type GreenSpeed, type GreenSource } from "@/lib/engine/putting";
 import { OUTCOME_META, type Decision, type Outcome } from "@/lib/engine/probabilities";
 import { relativeLabel } from "@/lib/scoring";
-import { encodeBallDisplay } from "@/lib/ballDisplay";
+import { encodeStepBallDisplay } from "@/lib/ballDisplay";
 import { finishSummary } from "@/lib/finishSummary";
 import type { HazardPenalty } from "@/lib/engine/hazards";
 import {
@@ -239,9 +239,12 @@ function PlayInner() {
         setGreen((data.green as GreenResult) ?? null);
         setPuttCtx((data.putt as PuttContext) ?? null);
         setApproachYards((data.approachYards as number) ?? null);
-        const progress = typeof data.ballT === "number" ? data.ballT : 0.05;
-        const latestShot = Array.isArray(data.shots) ? data.shots[data.shots.length - 1] as ShotRecord | undefined : undefined;
-        setBallT(encodeBallDisplay(progress, nextLie, nextStage, !!latestShot?.penalty));
+        setBallT(encodeStepBallDisplay({
+          progress: data.ballT,
+          lie: nextLie,
+          nextStage,
+          shots: Array.isArray(data.shots) ? data.shots : null,
+        }));
       }
     } catch {
       setError("That shot didn't register. Tap to retry.");
