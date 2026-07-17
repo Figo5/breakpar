@@ -19,6 +19,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       "Added 5 courses: Prairie Dunes, Seminole, Riviera, Muirfield Village, and TPC Potomac. The roster is now 43.",
       "Added all 5 new courses to the regular weekly tournament rotation.",
+      "Added Hall of Fame trophies: hole in one, two eagles in one round, three sub-par rounds in a row, a −15 round, 250 and 500 rounds played, and breaking par on 15 and 25 courses.",
+      "Added career birdie and eagle counters that climb as you play.",
+      "Restored the course name, play mode (practice, daily, tournament, or challenge), and signature-hole labels on the play card.",
+      "Fixed the result screen labeling tournament and challenge rounds as practice.",
     ],
   },
   {
