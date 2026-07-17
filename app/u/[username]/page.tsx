@@ -175,7 +175,16 @@ function FeaturedTrophy({ t }: { t: TrophyState }) {
     <div className={`trophy earned t-${t.tier}`}>
       <div className="trophy-badge"><span className={`tier-dot t-${t.tier}`} /></div>
       <div className="trophy-name">{t.label}</div>
-      {!t.special && <div className="trophy-tier-label">{TIER_META[t.tier].label}</div>}
+      {t.counter ? (
+        // Ever-climbing tally: show the live number instead of the tier label,
+        // matching the Hall of Fame trophy case (see HallTabs TrophyTile).
+        <>
+          <div className="trophy-count">{t.current.toLocaleString()}</div>
+          <div className="trophy-count-unit">{t.unit}</div>
+        </>
+      ) : (
+        !t.special && <div className="trophy-tier-label">{TIER_META[t.tier].label}</div>
+      )}
     </div>
   );
 }
