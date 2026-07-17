@@ -15,6 +15,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-17",
+    items: [
+      "Added 5 courses: Prairie Dunes, Seminole, Riviera, Muirfield Village, and TPC Potomac. The roster is now 43.",
+      "Added all 5 new courses to the regular weekly tournament rotation.",
+    ],
+  },
+  {
     date: "2026-07-16",
     items: [
       "Par-5 choices now distinguish a layup-and-wedge from going for the green in two, and results state whether you reached in two or three.",

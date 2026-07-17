@@ -39,11 +39,25 @@ const EXPECTED_PAR: Record<string, number> = {
   "royal-troon": 71,
   "whispering-pines": 72,
   camargo: 70,
+  // Batch 8 (championship cards cross-checked against club/PGA sources):
+  "prairie-dunes": 70,
+  seminole: 72,
+  riviera: 71,
+  "muirfield-village": 72,
+  "tpc-potomac": 70,
+};
+
+const EXPECTED_YARDAGE: Record<string, number> = {
+  "prairie-dunes": 6947,
+  seminole: 7265,
+  riviera: 7383,
+  "muirfield-village": 7573,
+  "tpc-potomac": 7107,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (38 after batch 7)", () => {
-    expect(COURSES.length).toBe(38);
+  it("roster is the expected size (43 after batch 8)", () => {
+    expect(COURSES.length).toBe(43);
   });
 
   it("every course has 18 holes", () => {
@@ -99,6 +113,14 @@ describe("course catalogue integrity", () => {
       const c = COURSES.find((x) => x.slug === slug);
       expect(c, slug).toBeDefined();
       expect(coursePar(c!), slug).toBe(par);
+    }
+  });
+
+  it("batch 8 courses sum to their documented championship yardage", () => {
+    for (const [slug, yardage] of Object.entries(EXPECTED_YARDAGE)) {
+      const c = COURSES.find((x) => x.slug === slug);
+      expect(c, slug).toBeDefined();
+      expect(c!.holes.reduce((sum, h) => sum + h.yardage, 0), slug).toBe(yardage);
     }
   });
 });

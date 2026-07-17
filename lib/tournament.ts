@@ -78,6 +78,11 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
   "royal-troon",
   "whispering-pines",
   "camargo",
+  "prairie-dunes",
+  "seminole",
+  "riviera",
+  "muirfield-village",
+  "tpc-potomac",
 ];
 
 /**
