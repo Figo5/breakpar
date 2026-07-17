@@ -9,6 +9,12 @@
   --cream:#F7F3E8; --paper:#FBF8EF; --sand:#E7D29A; --ink:#13201A; --ink-soft:#475a50;
   --flag:#D7402F; --gold:#E0A02B; --safe:#2D6A4F;
   --line:rgba(19,32,26,.12); --line-strong:rgba(19,32,26,.22);
+  /* Concept palette shared by Home, play, and every Phase 3 component. Keep
+     these global: 200+ declarations consume the --pm-* token family. */
+  --pm-paper:#F7F4EA; --pm-paper-2:#FBF9F1; --pm-ink:#1B2A17; --pm-ink-soft:#5A6B52;
+  --pm-flag:#C8493A; --pm-flag-soft:#F3C9BE; --pm-amber:#F2C14E;
+  --pm-safe:#3A6B33; --pm-normal:#C99A2E;
+  --pm-line:rgba(27,42,23,.16); --pm-line-strong:rgba(27,42,23,.26);
   /* Shell width — single knob for the whole app. Phone-first; the media queries
      near the bottom widen it on tablet/desktop so lists stop feeling cramped. */
   --app-w:440px;
@@ -226,8 +232,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .profile-empty{text-align:center;font-size:13.5px;color:var(--pm-ink-soft);background:var(--pm-paper-2);border:1px solid var(--pm-line);border-radius:12px;padding:18px 16px;margin:18px 0 4px;line-height:1.5}
 .lb-row.prow{text-decoration:none;color:var(--pm-ink);transition:background .12s}
 .lb-row.prow:hover{background:rgba(27,42,23,.05)}
-.prow .nm{display:flex;align-items:center;gap:8px;min-width:0}
-.prow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .nm{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prow-tag{flex:none;font-family:'Oswald',sans-serif;font-weight:600;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);background:var(--cream);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
 /* Friends (Stage 1) */
 .avatar.sm{width:30px;height:30px;font-size:14px;border-radius:50%;background:var(--fairway);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Anton',sans-serif;overflow:hidden;flex:none}
@@ -433,7 +438,9 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   .trophy-grid{grid-template-columns:repeat(4,1fr)}
 }
 
-/* ===== APPEND THESE TO app/globals.css ===== */
+/* ============================================================================
+   SCREEN-SPECIFIC COMPONENTS
+   ============================================================================ */
 /* --- How It Works explainer -------------------------------------------- */
 .hiw{padding-bottom:28px}
 .hiw-block{margin:0 0 20px}
@@ -467,7 +474,6 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .odds-legend i.good{background:var(--turf-light)} .odds-legend i.rough{background:var(--sand)} .odds-legend i.trouble{background:var(--flag)}
 .odds-toggle{background:none;border:none;color:var(--ink-soft);font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:underline;padding:6px 0;margin-top:4px}
 
-/* ===== APPEND TO app/globals.css ===== */
 /* --- Tournament page --------------------------------------------------- */
 .tourn-preview-badge{background:var(--pm-ink);color:var(--pm-amber);border:1px solid rgba(242,193,78,.35);border-radius:10px;padding:8px 12px;font-size:12.5px;margin:10px 0;text-align:center}
 .tourn-actions{background:var(--pm-paper-2);border:1px solid var(--pm-line);border-radius:14px;padding:16px;margin:14px 0}
@@ -494,21 +500,18 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .tourn-row.me{background:rgba(58,107,51,.1);border:1px solid var(--pm-safe)}
 .tourn-row.wd{opacity:.55}
 .tourn-rank{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--pm-ink-soft);width:24px;flex:none;text-align:center}
-.tourn-name{flex:1;font-size:14px;color:var(--pm-ink);display:flex;align-items:center;gap:7px;min-width:0}
-.tourn-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tourn-name{flex:1;font-size:14px;color:var(--pm-ink);display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tourn-tag{font-family:'Oswald',sans-serif;font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:4px;flex:none}
 .tourn-tag.cut{background:var(--pm-safe);color:#fff}
 .tourn-tag.wd{background:var(--pm-line);color:var(--pm-ink-soft)}
 .tourn-thru{font-family:'Oswald',sans-serif;font-size:12px;color:var(--pm-ink-soft);width:34px;flex:none;text-align:right}
 .tourn-score{font-family:'Oswald',sans-serif;font-weight:700;font-size:14px;color:var(--pm-ink);width:44px;flex:none;text-align:right}
 
-/* ===== APPEND TO app/globals.css ===== */
 /* --- Tournament teaser: live state ------------------------------------- */
 .tease-soon.live{background:var(--pm-flag);color:#fff;animation:pulse-live 2s ease-in-out infinite}
 @keyframes pulse-live{0%,100%{opacity:1}50%{opacity:.6}}
 .tease-btn.live{background:var(--pm-flag);color:#fff;border-color:var(--pm-flag);cursor:pointer;opacity:1}
 
-/* ===== APPEND TO app/globals.css ===== */
 /* --- Tournament: champion banner + current cutline --------------------- */
 .tourn-champion{text-align:center;background:linear-gradient(160deg,#f8f1d8,#f0e4b8);border:1px solid #d9c67e;border-radius:14px;padding:18px 16px;margin:14px 0}
 .tourn-champion-label{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8a7526;margin-top:4px}
@@ -518,13 +521,10 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .tourn-cutline b{color:var(--pm-flag);font-size:15px}
 .tourn-cutline-sub{color:var(--pm-ink-soft);font-size:12px}
 
-/* ===== APPEND TO app/globals.css ===== */
- 
 /* --- Tournament: top back link (field can be 100s deep) ---------------- */
 .eyebrow-back{cursor:pointer;text-decoration:none;transition:opacity .15s}
 .eyebrow-back:hover{opacity:.65}
 
-/* ===== APPEND TO app/globals.css ===== */
 /* --- Odds reveal: multi-stage (tee/approach/putt/short-game) ----------- */
 .odds-reveal-title{font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--fairway);margin-bottom:10px;text-align:center}
 .odds-stage{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
@@ -612,17 +612,6 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
        Play is the one screen allowed to use the wider desktop shell because a
        yardage-book map benefits directly from the extra canvas.
    ============================================================================ */
-/* Concept palette tokens — used across EVERY screen (Home's dark banner/CTAs,
-   chips, cards, etc.), not just the play screen. They live here with the play
-   block for historical reasons; if this block ever moves or is rewritten, these
-   MUST be preserved — dropping them un-defines 200+ var(--pm-*) references app-
-   wide and silently blanks every dark surface. */
-:root{
-  --pm-paper:#F7F4EA; --pm-paper-2:#FBF9F1; --pm-ink:#1B2A17; --pm-ink-soft:#5A6B52;
-  --pm-flag:#C8493A; --pm-flag-soft:#F3C9BE; --pm-amber:#F2C14E;
-  --pm-safe:#3A6B33; --pm-normal:#C99A2E;
-  --pm-line:rgba(27,42,23,.16); --pm-line-strong:rgba(27,42,23,.26);
-}
 .play{width:100%;min-height:100dvh;background:var(--pm-ink);display:flex;flex-direction:column;padding:20px 16px 40px}
 .play-progress{width:100%;max-width:680px;height:3px;background:rgba(255,255,255,.14);margin:0 auto 14px;border-radius:99px;overflow:hidden;flex:none}
 .play-progress>i{display:block;height:100%;background:var(--pm-flag);transition:width .3s ease}
