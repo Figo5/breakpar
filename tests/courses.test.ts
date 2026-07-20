@@ -45,6 +45,14 @@ const EXPECTED_PAR: Record<string, number> = {
   riviera: 71,
   "muirfield-village": 72,
   "tpc-potomac": 70,
+  // Batch 9 — NY/NJ (fully verified from official BlueGolf scorecards, except
+  // Oak Hill which uses the published 2023 PGA Championship hole-by-hole card):
+  "baltusrol-lower": 72,
+  "quaker-ridge": 70,
+  // NOTE: Fishers Island is par 70, not 72 — the real card is 35/35 (6,597 yds).
+  "fishers-island": 70,
+  "oak-hill-east": 70,
+  "somerset-hills": 71,
 };
 
 const EXPECTED_YARDAGE: Record<string, number> = {
@@ -53,11 +61,17 @@ const EXPECTED_YARDAGE: Record<string, number> = {
   riviera: 7383,
   "muirfield-village": 7573,
   "tpc-potomac": 7107,
+  // Batch 9 — championship-tee totals from the same sources as the pars above.
+  "baltusrol-lower": 7550,
+  "quaker-ridge": 7023,
+  "fishers-island": 6597,
+  "oak-hill-east": 7394,
+  "somerset-hills": 6703,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (43 after batch 8)", () => {
-    expect(COURSES.length).toBe(43);
+  it("roster is the expected size (48 after batch 9)", () => {
+    expect(COURSES.length).toBe(48);
   });
 
   it("every course has 18 holes", () => {
@@ -116,7 +130,7 @@ describe("course catalogue integrity", () => {
     }
   });
 
-  it("batch 8 courses sum to their documented championship yardage", () => {
+  it("batch 8 + 9 courses sum to their documented championship yardage", () => {
     for (const [slug, yardage] of Object.entries(EXPECTED_YARDAGE)) {
       const c = COURSES.find((x) => x.slug === slug);
       expect(c, slug).toBeDefined();
