@@ -59,9 +59,23 @@ export function TournamentActions({
     }
   }
 
+  // The start weekday is DERIVED from startsAt, never hardcoded: the schedule has
+  // already moved once (Monday-start -> Tuesday-start) and left this label saying
+  // "Monday" while the countdown beside it correctly ticked to Tuesday. Deriving
+  // it means the copy can never drift from the data again.
+  //
+  // Formatted in America/New_York because that's the timezone the schedule itself
+  // is anchored to (see lib/daily.ts) — and because pinning the zone makes this
+  // client component render identically on the server, avoiding a hydration
+  // mismatch that an implicit local timezone would cause.
+  const startDay = new Date(view.startsAt).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "America/New_York",
+  });
+
   const phaseLabel =
     view.phase === "upcoming"
-      ? "Starts Monday"
+      ? `Starts ${startDay}`
       : view.phase === "round1_2"
         ? "Rounds 1 & 2 · cut closes in"
         : view.phase === "round3_4"
@@ -77,7 +91,7 @@ export function TournamentActions({
         </div>
         {isAccount ? (
           me?.joined ? (
-            <div className="tourn-joined">✓ You&apos;re in — first tee Monday.</div>
+            <div className="tourn-joined">✓ You&apos;re in — first tee {startDay}.</div>
           ) : (
             <button className="cta green" onClick={join} disabled={busy}>
               {busy ? "Joining…" : "Join the tournament"}
