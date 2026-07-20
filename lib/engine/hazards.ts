@@ -23,10 +23,20 @@ export interface HazardPenalty {
 
 /** Share of an already-bad destination that actually finds the marked hazard.
  * The ordinary tee/approach tables still determine how often trouble/misses
- * happen, so aggressive choices naturally create more total penalty risk. */
+ * happen, so aggressive choices naturally create more total penalty risk.
+ *
+ * RETUNED 0.35 -> 0.20 (Jul 2026): at 0.35 the penalty taxed hazard-heavy
+ * courses' whole-field mean by up to +1.45 strokes/round (Muirfield Village,
+ * 12 wet holes — measured in the shared-seed field sim and corroborated by the
+ * W29 Torrey wet/dry hole split: wet holes -0.09 -> +0.09 while dry holes
+ * IMPROVED post-deploy). 0.20 halves the tax (+0.75 at Muirfield) while water
+ * stays consequential. Island misses are unchanged on purpose — an island green
+ * with no bailout SHOULD always be water. The per-course mean gate in
+ * scripts/calibrate.ts now guards this number: move it deliberately, update the
+ * band in the same commit. */
 export const HAZARD_PENALTY_RATE = {
-  teeTrouble: 0.35,
-  approachMiss: 0.35,
+  teeTrouble: 0.2,
+  approachMiss: 0.2,
   islandMiss: 1,
 } as const;
 

@@ -24,3 +24,6 @@ next-env.d.ts
 
 # ad-hoc review screenshots (not build artifacts, not source)
 /review-screenshots/
+
+# weekly tournament field-mean log (prod data, user-local)
+field-means.jsonl
