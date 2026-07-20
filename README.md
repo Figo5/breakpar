@@ -237,6 +237,11 @@ npx prisma migrate resolve --applied <timestamp>_init
 - Course data is representative — swap in curated real numbers before launch.
 - Monetization (premium gate, ads) and friends leagues are not built yet; the schema
   leaves room for them.
+- **Calibration headroom is thin.** With batch 9 (48 courses) and the water-penalty
+  retune to 0.20 combined, smart play breaks par at 33.1% against a `[26–34%]` CI
+  band — only 0.9pts of margin. Any future change that makes scoring easier is
+  calibration-sensitive until the band is deliberately re-widened or difficulty is
+  re-tuned; run `npm run engine:calibrate` before assuming otherwise.
 
 ## 🤝 Contributing
 

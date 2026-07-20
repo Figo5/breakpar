@@ -215,6 +215,16 @@ describe("tournament course rotation", () => {
       "st-andrews-old",
       "pinehurst-no2",
       "royal-birkdale",
+      // Batch 9 (NY/NJ) — seeded and playable, but deliberately HELD OUT of the
+      // tournament rotation pending a call on which belong there. Not crown
+      // jewels; move them into TOURNAMENT_COURSE_POOL and delete these lines
+      // once that's decided. Note adding any of them shifts the rotation for
+      // every future week (the index is ordinal % pool.length).
+      "baltusrol-lower",
+      "quaker-ridge",
+      "fishers-island",
+      "oak-hill-east",
+      "somerset-hills",
     ]);
     const expected = COURSES.map((course) => course.slug).filter((slug) => !reserved.has(slug));
     expect(new Set(TOURNAMENT_COURSE_POOL)).toEqual(new Set(expected));
