@@ -19,6 +19,7 @@ import { holeDifficulty, type HoleSpec } from "../lib/engine/resolveHole";
 import { resolveHoleChain, type ChainResult } from "../lib/engine/shots";
 import { type Decision, type Outcome } from "../lib/engine/probabilities";
 import { AGGRESSIVE_BUDGET } from "../lib/holeRead";
+import { holeShotSeed, eventSeed as evSeed, hazardSeed as hzSeed, scoringEventSeed as scSeed, mulberry32, hashSeed } from "../lib/engine/rng";
 
 const N = 40_000;
 
@@ -268,6 +269,188 @@ for (const [name, p] of Object.entries(players)) {
     `           same-choice no-event baseline: breakPar ${baselineBreakPct.toFixed(1)}% · avg ${baselineMean >= 0 ? "+" : ""}${baselineMean.toFixed(1)}`
   );
 }
+
+// ---------------------------------------------------------------------------
+// SHARED-SEED FIELD SPREAD — the tournament-fairness check.
+//
+// Everything above draws an independent seed per round, which models daily
+// play. Tournaments don't work like that: every player in a round shares one
+// seedKey, so ALL RNG namespaces (shots, events, hazards, scoring events) are
+// identical across the field and within-field spread comes only from decision
+// divergence. That spread is what a tournament leaderboard actually ranks.
+//
+// SPEC-5 shipped through the mean-only gate above while raising the real
+// within-field stdev at Torrey W29 from 1.42 to 2.44 (+72%) on the same seed —
+// players felt it as "every round seems increasingly random". This section
+// exists so a change like that can never pass calibration silently again.
+//
+// Panel: a mixed field (skilled/good/greedy/naive with per-player threshold
+// jitter) played on S shared seeds per course; we report the average
+// within-field stdev and the seed-to-seed spread of the field mean (the "hot
+// seed day" driver — Pebble W28 R1 averaged -7.63 vs -1.5 on its other rounds).
+// ---------------------------------------------------------------------------
+const FIELD_SEEDS = 60;
+const FIELD_PANEL = 32;
+// Course classes: hazard-free / mid / heavy — hazard exposure is what splits
+// behavior post-SPEC-5, so the gate is per-class, not global.
+const FIELD_COURSES = ["riviera", "torrey-pines-south", "muirfield-village"] as const;
+// Regression tripwire, not a target: bands bracket the CURRENT engine's
+// measured values (set from scripts/seed-band-investigation.ts, Jul 20 2026).
+// A deliberate retune should move these numbers on purpose — update the band in
+// the same commit and say so. Drifting outside the band by accident fails CI.
+// Measured on the current engine (Jul 20 2026, post pen-0.20 retune): riviera
+// 1.12, torrey 1.36, muirfield 1.37 — bands are those values ±0.4, wide enough
+// for sim noise, tight enough that a SPEC-5-scale shift (+0.5-1.0) trips CI.
+const FIELD_SPREAD_BAND: Record<(typeof FIELD_COURSES)[number], { min: number; max: number }> = {
+  riviera: { min: 0.72, max: 1.52 },
+  "torrey-pines-south": { min: 0.96, max: 1.76 },
+  "muirfield-village": { min: 0.97, max: 1.77 },
+};
+
+// PER-COURSE MEAN GATE — the check that would have caught SPEC-5's real harm.
+// The water penalty at 0.35 moved Muirfield's whole-field mean by +1.45
+// strokes/round while every aggregate statistic stayed in band, because the
+// main calibration averages across all courses. Gating the field MEAN per
+// hazard class makes a course-conditional difficulty shift fail CI loudly.
+// ASYMMETRIC on purpose. The regression risk is one-directional: wet-course
+// means creeping back UP toward the pre-retune tax (torrey +1.71, muirfield
+// +3.20 at pen 0.35). So the lower bound is measured -0.6 (headroom for
+// legitimate changes making scoring easier) while the upper bound is measured
+// +0.15 — tight enough that BOTH old values fail (torrey by 0.15, muirfield by
+// 0.51; +0.3 would put old-torrey exactly on the line). Tightness is free:
+// this section runs on FIXED seeds, so run-to-run noise is zero and the gate
+// can only trip when engine outcomes genuinely change. Measured Jul 20 2026,
+// pen 0.20: riviera +1.62, torrey +1.41, muirfield +2.54. Same discipline as
+// every band here: a deliberate retune updates the band in the same commit;
+// accidental drift fails.
+const FIELD_MEAN_BAND: Record<(typeof FIELD_COURSES)[number], { min: number; max: number }> = {
+  riviera: { min: 1.02, max: 1.77 },
+  "torrey-pines-south": { min: 0.81, max: 1.56 },
+  "muirfield-village": { min: 1.94, max: 2.69 },
+};
+
+interface FieldPlayer { arch: "skilled" | "good" | "greedy" | "naive"; j: number; charge: boolean }
+
+function fieldPanel(): FieldPlayer[] {
+  const out: FieldPlayer[] = [];
+  for (let i = 0; i < FIELD_PANEL; i++) {
+    const r = mulberry32(hashSeed(`calib-panel:${i}`));
+    const a = r();
+    out.push({
+      arch: a < 0.5 ? "skilled" : a < 0.8 ? "good" : a < 0.92 ? "greedy" : "naive",
+      j: (r() - 0.5) * 0.24,
+      charge: r() < 0.5,
+    });
+  }
+  return out;
+}
+
+function fieldDecide(p: FieldPlayer, kind: "tee" | "approach" | "putt" | "scramble", h: HoleSpec, d: number, lie: string | null, bucket: "short" | "long" | null, st: State): Decision {
+  if (p.arch === "naive") return "normal";
+  if (p.arch === "greedy") return kind === "putt" && bucket === "long" ? "normal" : "aggressive";
+  if (p.arch === "good") {
+    if (kind === "tee") return st.aggrLeft > 0 && d < 0.34 + p.j ? "aggressive" : d > 0.62 + p.j ? "safe" : "normal";
+    if (kind === "approach") {
+      if (lie === "trouble") return "safe";
+      if (h.par === 5 && st.aggrLeft > 0 && (lie === "dialed" || lie === "fairway")) return "aggressive";
+      return st.aggrLeft > 0 && (lie === "dialed" || lie === "fairway") ? "aggressive" : "normal";
+    }
+    if (kind === "putt") return bucket === "short" ? "normal" : "safe";
+    return "normal";
+  }
+  if (kind === "tee") {
+    const behind = st.rel >= 0;
+    let attackBelow = 0.32 + p.j;
+    if (behind && st.holesLeft <= 9) attackBelow = 0.46 + p.j;
+    if (behind && st.holesLeft <= 4) attackBelow = 0.62 + p.j;
+    if (st.rel <= -2 && st.holesLeft <= 6) attackBelow = 0.18 + p.j;
+    if (st.aggrLeft > 0 && d < attackBelow) return "aggressive";
+    return d > 0.6 && !(behind && st.holesLeft <= 4) ? "safe" : "normal";
+  }
+  if (kind === "approach") {
+    if (lie === "trouble") return st.rel >= 1 && st.holesLeft <= 3 && st.aggrLeft > 0 ? "aggressive" : "safe";
+    if (h.par === 5 && st.aggrLeft > 0 && (lie === "dialed" || lie === "fairway") && d < 0.55 + p.j) return "aggressive";
+    if (lie === "rough") return st.aggrLeft > 0 && st.rel >= 0 && st.holesLeft <= 8 ? "aggressive" : "normal";
+    return st.aggrLeft > 0 && d < 0.5 + p.j ? "aggressive" : "normal";
+  }
+  if (kind === "putt") {
+    if (bucket === "short") return p.charge && st.rel >= 0 && st.holesLeft <= 8 ? "aggressive" : "normal";
+    return st.rel >= 2 && st.holesLeft <= 3 ? "normal" : "safe";
+  }
+  return st.rel >= 1 && st.holesLeft <= 6 ? "aggressive" : "normal";
+}
+
+console.log("\nSHARED-SEED FIELD SPREAD (tournament model: one seed per round, whole field)");
+const fieldFailures: string[] = [];
+for (const slug of FIELD_COURSES) {
+  const course = COURSES.find((c) => c.slug === slug);
+  if (!course) { console.log(`  ${slug}: not in roster — skipped`); continue; }
+  const panel = fieldPanel();
+  const par = coursePar(course);
+  const cond = { difficulty: course.difficulty, wind: course.wind };
+  const seedMeans: number[] = [];
+  const stdevs: number[] = [];
+  for (let s = 0; s < FIELD_SEEDS; s++) {
+    const seedRef = `calibrate-field:${slug}:${s}`;
+    const rels: number[] = [];
+    for (const p of panel) {
+      const st: State = { rel: 0, holesLeft: course.holes.length, aggrLeft: AGGRESSIVE_BUDGET };
+      let total = 0;
+      const recent: Outcome[] = [];
+      for (let hi = 0; hi < course.holes.length; hi++) {
+        const h = course.holes[hi];
+        const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex };
+        const d = holeDifficulty(spec, cond);
+        st.holesLeft = course.holes.length - hi;
+        const opts = {
+          shotSeed: (x: number) => holeShotSeed(seedRef, h.number, x),
+          eventSeed: (x: number) => evSeed(seedRef, h.number, x),
+          hazardSeed: (x: number) => hzSeed(seedRef, h.number, x),
+          scoringEventSeed: (x: number) => scSeed(seedRef, h.number, x),
+          greens: course.greens, recent, narration: false as const,
+          holeContext: { hazard: h.hazard, signature: h.signature },
+        };
+        const decisions: Decision[] = [];
+        let res: ChainResult = resolveHoleChain(decisions, spec, cond, opts);
+        let guard = 0;
+        while (!res.complete && guard++ < 5) {
+          let dec = fieldDecide(p, res.next === "tee" ? "tee" : res.next === "approach" ? "approach" : res.next === "putt" ? "putt" : "scramble", spec, d, res.lie ?? null, res.putt?.bucket ?? null, st);
+          if ((res.next === "tee" || res.next === "approach") && dec === "aggressive") {
+            if (st.aggrLeft <= 0) dec = "normal"; else st.aggrLeft--;
+          }
+          decisions.push(dec);
+          res = resolveHoleChain(decisions, spec, cond, opts);
+        }
+        total += h.par + (res.scoreDelta ?? 0);
+        st.rel += res.scoreDelta ?? 0;
+        recent.push(res.outcome as Outcome);
+      }
+      rels.push(total - par);
+    }
+    const m = rels.reduce((a, b) => a + b, 0) / rels.length;
+    seedMeans.push(m);
+    stdevs.push(Math.sqrt(rels.reduce((a, b) => a + (b - m) ** 2, 0) / rels.length));
+  }
+  const fieldStdev = stdevs.reduce((a, b) => a + b, 0) / stdevs.length;
+  const mm = seedMeans.reduce((a, b) => a + b, 0) / seedMeans.length;
+  const seedSpread = Math.sqrt(seedMeans.reduce((a, b) => a + (b - mm) ** 2, 0) / seedMeans.length);
+  const band = FIELD_SPREAD_BAND[slug];
+  const ok = fieldStdev >= band.min && fieldStdev <= band.max;
+  if (!ok) fieldFailures.push(`${slug} within-field stdev ${fieldStdev.toFixed(2)} outside [${band.min}-${band.max}]`);
+  const meanBand = FIELD_MEAN_BAND[slug];
+  const meanOk = mm >= meanBand.min && mm <= meanBand.max;
+  if (!meanOk) fieldFailures.push(`${slug} field mean ${mm >= 0 ? "+" : ""}${mm.toFixed(2)} outside [+${meanBand.min}..+${meanBand.max}]`);
+  console.log(
+    `  ${slug.padEnd(22)} within-field stdev ${fieldStdev.toFixed(2)} [${band.min}-${band.max}] ${ok ? "✓" : "✗"}` +
+      `   field mean ${mm >= 0 ? "+" : ""}${mm.toFixed(2)} [+${meanBand.min}..+${meanBand.max}] ${meanOk ? "✓" : "✗"}` +
+      `   seed-to-seed spread ${seedSpread.toFixed(2)}`
+  );
+}
+if (fieldFailures.length) {
+  console.error(`\n✗ shared-seed field checks out of band: ${fieldFailures.join("; ")}`);
+  process.exit(1);
+}
+console.log("✓ shared-seed field spread + per-course means within band (all classes)");
 
 const gap = results.skilled - results.naive;
 const gapGreedy = results.skilled - results.greedy;
