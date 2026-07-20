@@ -95,19 +95,20 @@ type TournamentRow = {
  * first tournament is created lazily the first time anyone views tournaments.
  */
 async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow | null> {
-  // If a tournament is currently live (start <= now < end), use it; otherwise
-  // create/fetch the one for the upcoming week.
-  const live = (await prisma.tournament.findFirst({
-    where: { startsAt: { lte: now }, endsAt: { gt: now } },
-    orderBy: { startsAt: "desc" },
-  })) as TournamentRow | null;
-  if (live) return live;
-
-  // ROOT-CAUSE GUARD (the launch-event bug): before rolling forward, settle any
-  // tournament that ENDED but was never settled. The lazy settle used to run
-  // only against whatever this function returned, so once an event's endsAt
-  // passed it fell out of the window and its settle never ran — orphaning the
-  // champion. Sweep them here so it can never happen again.
+  // ROOT-CAUSE GUARD: settle any tournament that ENDED but was never settled.
+  //
+  // THIS MUST RUN BEFORE THE `live` EARLY-RETURN BELOW. It previously sat after
+  // it, which silently defeated it: the moment the next week's event went live,
+  // `if (live) return live` fired and the sweep became unreachable, so the event
+  // that had just ended never settled. That is exactly how Torrey Pines
+  // (2026-W29) was orphaned — 118 players completed all four rounds and
+  // winnerUserId stayed null, leaving the PREVIOUS event's champion stuck on the
+  // results banner while the real champion went uncrowned.
+  //
+  // Weeks overlap at the boundary by design (one ends 00:00 Mon, the next starts
+  // 00:00 Tue), so "something is live" and "something just ended unsettled" are
+  // routinely true at the same moment. Sweeping first is what makes settling
+  // independent of whatever else happens to be running.
   const orphans = (await prisma.tournament.findMany({
     where: { endsAt: { lte: now }, winnerUserId: null },
   })) as TournamentRow[];
@@ -115,6 +116,14 @@ async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow 
     if (!o.cutComputedAt) await runCut(o.id);
     await settleTournament(o.id);
   }
+
+  // If a tournament is currently live (start <= now < end), use it; otherwise
+  // create/fetch the one for the upcoming week.
+  const live = (await prisma.tournament.findFirst({
+    where: { startsAt: { lte: now }, endsAt: { gt: now } },
+    orderBy: { startsAt: "desc" },
+  })) as TournamentRow | null;
+  if (live) return live;
 
   const sched = scheduleForUpcoming(now);
 
