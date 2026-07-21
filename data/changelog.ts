@@ -15,12 +15,34 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-21",
+    items: [
+      "Added 5 courses: Congressional Blue, Royal County Down, Ballybunion Old, Sand Hills, and Turnberry Ailsa. The roster is now 53.",
+      "Added sorting and filtering to the courses page. Sort by most played, hardest, or A–Z, and filter by difficulty, style, region, or whether you've played a course yet.",
+      "Added a round count to each course card, so you can see what everyone else is playing.",
+      "Every course except the reserved major venues is now in the weekly tournament rotation — 48 in all, so a full cycle runs about eleven months.",
+      "Royal County Down joins Augusta, St Andrews, Pinehurst, and Royal Birkdale as a course held back for special weeks.",
+      "Weekly tournaments now advance on a schedule instead of waiting for someone to open the page, so a week can no longer be skipped.",
+      "The champion banner now clears itself when a week produces no winner, instead of leaving an older champion up.",
+    ],
+  },
+  {
+    date: "2026-07-20",
+    items: [
+      "Added 5 courses: Baltusrol Lower, Quaker Ridge, Fishers Island, Oak Hill East, and Somerset Hills. The roster is now 48.",
+      "Fixed the weekly tournament champion never being crowned once the next week's event started, which left the previous winner showing on the results banner.",
+      "Reduced how often water and ocean hazards add a penalty stroke. Hazard-heavy courses had been playing up to a stroke and a half per round harder than intended.",
+      "Fixed the tournament page reading “Starts Monday” while the countdown beside it ran to Tuesday.",
+    ],
+  },
+  {
     date: "2026-07-17",
     items: [
       "Added 5 courses: Prairie Dunes, Seminole, Riviera, Muirfield Village, and TPC Potomac. The roster is now 43.",
       "Added all 5 new courses to the regular weekly tournament rotation.",
       "Added Hall of Fame trophies: hole in one, two eagles in one round, three sub-par rounds in a row, a −15 round, 250 and 500 rounds played, and breaking par on 15 and 25 courses.",
       "Added career birdie and eagle counters that climb as you play.",
+      "Fixed the birdie and eagle counters showing no number on public profiles.",
       "Restored the course name, play mode (practice, daily, tournament, or challenge), and signature-hole labels on the play card.",
       "Fixed the result screen labeling tournament and challenge rounds as practice.",
     ],
