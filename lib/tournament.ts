@@ -41,9 +41,21 @@ import { nextMonday, easternMidnight, dateKey } from "@/lib/daily";
  */
 
 /** Regular weekly rotation. Deterministic order; loops when exhausted.
- * NOTE: pebble-beach is intentionally NOT here — it was the launch tournament
- * (week 1) and shouldn't come back around for a while. It's still available as
- * a hand-picked override whenever you want it. */
+ *
+ * This is now EVERY course on the roster except the crown jewels — one full
+ * cycle is ~11 months, so nothing repeats often enough to feel stale, and a
+ * course no longer has to earn its way in. The only reason to keep a course out
+ * is that it should feel like an event, which is what the crown-jewel list and
+ * TOURNAMENT_COURSE_OVERRIDES below are for.
+ *
+ * Two courses that used to be held out are now in:
+ *   - pebble-beach was the launch event and was parked so it wouldn't come
+ *     straight back. At 48 courses "a while" is nearly a year, so it's safe.
+ *   - winged-foot-west was reserved for the 2026-W29 override. That week is in
+ *     the past, so there's no double-appearance left to avoid.
+ *
+ * `tests/tournament.test.ts` asserts pool == roster minus the crown jewels, so
+ * a newly added course joins the rotation automatically and can't be forgotten. */
 export const TOURNAMENT_COURSE_POOL: string[] = [
   "bethpage-black",
   "chambers-bay",
@@ -57,8 +69,6 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
   "harbour-town",
   "royal-portrush-dunluce",
   "pacific-dunes",
-  // Winged Foot is reserved by the W29 override below. Keeping an override in
-  // the regular pool would make it appear twice within a full rotation cycle.
   "tpc-sawgrass",
   "shinnecock-hills",
   "cypress-point",
@@ -84,6 +94,21 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
   "riviera",
   "muirfield-village",
   "tpc-potomac",
+  // Previously held out; see the note above.
+  "pebble-beach",
+  "winged-foot-west",
+  // Batch 9 (NY/NJ)
+  "baltusrol-lower",
+  "quaker-ridge",
+  "fishers-island",
+  "oak-hill-east",
+  "somerset-hills",
+  // Batch 10
+  "congressional-blue",
+  // Batch 11 (Royal County Down is a crown jewel, so it is deliberately absent)
+  "ballybunion-old",
+  "sand-hills",
+  "turnberry-ailsa",
 ];
 
 /**
@@ -98,12 +123,18 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
  * Example:
  *   "2026-W29": "augusta-national",   // The Masters week
  *   "2026-W33": "st-andrews-old",     // The Open week
+ *
+ * ONE RULE WORTH KNOWING: overriding a week to a course that is ALSO in the
+ * regular pool makes that course appear twice in a cycle and silently drops
+ * whatever the rotation would have played that week. Crown jewels avoid this by
+ * construction (they're never in the pool), which is the main reason to reach
+ * for one when picking a major week.
+ *
+ * Empty by design right now — the 2026-W29 -> winged-foot-west entry was
+ * removed once that week was in the past. It had stopped doing anything (the
+ * event actually ran on Torrey Pines) while still costing the rotation a slot.
  */
-export const TOURNAMENT_COURSE_OVERRIDES: Record<string, string> = {
-  // Week 2 of tournaments — hand-picked. (Rotation would have given Chambers Bay;
-  // pinned to Winged Foot West. Rotation resumes normally from W30.)
-  "2026-W29": "winged-foot-west",
-};
+export const TOURNAMENT_COURSE_OVERRIDES: Record<string, string> = {};
 
 /** Fallback if a configured slug is ever missing from the roster. */
 export const TOURNAMENT_FALLBACK_SLUG = "pebble-beach";
