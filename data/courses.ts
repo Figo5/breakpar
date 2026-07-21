@@ -1402,6 +1402,33 @@ export const COURSES: Course[] = [
       [4, 340, 14, "S", "sand"],
     ]),
   },
+  {
+    slug: "congressional-blue",
+    name: "Congressional — Blue",
+    location: "Bethesda, Maryland",
+    rating: 78.0, slope: 140, difficulty: 9, wind: 7, windDir: 200, greens: "Fast",
+    blurb: "Washington's championship monster — 7,800 yards through the Maryland hardwoods, reborn under Andrew Green and finishing beside the lake.",
+    holes: holes([
+      [4, 445, 11, "L", "sand"],
+      [3, 275, 15, "S", "sand", "A monster uphill one-shotter — the hardest par 3 on the property"],
+      [4, 465, 7, "S", "sand"],
+      [4, 490, 1, "R", "sand", "The card's hardest — 490 yards of par 4 with nowhere to bail out"],
+      [4, 415, 9, "L", "sand"],
+      [5, 565, 5, "R", "sand"],
+      [3, 185, 17, "S", "sand"],
+      [4, 370, 13, "S", "none"],
+      [5, 660, 3, "L", "sand", "660 yards — three full shots just to reach the green"],
+      [3, 170, 16, "S", "water", "The Blue's most famous hole — downhill off the tee with water the whole way"],
+      [5, 550, 10, "R", "sand"],
+      [4, 455, 12, "S", "sand"],
+      [3, 200, 18, "S", "sand"],
+      [4, 470, 4, "R", "sand"],
+      [4, 480, 2, "L", "sand"],
+      [5, 610, 6, "S", "sand"],
+      [4, 495, 8, "R", "sand"],
+      [4, 520, 14, "S", "water", "Where McIlroy closed out the 2011 U.S. Open at a record 16 under"],
+    ]),
+  },
 ];
 
 export const coursePar = (c: Course) =>

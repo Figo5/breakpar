@@ -225,6 +225,10 @@ describe("tournament course rotation", () => {
       "fishers-island",
       "oak-hill-east",
       "somerset-hills",
+      // Congressional — same holding pattern as batch 9 above, for the same
+      // reason: pool placement is a deliberate call, not an automatic
+      // consequence of seeding a course.
+      "congressional-blue",
     ]);
     const expected = COURSES.map((course) => course.slug).filter((slug) => !reserved.has(slug));
     expect(new Set(TOURNAMENT_COURSE_POOL)).toEqual(new Set(expected));
