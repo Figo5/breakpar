@@ -115,6 +115,23 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .cc-blurb{font-size:12.5px;color:var(--pm-ink-soft);margin-top:8px;line-height:1.45}
 .chip.cc-best{background:var(--pm-ink);color:var(--pm-paper);border-color:var(--pm-ink);font-weight:600}
 
+/* --- /courses filter + sort bar ------------------------------------------ */
+.cf-bar{margin:14px 0 4px;padding:12px 13px;background:var(--pm-paper-2);border:1px solid var(--pm-line);border-radius:14px;
+  display:flex;flex-direction:column;gap:9px}
+.cf-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cf-label{font-family:'Oswald',sans-serif;font-weight:600;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--pm-ink-soft);flex:0 0 62px}
+.cf-chip{font-family:'Inter',sans-serif;font-size:11.5px;line-height:1;padding:6px 10px;border-radius:999px;cursor:pointer;
+  color:var(--pm-ink);background:var(--pm-paper);border:1px solid var(--pm-line);transition:background .12s,border-color .12s,color .12s}
+.cf-chip:hover{border-color:var(--pm-line-strong)}
+.cf-chip.on{background:var(--pm-ink);color:var(--pm-paper);border-color:var(--pm-ink);font-weight:600}
+.cf-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:2px}
+.cf-count{font-family:'Inter',sans-serif;font-size:11.5px;color:var(--pm-ink-soft)}
+.cf-clear{font-family:'Inter',sans-serif;font-size:11.5px;color:var(--pm-ink-soft);background:none;border:none;padding:0;
+  cursor:pointer;text-decoration:underline}
+.cf-clear:hover{color:var(--pm-ink)}
+@media (max-width:520px){ .cf-label{flex-basis:100%} }
+
 .prompt{font-family:'Oswald',sans-serif;font-weight:600;text-align:center;font-size:14px;letter-spacing:.04em;color:var(--ink-soft);margin:16px 0 12px;text-transform:uppercase}
 .choices{display:flex;flex-direction:column;gap:10px}
 .choice{display:flex;align-items:center;gap:13px;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:13px 15px;cursor:pointer;text-align:left;font-family:inherit;transition:transform .1s,border-color .15s}
