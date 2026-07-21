@@ -208,43 +208,32 @@ describe("tournament course rotation", () => {
   });
 
   it("includes every regular roster course", () => {
+    // The ONLY courses out of the weekly rotation are the crown jewels. They're
+    // override-only so they read as events rather than as another Tuesday; every
+    // other course rotates. Keeping this list to exactly the jewels means a new
+    // course joins the rotation automatically and can't be silently forgotten.
     const reserved = new Set([
-      "pebble-beach",
-      "winged-foot-west",
       "augusta-national",
       "st-andrews-old",
       "pinehurst-no2",
       "royal-birkdale",
-      // Crown jewel — override-only, like the four above. Widely ranked the best
-      // course outside the US, so it earns event billing rather than a routine
-      // slot in the weekly rotation.
       "royal-county-down",
-      // Batch 9 (NY/NJ) — seeded and playable, but deliberately HELD OUT of the
-      // tournament rotation pending a call on which belong there. Not crown
-      // jewels; move them into TOURNAMENT_COURSE_POOL and delete these lines
-      // once that's decided. Note adding any of them shifts the rotation for
-      // every future week (the index is ordinal % pool.length).
-      "baltusrol-lower",
-      "quaker-ridge",
-      "fishers-island",
-      "oak-hill-east",
-      "somerset-hills",
-      // Congressional — same holding pattern as batch 9 above, for the same
-      // reason: pool placement is a deliberate call, not an automatic
-      // consequence of seeding a course.
-      "congressional-blue",
-      // Batch 11 — same holding pattern (Royal County Down is separate, above:
-      // it's a crown jewel rather than merely undecided).
-      "ballybunion-old",
-      "sand-hills",
-      "turnberry-ailsa",
     ]);
     const expected = COURSES.map((course) => course.slug).filter((slug) => !reserved.has(slug));
     expect(new Set(TOURNAMENT_COURSE_POOL)).toEqual(new Set(expected));
   });
 
-  it("pebble-beach is out of the pool (it was the launch tournament)", () => {
-    expect(TOURNAMENT_COURSE_POOL.includes("pebble-beach")).toBe(false);
+  it("an override never collides with a pooled course", () => {
+    // Overriding a week to a course that is also in the rotation makes that
+    // course appear twice per cycle and silently drops the week the rotation
+    // would have played. Crown jewels are safe by construction; this catches
+    // anything else being pinned by hand.
+    for (const [week, slug] of Object.entries(TOURNAMENT_COURSE_OVERRIDES)) {
+      expect(
+        TOURNAMENT_COURSE_POOL.includes(slug),
+        `${week} overrides to ${slug}, which is also in the regular pool`
+      ).toBe(false);
+    }
   });
 
   it("no course appears twice in the pool", () => {
