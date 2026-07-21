@@ -61,6 +61,7 @@ const REGION_BY_PLACE: Record<string, Region> = {
   Michigan: "midwest",
   Missouri: "midwest",
   Kansas: "midwest",
+  Nebraska: "midwest",
   // West
   California: "west",
   Oregon: "west",
@@ -69,6 +70,7 @@ const REGION_BY_PLACE: Record<string, Region> = {
   Scotland: "uk-ireland",
   England: "uk-ireland",
   "Northern Ireland": "uk-ireland",
+  Ireland: "uk-ireland",
   // Everything else
   Australia: "international",
   "Nova Scotia": "international",

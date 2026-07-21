@@ -237,11 +237,13 @@ npx prisma migrate resolve --applied <timestamp>_init
 - Course data is representative — swap in curated real numbers before launch.
 - Monetization (premium gate, ads) and friends leagues are not built yet; the schema
   leaves room for them.
-- **Calibration headroom is thin.** With batch 9 (48 courses) and the water-penalty
-  retune to 0.20 combined, smart play breaks par at 33.1% against a `[26–34%]` CI
-  band — only 0.9pts of margin. Any future change that makes scoring easier is
-  calibration-sensitive until the band is deliberately re-widened or difficulty is
-  re-tuned; run `npm run engine:calibrate` before assuming otherwise.
+- **Calibration headroom is thin.** At 53 courses, with the water penalty at 0.20,
+  smart play breaks par at 33.0% against a `[26–34%]` CI band — about 1pt of
+  margin. Any future change that makes scoring easier is calibration-sensitive
+  until the band is deliberately re-widened or difficulty is re-tuned, and that
+  includes adding courses: an easy course nudges the aggregate up, since the
+  main harness averages across the whole roster. Run `npm run engine:calibrate`
+  before assuming otherwise.
 
 ## 🤝 Contributing
 

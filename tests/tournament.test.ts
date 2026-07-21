@@ -198,7 +198,7 @@ describe("tournament course rotation", () => {
   });
 
   it("reserves the crown jewels — they are NOT in the regular rotation", () => {
-    for (const jewel of ["augusta-national", "st-andrews-old", "pinehurst-no2", "royal-birkdale"]) {
+    for (const jewel of ["augusta-national", "st-andrews-old", "pinehurst-no2", "royal-birkdale", "royal-county-down"]) {
       expect(TOURNAMENT_COURSE_POOL.includes(jewel), `${jewel} should be override-only`).toBe(false);
     }
   });
@@ -215,6 +215,10 @@ describe("tournament course rotation", () => {
       "st-andrews-old",
       "pinehurst-no2",
       "royal-birkdale",
+      // Crown jewel — override-only, like the four above. Widely ranked the best
+      // course outside the US, so it earns event billing rather than a routine
+      // slot in the weekly rotation.
+      "royal-county-down",
       // Batch 9 (NY/NJ) — seeded and playable, but deliberately HELD OUT of the
       // tournament rotation pending a call on which belong there. Not crown
       // jewels; move them into TOURNAMENT_COURSE_POOL and delete these lines
@@ -229,6 +233,11 @@ describe("tournament course rotation", () => {
       // reason: pool placement is a deliberate call, not an automatic
       // consequence of seeding a course.
       "congressional-blue",
+      // Batch 11 — same holding pattern (Royal County Down is separate, above:
+      // it's a crown jewel rather than merely undecided).
+      "ballybunion-old",
+      "sand-hills",
+      "turnberry-ailsa",
     ]);
     const expected = COURSES.map((course) => course.slug).filter((slug) => !reserved.has(slug));
     expect(new Set(TOURNAMENT_COURSE_POOL)).toEqual(new Set(expected));
