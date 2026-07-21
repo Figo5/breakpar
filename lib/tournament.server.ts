@@ -23,6 +23,7 @@ import {
   CUT_MIN,
   PRE_CUT_ROUNDS,
   scheduleForUpcoming,
+  scheduleForCurrent,
   scheduleFromStart,
   phaseFor,
   playableRounds,
@@ -125,6 +126,24 @@ async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow 
   })) as TournamentRow | null;
   if (live) return live;
 
+  // NEVER SKIP A WEEK: if we're standing inside a play window (Tue..Sun) and no
+  // row exists for it, the week was missed — create it now rather than rolling
+  // forward to the next one. Creation is lazy (on read) and `scheduleForUpcoming`
+  // only names THIS week during the results Monday, so a week with no Monday
+  // page-view used to be stepped over entirely: no course, no champion, and the
+  // previous event's winner left on the banner for a fortnight.
+  //
+  // Bounded to BEFORE the cut deadline on purpose. Past the cut, rounds 1-2 can
+  // no longer be played, so backfilling would mint a dead event nobody can enter
+  // — the cut would run against an empty field and lock rounds 3-4 for everyone.
+  // A week already past its Thursday is genuinely lost; better to leave it absent
+  // and let the next Tuesday start clean.
+  const current = scheduleForCurrent(now);
+  if (now.getTime() >= current.startsAt.getTime() && now.getTime() < current.cutAt.getTime()) {
+    const backfilled = await createTournamentFor(current);
+    if (backfilled) return backfilled;
+  }
+
   const sched = scheduleForUpcoming(now);
 
   // SELF-HEALING RESCHEDULE: an UPCOMING tournament created under an older
@@ -139,37 +158,74 @@ async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow 
   const existingUpcoming = (await prisma.tournament.findFirst({
     where: { weekKey: sched.weekKey },
   })) as TournamentRow | null;
-  if (
-    existingUpcoming &&
-    existingUpcoming.startsAt.getTime() > now.getTime() &&
-    (existingUpcoming.startsAt.getTime() !== sched.startsAt.getTime() ||
+  if (existingUpcoming && existingUpcoming.startsAt.getTime() > now.getTime()) {
+    const datesDrifted =
+      existingUpcoming.startsAt.getTime() !== sched.startsAt.getTime() ||
       existingUpcoming.cutAt.getTime() !== sched.cutAt.getTime() ||
-      existingUpcoming.endsAt.getTime() !== sched.endsAt.getTime())
-  ) {
-    const healed = (await prisma.tournament.update({
-      where: { id: existingUpcoming.id },
-      data: { startsAt: sched.startsAt, cutAt: sched.cutAt, endsAt: sched.endsAt, status: "upcoming" },
-    })) as TournamentRow;
-    return healed;
+      existingUpcoming.endsAt.getTime() !== sched.endsAt.getTime();
+
+    // COURSE SELF-HEAL: the dates above were always healed, but the COURSE never
+    // was — so a row whose course no longer matches the config (an override added
+    // for a major week, a pool edit that shifts the rotation, or a hand-run repair
+    // script) kept its stale course forever. That is how the same course can sit
+    // as "this week's event" week after week. Same safety rule as the dates: only
+    // ever on a row that hasn't started, so a live or finished event's course is
+    // never rewritten under its field.
+    const want = await resolveCourse(sched.weekKey);
+    const courseDrifted = !!want && want.courseId !== existingUpcoming.courseId;
+
+    if (datesDrifted || courseDrifted) {
+      const healed = (await prisma.tournament.update({
+        where: { id: existingUpcoming.id },
+        data: {
+          startsAt: sched.startsAt,
+          cutAt: sched.cutAt,
+          endsAt: sched.endsAt,
+          status: "upcoming",
+          ...(courseDrifted && want ? { courseId: want.courseId, name: want.name } : {}),
+        },
+      })) as TournamentRow;
+      return healed;
+    }
   }
 
-  // Course for this week: hand-picked override (major week) else the rotation.
-  // Fall back to the launch course if a configured slug isn't in the roster, so
-  // a config typo can never stop a tournament from being created.
-  const slug = tournamentCourseSlugFor(sched.weekKey);
+  return createTournamentFor(sched);
+}
+
+/**
+ * The course a given week should be played on: hand-picked override (major week)
+ * else the rotation, falling back to the launch course so a config typo can never
+ * stop a tournament from being created. Null only if neither the configured
+ * course nor the fallback is in the seeded roster.
+ */
+async function resolveCourse(weekKey: string): Promise<{ courseId: string; name: string } | null> {
+  const slug = tournamentCourseSlugFor(weekKey);
   const course = courseBySlug(slug) ?? courseBySlug(TOURNAMENT_FALLBACK_SLUG);
   if (!course) return null;
   const courseRow = await prisma.course.findUnique({ where: { slug: course.slug }, select: { id: true } });
   if (!courseRow) return null;
+  return { courseId: courseRow.id, name: `${course.name.split("—")[0].trim()} Championship` };
+}
+
+/** Create (or fetch, if a concurrent read won the race) the tournament for a
+ * schedule. Idempotent via the weekKey @unique. */
+async function createTournamentFor(sched: {
+  weekKey: string;
+  startsAt: Date;
+  cutAt: Date;
+  endsAt: Date;
+}): Promise<TournamentRow | null> {
+  const want = await resolveCourse(sched.weekKey);
+  if (!want) return null;
 
   // Upsert on weekKey so concurrent first-views don't duplicate.
-  const t = (await prisma.tournament.upsert({
+  return (await prisma.tournament.upsert({
     where: { weekKey: sched.weekKey },
     update: {},
     create: {
       weekKey: sched.weekKey,
-      courseId: courseRow.id,
-      name: `${course.name.split("—")[0].trim()} Championship`,
+      courseId: want.courseId,
+      name: want.name,
       startsAt: sched.startsAt,
       cutAt: sched.cutAt,
       endsAt: sched.endsAt,
@@ -178,7 +234,6 @@ async function ensureCurrentTournament(now = new Date()): Promise<TournamentRow 
       status: "upcoming",
     },
   })) as TournamentRow;
-  return t;
 }
 
 // --- public shapes ---------------------------------------------------------
@@ -711,6 +766,14 @@ export async function myTournamentProgress(
 
 // --- last completed champion (for the Monday results / "last week" banner) --
 
+/**
+ * How far back the "last week's champion" banner will look. One event runs
+ * Tuesday→Monday, so the previous champion is at most 7 days old when the next
+ * event is live; anything older means a week produced no champion and the slot
+ * should simply be empty rather than showing a stale name.
+ */
+export const CHAMPION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 export interface LastChampion {
   tournamentName: string;
   courseName: string;
@@ -731,9 +794,17 @@ export interface LastChampion {
  * looks back to the latest finished event.
  */
 export async function lastCompletedChampion(now = new Date()): Promise<LastChampion | null> {
-  // Most recent tournament that has ended and has a real (non-sentinel) winner.
+  // Most recent tournament that has ended and has a real (non-sentinel) winner,
+  // bounded to the week just gone. The banner says "last week's champion", so a
+  // champion older than that isn't stale-ish — it's wrong. Without this bound a
+  // skipped week left the previous winner up indefinitely: Pebble Beach's
+  // champion was still showing a fortnight later, because the week in between
+  // never produced an event to replace him.
   const t = (await prisma.tournament.findFirst({
-    where: { endsAt: { lte: now }, winnerUserId: { not: null } },
+    where: {
+      endsAt: { lte: now, gte: new Date(now.getTime() - CHAMPION_MAX_AGE_MS) },
+      winnerUserId: { not: null },
+    },
     orderBy: { endsAt: "desc" },
   })) as TournamentRow | null;
   if (!t || !t.winnerUserId) return null; // no ended event, or sentinel "" (no winner)

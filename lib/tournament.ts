@@ -244,6 +244,39 @@ function upcomingTuesday(now = new Date()): Date {
   return easternMidnight({ y, m, d: d + delta });
 }
 
+/**
+ * The schedule for the week we are currently INSIDE — anchored to the most
+ * recent Tuesday at/before `now`, rather than the next one.
+ *
+ * WHY THIS EXISTS: `scheduleForUpcoming` always points FORWARD, and tournament
+ * rows are created lazily on read. That left exactly one window — the results
+ * Monday — in which "upcoming" meant *this* week's event. If nobody loaded a
+ * tournament page that Monday, the week was silently skipped: by Tuesday the
+ * upcoming schedule had already rolled to the NEXT week, so the current week's
+ * row was never created and its course + champion never appeared. Pairing this
+ * with `scheduleForUpcoming` lets `ensureCurrentTournament` backfill the week
+ * it's standing in instead of stepping over it.
+ */
+export function scheduleForCurrent(now = new Date()): TournamentSchedule {
+  return scheduleFromStart(currentTuesday(now));
+}
+
+/**
+ * The Tuesday 00:00 ET that STARTED the week `now` falls in (the most recent
+ * Tuesday at or before `now`). On a Tuesday that's today; on a Monday it's six
+ * days back — which is correct, because Monday belongs to the week that is
+ * finishing, and that week's `endsAt` is that very Monday 00:00.
+ */
+function currentTuesday(now = new Date()): Date {
+  const key = dateKey(now); // civil Eastern "YYYY-MM-DD"
+  const [y, m, d] = key.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+  // Days BACK from today to the most recent Tuesday (2 = Tuesday's dow).
+  // Tuesday(2) -> 0; Wednesday(3) -> 1; ... Monday(1) -> 6.
+  const delta = (dow - 2 + 7) % 7;
+  return easternMidnight({ y, m, d: d - delta });
+}
+
 /** Build the full schedule from a known start Tuesday (00:00 ET). */
 export function scheduleFromStart(startsAt: Date): TournamentSchedule {
   // Civil Eastern date of the start Tuesday, then add days via easternMidnight

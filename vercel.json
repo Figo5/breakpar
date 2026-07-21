@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "bash scripts/vercel-build.sh"
+  "buildCommand": "bash scripts/vercel-build.sh",
+  "crons": [
+    {
+      "path": "/api/tournament/tick",
+      "schedule": "10 4 * * *"
+    }
+  ]
 }

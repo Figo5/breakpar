@@ -6,6 +6,7 @@ import {
   computeCut,
   scheduleFromStart,
   scheduleForUpcoming,
+  scheduleForCurrent,
   tournamentSeedKey,
   cutlineScore,
   CUT_MIN,
@@ -129,6 +130,67 @@ describe("scheduleFromStart", () => {
     const days = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86_400_000);
     expect(days(s.cutAt, s.startsAt)).toBe(3); // Fri
     expect(days(s.endsAt, s.startsAt)).toBe(6); // next Mon
+  });
+});
+
+// The week-skip regression: creation is lazy, so `scheduleForCurrent` is what
+// lets ensureCurrentTournament backfill the week it is standing in rather than
+// stepping over it to the next one. Anchored to a known week: Tue 2026-07-21
+// 00:00 ET starts a week that cuts Fri 07-24 and ends Mon 07-27.
+describe("scheduleForCurrent", () => {
+  const startsAt = new Date("2026-07-21T04:00:00Z"); // Tue 00:00 ET
+  const cutAt = new Date("2026-07-24T04:00:00Z"); // Fri 00:00 ET
+  const endsAt = new Date("2026-07-27T04:00:00Z"); // next Mon 00:00 ET
+
+  it("anchors to today when today IS the start Tuesday", () => {
+    const s = scheduleForCurrent(new Date("2026-07-21T12:00:00Z"));
+    expect(s.startsAt.toISOString()).toBe(startsAt.toISOString());
+    expect(s.cutAt.toISOString()).toBe(cutAt.toISOString());
+    expect(s.endsAt.toISOString()).toBe(endsAt.toISOString());
+  });
+
+  it("anchors BACK to the week's Tuesday midweek (Thu) — not forward", () => {
+    const s = scheduleForCurrent(new Date("2026-07-23T12:00:00Z")); // Thu
+    expect(s.startsAt.toISOString()).toBe(startsAt.toISOString());
+  });
+
+  it("still anchors back on the closing Sunday", () => {
+    const s = scheduleForCurrent(new Date("2026-07-26T12:00:00Z")); // Sun
+    expect(s.startsAt.toISOString()).toBe(startsAt.toISOString());
+  });
+
+  it("on results Monday points at the week that is ENDING, whose endsAt is that Monday", () => {
+    // Mon 07-27: the current week is the one that began Tue 07-21 and ends today.
+    const s = scheduleForCurrent(new Date("2026-07-27T11:00:00Z"));
+    expect(s.startsAt.toISOString()).toBe(startsAt.toISOString());
+    expect(s.endsAt.toISOString()).toBe(endsAt.toISOString());
+  });
+
+  it("Monday's current week is already over, so it never backfills on results day", () => {
+    // The backfill guard is `startsAt <= now < cutAt`. On Monday, now is past the
+    // week's cut (and its end), so Monday correctly falls through to the
+    // UPCOMING schedule instead of resurrecting the week that just finished.
+    const now = new Date("2026-07-27T11:00:00Z"); // Mon 07:00 ET
+    const s = scheduleForCurrent(now);
+    expect(now.getTime() >= s.cutAt.getTime()).toBe(true);
+    expect(now.getTime() >= s.endsAt.getTime()).toBe(true);
+  });
+
+  it("midweek IS inside the backfill window, so a skipped week gets created", () => {
+    const now = new Date("2026-07-22T12:00:00Z"); // Wed
+    const s = scheduleForCurrent(now);
+    expect(now.getTime() >= s.startsAt.getTime() && now.getTime() < s.cutAt.getTime()).toBe(true);
+  });
+
+  it("past the cut the window is closed — no dead mid-week event is minted", () => {
+    const now = new Date("2026-07-25T12:00:00Z"); // Sat, after Fri cut
+    const s = scheduleForCurrent(now);
+    expect(now.getTime() < s.cutAt.getTime()).toBe(false);
+  });
+
+  it("current and upcoming name DIFFERENT weeks midweek (the skip that was possible)", () => {
+    const now = new Date("2026-07-22T12:00:00Z"); // Wed
+    expect(scheduleForCurrent(now).weekKey).not.toBe(scheduleForUpcoming(now).weekKey);
   });
 });
 
