@@ -55,6 +55,11 @@ const EXPECTED_PAR: Record<string, number> = {
   "somerset-hills": 71,
   // Batch 10 — Congressional (BlueGolf Back card, post-Andrew-Green restoration):
   "congressional-blue": 72,
+  // Batch 11 — links + Sand Hills (BlueGolf championship cards):
+  "royal-county-down": 71,
+  "ballybunion-old": 71,
+  "sand-hills": 71,
+  "turnberry-ailsa": 71,
 };
 
 const EXPECTED_YARDAGE: Record<string, number> = {
@@ -70,11 +75,15 @@ const EXPECTED_YARDAGE: Record<string, number> = {
   "oak-hill-east": 7394,
   "somerset-hills": 6703,
   "congressional-blue": 7820,
+  "royal-county-down": 7183,
+  "ballybunion-old": 6802,
+  "sand-hills": 7073,
+  "turnberry-ailsa": 7489,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (49 after Congressional)", () => {
-    expect(COURSES.length).toBe(49);
+  it("roster is the expected size (53 after batch 11)", () => {
+    expect(COURSES.length).toBe(53);
   });
 
   it("every course has 18 holes", () => {

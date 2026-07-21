@@ -34,9 +34,10 @@ import { nextMonday, easternMidnight, dateKey } from "@/lib/daily";
  * week ("major weeks"). An override always wins over the rotation, and the
  * rotation simply continues around it.
  *
- * The CROWN JEWELS (Augusta, St Andrews, Pinehurst, Royal Birkdale) are
- * deliberately kept OUT of the regular pool so they only ever appear when you
- * assign them to a major week — that's what makes them feel like an event.
+ * The CROWN JEWELS (Augusta, St Andrews, Pinehurst, Royal Birkdale, Royal
+ * County Down) are deliberately kept OUT of the regular pool so they only ever
+ * appear when you assign them to a major week — that's what makes them feel
+ * like an event.
  */
 
 /** Regular weekly rotation. Deterministic order; loops when exhausted.
@@ -92,6 +93,7 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
  *
  * Reserved crown jewels — use these here, not in the pool:
  *   augusta-national · st-andrews-old · pinehurst-no2 · royal-birkdale
+ *   royal-county-down
  *
  * Example:
  *   "2026-W29": "augusta-national",   // The Masters week
