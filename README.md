@@ -233,17 +233,40 @@ npx prisma migrate resolve --applied <timestamp>_init
 
 ## 🧭 Roadmap / Stubbed for MVP
 
-- Percentiles use an estimate until there's a real daily score distribution to query.
-- Course data is representative — swap in curated real numbers before launch.
-- Monetization (premium gate, ads) and friends leagues are not built yet; the schema
-  leaves room for them.
+Each item records the decision *and* what would make us revisit it — an open
+question with no trigger is just a wish.
+
+- **Rate limiting is in-memory** (`lib/rateLimit.ts`). The bucket Map lives in one
+  serverless instance, so it's an abuse speed-bump, not a global guarantee — a
+  spammer spread across instances gets N× the allowance. Swap the Map for Upstash
+  Ratelimit (Redis) keeping the same `limit()` signature. *Revisit when:* abuse
+  actually shows up, or anything expensive sits behind a limiter.
+- **Monetization (premium gate, ads) and friends leagues are not built.** The
+  schema leaves room for them.
 - **Calibration headroom is thin.** At 53 courses, with the water penalty at 0.20,
   smart play breaks par at 33.0% against a `[26–34%]` CI band — about 1pt of
-  margin. Any future change that makes scoring easier is calibration-sensitive
-  until the band is deliberately re-widened or difficulty is re-tuned, and that
-  includes adding courses: an easy course nudges the aggregate up, since the
-  main harness averages across the whole roster. Run `npm run engine:calibrate`
-  before assuming otherwise.
+  margin. Any change that makes scoring easier is calibration-sensitive, and that
+  **includes adding courses**: an easy course nudges the aggregate up, since the
+  main harness averages across the whole roster. *Revisit when:* the next batch
+  lands — run `npm run engine:calibrate` before assuming, and consider whether the
+  band itself wants re-centring rather than repeatedly squeezing under it.
+- **Tournament seed variance is unaddressed, deliberately.** Every player in a
+  tournament round shares one seed, so a "hot" seed lifts the whole field — Pebble
+  Beach's W28 round 1 averaged −7.6 against ~−1.5 on its other rounds. Clipping
+  extreme seeds was investigated and **deferred**: with only 8 real per-round means
+  (σ≈2.6) a swing that size sits 1.5–2.3σ out, i.e. inside ordinary width, and any
+  band tight enough to catch it would redraw 12–57% of seeds. `scripts/log-field-means.ts`
+  records one line per tournament round to build the missing evidence. *Revisit
+  when:* ~40 logged seeds exist (≈10 weeks), at which point "how rare is a freak
+  week?" has an empirical answer instead of a guess.
+- **`/api/tournament/tick` runs unauthenticated, on purpose.** It supports
+  `CRON_SECRET` and 401s when the variable is set, but it is deliberately left
+  unset: the route takes no input, every write is idempotent and claim-guarded,
+  and it returns only data already public on `/tournament`. The public tournament
+  page triggers the same lifecycle work at higher cost per request, so the endpoint
+  adds no attack surface. *Revisit when:* the tick grows expensive or outward-facing
+  side effects — notifications, third-party posts, anything metered — at which
+  point set `CRON_SECRET` in Vercel and redeploy.
 
 ## 🤝 Contributing
 
