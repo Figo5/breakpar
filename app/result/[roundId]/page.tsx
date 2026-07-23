@@ -8,6 +8,7 @@ import {
   tally,
   shareGrid,
   relativeLabel,
+  parResultLabel,
   brokePar,
   dailyStanding,
   standingLabel,
@@ -149,7 +150,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
       </div>
       <div className="final-score">{round.score}</div>
       <div className={`final-rel ${made ? "made-it" : "missed"}`}>
-        {relativeLabel(round.relativeToPar)} · {made ? "Under par ✓" : `Missed par by ${round.score - par + 1}`}
+        {relativeLabel(round.relativeToPar)} · {parResultLabel(round.relativeToPar)}
       </div>
       <div className="verdict">
         {made ? "You broke par." : isDaily ? "So close — run it back tomorrow." : "So close — go again."}

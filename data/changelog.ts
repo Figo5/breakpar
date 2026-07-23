@@ -15,6 +15,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-23",
+    items: [
+      "Fixed round results overstating how many strokes a score finished over par.",
+      "Fixed aggressive par-5 second shots from rough or trouble being scored as though they reached the green in two.",
+      "Adjusted par-5 go-for-green results so long second shots produce fewer automatic close eagle looks.",
+      "Reduced excessive short-game blow-ups, moving more missed-green results into the par-to-bogey range.",
+    ],
+  },
+  {
     date: "2026-07-21",
     items: [
       "Added 5 courses: Congressional Blue, Royal County Down, Ballybunion Old, Sand Hills, and Turnberry Ailsa. The roster is now 53.",

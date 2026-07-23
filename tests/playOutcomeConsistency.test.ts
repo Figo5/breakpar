@@ -135,13 +135,29 @@ describe("resolved strokes -> scorecard summary", () => {
   it("calls a reached-in-two three-putt a par", () => {
     const step = findFinish(
       (candidate) => candidate.next === "approach" ? "aggressive" : "normal",
-      (candidate) => candidate.shots.at(-1)?.puttResult === "threeputt",
+      (candidate) =>
+        !candidate.shots.some((shot) => shot.stage === "layup") &&
+        candidate.shots.at(-1)?.puttResult === "threeputt",
     );
 
     expect(step.outcome).toBe("par");
     expect(step.strokes).toBe(5);
     expect(step.strokes).toBe(par5.par + step.scoreDelta!);
     expect(finishSummary(step.shots, step.outcome!, par5.par)).toBe("On in 2 · Three-putt par");
+  });
+
+  it("does not call an aggressive second from rough/trouble reached in two", () => {
+    const step = findFinish(
+      (candidate) => candidate.next === "approach" ? "aggressive" : "normal",
+      (candidate) =>
+        (candidate.lie === "rough" || candidate.lie === "trouble") &&
+        candidate.shots.at(-1)?.puttResult === "threeputt",
+    );
+
+    expect(step.shots.some((shot) => shot.stage === "layup")).toBe(true);
+    expect(step.outcome).toBe("bogey");
+    expect(step.strokes).toBe(6);
+    expect(finishSummary(step.shots, step.outcome!, par5.par)).toBe("On in 3 · Three-putt bogey");
   });
 
   it("calls a laid-up three-putt a bogey and exposes the wedge third", () => {

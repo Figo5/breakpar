@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   relativeLabel,
+  parResultLabel,
   brokePar,
   isStreakAlive,
   streakStatus,
@@ -19,6 +20,18 @@ describe("relativeLabel", () => {
     expect(relativeLabel(0)).toBe("E");
     expect(relativeLabel(3)).toBe("+3");
     expect(relativeLabel(-2)).toBe("-2");
+  });
+});
+
+describe("parResultLabel", () => {
+  it("reports strokes over par without adding the break-par stroke", () => {
+    expect(parResultLabel(2)).toBe("Missed par by 2");
+    expect(parResultLabel(3)).toBe("Missed par by 3");
+  });
+
+  it("handles even and under-par rounds without awkward zero wording", () => {
+    expect(parResultLabel(0)).toBe("Even par");
+    expect(parResultLabel(-1)).toBe("Under par ✓");
   });
 });
 

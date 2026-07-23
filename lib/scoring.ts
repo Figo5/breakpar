@@ -10,6 +10,10 @@ export const relativeToPar = (strokes: number, par: number) => strokes - par;
 export const relativeLabel = (rel: number) =>
   rel === 0 ? "E" : rel > 0 ? `+${rel}` : `${rel}`;
 
+/** Plain-language result copy that describes par, not the break-par target. */
+export const parResultLabel = (rel: number) =>
+  rel < 0 ? "Under par ✓" : rel === 0 ? "Even par" : `Missed par by ${rel}`;
+
 /** You "break par" by shooting strictly under the course's par. */
 export const brokePar = (strokes: number, par: number) => strokes < par;
 

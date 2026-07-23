@@ -64,6 +64,11 @@ const LAYUP_APPROACH_NOTES = [
   "Played safe — laying up short",
   "Took the lay-up, wedge in hand next",
 ];
+const FAILED_REACH_NOTES = [
+  "Went for it, but the lie forced a wedge third",
+  "Couldn't reach from there — wedge in hand next",
+  "Tried to get home, came up in wedge range",
+];
 const LAYUP_WEDGE_NOTES: Record<GreenResult, string[]> = {
   kickin: ["Wedged it stiff — kick-in", "Third to a foot, gimme left", "Dialed the wedge, tap-in range"],
   makeable: ["Wedge third to a birdie look", "Spun it close — makeable for birdie", "Wedge to the dance floor, real chance"],
@@ -260,6 +265,11 @@ export function scrambleNote(
 /** Par-5 lay-up approach line (the 2nd shot, played safe short of the green). */
 export function layupApproachNote(rng: () => number): string {
   return pick(LAYUP_APPROACH_NOTES, rng);
+}
+
+/** Par-5 aggressive second from rough/trouble: intent was green, lie said no. */
+export function failedReachNote(rng: () => number): string {
+  return pick(FAILED_REACH_NOTES, rng);
 }
 
 /** Par-5 wedge third — narrates the visible shot that explains on-in-3 scoring. */
