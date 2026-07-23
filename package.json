@@ -17,6 +17,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "engine:calibrate": "tsx scripts/calibrate.ts",
+    "engine:audit": "tsx scripts/scoring-audit.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

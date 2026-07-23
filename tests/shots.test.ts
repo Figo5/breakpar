@@ -5,6 +5,7 @@ import {
   MAX_DECISIONS,
   approachDecisionCount,
   countTeeApproachAggressive,
+  canReachPar5InTwo,
   stagePrompt,
   type Lie,
   type ChainResult,
@@ -129,7 +130,7 @@ describe("budget counts tee/approach only (putts are free)", () => {
   });
 });
 
-describe("par-5 visible layup (narration-only, no scoring change)", () => {
+describe("par-5 visible third shot and reached-in-two eligibility", () => {
   const layups = (r: ChainResult) => r.shots.filter((s) => s.stage === "layup");
   const normalApproach = (s: ChainResult) => (s.next === "approach" ? "normal" : "normal") as Decision;
   it("a non-aggressive par 5 inserts exactly one auto layup record (a visible wedge third)", () => {
@@ -141,12 +142,22 @@ describe("par-5 visible layup (narration-only, no scoring change)", () => {
       expect(ls[0].note.length).toBeGreaterThan(0); // narrates the wedge
     }
   });
-  it("aggressive par 5, par 4 and par 3 have NO layup record (paths untouched)", () => {
+  it("aggressive par 5 only reaches in two from a credible lie", () => {
     for (let base = 1; base <= 200; base++) {
-      expect(layups(playToEnd(par5, base, (s) => (s.next === "approach" ? "aggressive" : "normal")))).toHaveLength(0);
+      const result = playToEnd(par5, base, (s) => (s.next === "approach" ? "aggressive" : "normal"));
+      const credible = result.lie === "dialed" || result.lie === "fairway";
+      expect(layups(result)).toHaveLength(credible ? 0 : 1);
       expect(layups(playToEnd(par4, base, () => "normal"))).toHaveLength(0);
       expect(layups(playToEnd(par3, base, () => "normal"))).toHaveLength(0);
     }
+  });
+  it("does not award the reached-in-two offset from rough or trouble", () => {
+    expect(canReachPar5InTwo(5, "dialed", "aggressive")).toBe(true);
+    expect(canReachPar5InTwo(5, "fairway", "aggressive")).toBe(true);
+    expect(canReachPar5InTwo(5, "rough", "aggressive")).toBe(false);
+    expect(canReachPar5InTwo(5, "trouble", "aggressive")).toBe(false);
+    expect(canReachPar5InTwo(5, "fairway", "normal")).toBe(false);
+    expect(canReachPar5InTwo(4, "fairway", "aggressive")).toBe(false);
   });
   it("the layup consumes no decision: `used` counts only real (index>=0) shots", () => {
     for (let base = 1; base <= 200; base++) {

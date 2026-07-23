@@ -45,6 +45,7 @@ import {
   scrambleNote,
   layupNote,
   layupApproachNote,
+  failedReachNote,
   hazardPenaltyNote,
 } from "./notes";
 import {
@@ -117,6 +118,15 @@ export function approachDecisionCount(par: number): number {
 export function countTeeApproachAggressive(decisionCsv: string, par: number): number {
   const ds = decisionCsv.split(",").filter(Boolean);
   return ds.slice(0, approachDecisionCount(par)).filter((d) => d === "aggressive").length;
+}
+
+/**
+ * A par 5 only gets the reached-in-two scoring offset when an aggressive second
+ * shot is played from a lie that can credibly reach the green. Rough/trouble
+ * aggression remains a gamble, but it cannot magically erase a stroke.
+ */
+export function canReachPar5InTwo(par: number, lie: Lie | undefined, decision: Decision): boolean {
+  return par === 5 && decision === "aggressive" && (lie === "dialed" || lie === "fairway");
 }
 
 // --- putt geometry (distance + break), deterministic ----------------------
@@ -326,9 +336,11 @@ export function resolveHoleChain(
   const aEv = rollEvent("approach", opts.eventSeed(aIdx), { recent, firstShotOfHole: isPar3 });
   if (aEv) applyEvent(aEv.def, "approach", gw as Record<string, number>);
   const green = pick(gw, mulberry32(opts.shotSeed(aIdx)));
-  const reachedInTwo = hole.par === 5 && aDec === "aggressive";
-  // Non-aggressive par 5 = lay up: the approach is the lay-up, narrated as such.
+  const reachedInTwo = canReachPar5InTwo(hole.par, lie, aDec);
+  // A par 5 that cannot credibly reach gets a visible wedge third. This covers
+  // both a chosen layup and an aggressive attempt from rough/trouble.
   const isPar5Layup = hole.par === 5 && !reachedInTwo;
+  const failedReach = isPar5Layup && aDec === "aggressive";
   const scoringEvent = opts.scoringEvents === false ? null : rollApproachScoringEvent(
     hole.par,
     source,
@@ -342,7 +354,7 @@ export function resolveHoleChain(
     if (isPar5Layup) {
       shots.push({
         index: aIdx, stage: "approach", decision: aDec, event: aEv?.instance ?? null,
-        note: narrate ? layupApproachNote(noteRng(aIdx, 0x777)) : "",
+        note: narrate ? (failedReach ? failedReachNote(noteRng(aIdx, 0x777)) : layupApproachNote(noteRng(aIdx, 0x777))) : "",
       });
       shots.push({
         index: -1, stage: "layup", decision: null, scoringEvent,
@@ -368,7 +380,9 @@ export function resolveHoleChain(
     event: aEv?.instance ?? null,
     note: narrate
       ? isPar5Layup
-        ? layupApproachNote(noteRng(aIdx, 0x777))
+        ? failedReach
+          ? failedReachNote(noteRng(aIdx, 0x777))
+          : layupApproachNote(noteRng(aIdx, 0x777))
         : approachPenalty
           ? hazardPenaltyNote(approachPenalty, noteRng(aIdx, 0x777), narrativeContext)
           : approachNote(green, isPar3, noteRng(aIdx, 0x777), reachedInTwo ? "eagle" : "birdie", narrativeContext)

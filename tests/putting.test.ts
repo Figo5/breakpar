@@ -23,7 +23,7 @@ describe("greenWeights", () => {
     expect(onGreen(dialed)).toBeGreaterThan(onGreen(trouble));
     expect(trouble.scramble).toBeGreaterThan(dialed.scramble);
   });
-  it("par-5 layup lean: a normal par 5 sets up more birdie looks than a par 4, but par 4 + aggressive par 5 are untouched", () => {
+  it("par-5 layup lean improves wedge proximity while going for it produces longer looks", () => {
     const par4n = greenWeights("fairway", "normal", { number: 1, par: 4, strokeIndex: 9 }, c);
     const par5n = greenWeights("fairway", "normal", { number: 1, par: 5, strokeIndex: 9 }, c);
     const looks = (w: Record<string, number>) => w.kickin + w.makeable;
@@ -31,10 +31,11 @@ describe("greenWeights", () => {
     const share = (w: Record<string, number>) =>
       looks(w) / (w.kickin + w.makeable + w.lag + w.scramble);
     expect(share(par5n)).toBeGreaterThan(share(par4n)); // par 5 leans birdie
-    // par 5 aggressive (go-for-it) is NOT leaned: same table as par 4 aggressive.
+    // A long par-5 second should leave fewer close looks than a par-4 approach.
     const par4a = greenWeights("fairway", "aggressive", { number: 1, par: 4, strokeIndex: 9 }, c);
     const par5a = greenWeights("fairway", "aggressive", { number: 1, par: 5, strokeIndex: 9 }, c);
-    expect(par5a).toEqual(par4a);
+    expect(share(par5a)).toBeLessThan(share(par4a));
+    expect(par5a.lag + par5a.scramble).toBeGreaterThan(par4a.lag + par4a.scramble);
   });
   it("never produces negative weights across sources", () => {
     for (const src of ["dialed", "fairway", "rough", "trouble", "tee"] as const)
@@ -88,6 +89,16 @@ describe("scrambleWeights", () => {
     const flop = scrambleWeights("aggressive", hole, c);
     expect(flop.updown).toBeGreaterThan(punch.updown);
     expect(flop.blowup).toBeGreaterThan(punch.blowup);
+  });
+  it("keeps the double-plus risk ordered while routine recovery stays in the middle", () => {
+    const doublePlus = (decision: "safe" | "normal" | "aggressive") => {
+      const weights = scrambleWeights(decision, hole, c);
+      return (weights.blowup + weights.disaster) /
+        (weights.updown + weights.twochip + weights.blowup + weights.disaster);
+    };
+    expect(doublePlus("safe")).toBeLessThan(doublePlus("normal"));
+    expect(doublePlus("normal")).toBeLessThan(doublePlus("aggressive"));
+    expect(doublePlus("normal")).toBeLessThan(0.2);
   });
 });
 

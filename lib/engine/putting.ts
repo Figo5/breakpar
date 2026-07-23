@@ -143,6 +143,19 @@ export const PAR5_LAYUP_LEAN = {
   scramble: 0.9,
 };
 
+/**
+ * A go-for-green second on a par 5 is a much longer shot than a standard par-4
+ * approach. Before this adjustment it inherited identical proximity and made
+ * 13% of smart-player par 5s eagles. Keep the reward, but trade tap-ins for
+ * long putts and greenside misses so reaching in two is not an automatic score.
+ */
+export const PAR5_GO_FOR_GREEN_LEAN = {
+  kickin: 0.25,
+  makeable: 0.62,
+  lag: 1.5,
+  scramble: 1.4,
+};
+
 /** Difficulty-adjusted GreenResult odds for an approach decision. */
 export function greenWeights(
   source: GreenSource,
@@ -163,6 +176,12 @@ export function greenWeights(
   // aggressive go-for-it (reached-in-two -> eagle) route is left untouched.
   if (hole.par === 5 && decision !== "aggressive") {
     const L = PAR5_LAYUP_LEAN;
+    w.kickin *= L.kickin;
+    w.makeable *= L.makeable;
+    w.lag *= L.lag;
+    w.scramble *= L.scramble;
+  } else if (hole.par === 5 && decision === "aggressive" && (source === "dialed" || source === "fairway")) {
+    const L = PAR5_GO_FOR_GREEN_LEAN;
     w.kickin *= L.kickin;
     w.makeable *= L.makeable;
     w.lag *= L.lag;
@@ -276,16 +295,16 @@ export const SHORT_DECISION_LABEL: Record<Decision, string> = {
  *
  * Punch (safe) is deliberately the LOW-VARIANCE choice, and a genuinely rewarded
  * one — same "safe play should be rewarded" principle we applied to putting (Lag)
- * and approaches. Its blow-up/disaster share is the smallest by a wide margin
- * (8% double+ vs 17% Chip / 22% Flop) and its up-and-down is nudged up (28->33)
- * so conservative recovery protects a good round instead of being a thin hedge.
- * Flop still makes the most par-saves (48%), so it stays the play when you need
- * to make up ground — the choice is protect-the-card vs chase-the-save.
+ * and approaches. The Jul 2026 score-shape audit found that 23.6% of all
+ * scramble finishes became double-or-worse, the dominant source of the game's
+ * high-score tail. These bases move routine misses back toward bogey while
+ * preserving the choice: Punch has the smallest blow-up share, Chip is balanced,
+ * and Flop still makes the most par-saves but carries the most double+ risk.
  */
 const SCRAMBLE_BASE: Record<Decision, Partial<Record<ScrambleResult, number>>> = {
-  safe: { updown: 33, twochip: 59, blowup: 7, disaster: 1 },
-  normal: { updown: 38, twochip: 45, blowup: 14, disaster: 3 },
-  aggressive: { updown: 48, twochip: 30, blowup: 17, disaster: 5 },
+  safe: { updown: 34, twochip: 61, blowup: 4, disaster: 1 },
+  normal: { updown: 40, twochip: 48, blowup: 10, disaster: 2 },
+  aggressive: { updown: 48, twochip: 35, blowup: 14, disaster: 3 },
 };
 
 export const SCRAMBLE_DIFFICULTY = {
