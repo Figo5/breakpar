@@ -277,7 +277,9 @@ and adds a dead-end state — but it is a product call.
 | Repeated settlement is idempotent | Engine claim + `already-settled` + unique effect keys |
 | Repeated "next season" returns the same season | `ensureCareerCohort` is an advisory-locked upsert on `(worldId, seasonNumber, tier)` |
 | One Championship attempt | Unique `(championshipId, slotNumber)`; unique `roundId` |
-| Opponent scores hidden until you finish | Read-layer rule from §4 |
+| Opponent scores hidden until you finish the round | Read-layer frontier from §4 and §14a |
+| Starting or resuming a round reveals nothing | Frontier counts completed rounds only (§14a) |
+| A bot round card cannot be duplicated or rewritten | Unique `(lockRevisionId, slotId, roundNumber)`; written once at field lock |
 
 Unlimited play multiplies *volume*, not *attempts*. Every one-attempt guarantee
 above is a database constraint or a fenced transaction, not a UI affordance.
@@ -525,6 +527,89 @@ countdowns, deadlines, "waiting for other players", inactivity warnings.
 Existing responsive Career visual system, `CareerChrome`, and the `/play`
 integration are preserved.
 
+## 14a. The visibility frontier
+
+Hiding a rival's score is an anti-exploit rule, not a presentation choice:
+knowing the number to beat changes how a player attacks a hole. But hiding the
+*field* was never part of that rule, and hiding everything until an event ended
+made a live season feel empty. The frontier below is the smallest thing that
+keeps the anti-exploit guarantee while making the season legible throughout.
+
+**The frontier is always the viewer's own play — never what exists in the
+database.** Bot cards are materialized at field lock (§4), so "does a result
+exist" is useless as a visibility test; every rule here keys off the viewer's
+completed rounds and completed events.
+
+### Pre-event season standings
+
+All twenty competitors are listed from the moment the field locks, named, with
+zero events completed and **no rank at all** — `—`, not a fabricated "1st of 20".
+The season standings link is available from the dashboard immediately.
+
+### The event-by-event frontier (season table)
+
+An event is revealed to the season table only once the viewer has completed
+**all** of its rounds. A revealed event is revealed for the entire twenty-player
+field; an unrevealed event is revealed for nobody.
+
+Provisional standings are computed over the revealed events only. An unrevealed
+event is **absent from the maths**, never scored as zero, so it cannot drag a
+position down — and because the frontier applies identically to every rival, the
+comparison stays fair at every stage. Best-three still governs: with one event
+revealed the best one counts, with four the best three count. After the fourth
+event the displayed table is the immutable final standings, taken verbatim from
+`careerSeasonStandings` rather than recomputed, so the provisional view can never
+disagree with the settled one. Historical settled seasons are unchanged.
+
+### The round-by-round frontier (event leaderboard)
+
+Before round one: the field and rival names are visible, every score is not.
+After round *n*: the whole field's **cumulative** score through round *n* is
+shown, with rounds *n+1* onward sealed. Event **points** are published only when
+the event is final — a provisional points number would read as a result.
+
+Starting or resuming a round reveals nothing. Only completing it moves the
+frontier, so abandoning a round mid-way cannot be used to peek.
+
+### Immutable bot round snapshots
+
+The event total in `CareerResult` is the SUM of four deterministic cards.
+`CareerBotRoundResult` stores those cards — one row per
+`(lockRevision, slot, roundNumber)`, enforced by a unique index — generated once
+during field formation from the pinned formula bundle. Nothing divides a total
+by four, invents a split, or re-simulates from the current bundle at read time.
+
+`lib/career/botRounds.ts` owns the single seed formula
+(`{seedNamespace}:round{n}:slot{id}`) so formation and the backfill cannot drift.
+Events formed before this table existed can be reconstructed exactly from their
+own pinned lock revision — stored seed namespace, per-slot ability and tendency,
+and the formula package the lock was published under — and
+`scripts/career-backfill-bot-rounds.ts` writes cards **only** when every rebuilt
+bot total equals the total already stored. An event that fails that check is
+reported and left untouched: its leaderboard simply stays sealed until the player
+completes every round, at which point the immutable total is used. Grandfathered
+one-round events are unaffected, since round one *is* the whole event.
+
+### Legacy ledger presentation
+
+`/career/legacy` renders `CareerLegacyLedger` directly. Historical awards are
+never recalculated from today's formulas — the row is the record. Entries are
+ordered `(createdAt, id)` so the same ledger always reads back identically, and
+each carries a running balance that reconciles to the displayed total.
+
+Award types map to player-facing words in one place (`lib/career/legacy.ts`); an
+unrecognised future type degrades to a readable label rather than leaking a
+storage key. The prestige ladder of §13 supplies the title and next threshold.
+
+Reads are account-scoped by construction: the profile is resolved from the
+session and `GET /api/career/legacy` takes no id, so no other Journey's ledger is
+addressable. The page performs no writes.
+
+**Legacy is permanent and never decreases**, and the UI states so. That rule is
+not enforced by hiding data: a negative row, which cannot occur by design, is
+displayed honestly and reported through `invariantViolations` for tests and
+diagnostics.
+
 ## 15. Migration strategy (Q21, Q22) — implemented
 
 **Final local state:**
@@ -583,6 +668,9 @@ verification, per the session protocol.
    Legacy inflation curve, freeze revised milestones, confirm Tour Rating stays
    volume-neutral and promotion pacing stays meaningful.
 8. **Final audit + user testing** — full verification matrix and readiness report.
+9. **Visibility and transparency** — live pre-event season standings, the
+   event-by-event and round-by-round frontiers of §14a, immutable
+   `CareerBotRoundResult` cards, and the `/career/legacy` ledger.
 
 ## 17. Test plan
 

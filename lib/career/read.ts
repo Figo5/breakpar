@@ -16,8 +16,60 @@ import {
   type CareerRepairResult,
 } from "./repair";
 import type { CareerEventStanding } from "./eventSettlement";
+import { calculateCareerEventStandings } from "./eventSettlement";
+import { careerBotCumulativeBySlot } from "./botRounds";
 import { hashSeed } from "@/lib/engine/rng";
-import { rankSeason, type SeasonEventResult } from "./rules";
+import {
+  compareSeasonPerformance,
+  rankEvent,
+  rankSeason,
+  summarizeSeason,
+  type SeasonEventResult,
+} from "./rules";
+
+/**
+ * Order a partially played field by cumulative score. Points are deliberately
+ * null: they belong to the settled event only, and publishing a provisional
+ * number would invite it being read as final.
+ */
+function rankCumulativeStandings(
+  rows: readonly {
+    slotId: number;
+    competitorId: string;
+    competitorType: "HUMAN" | "BOT";
+    displayName: string;
+    isMe: boolean;
+    relativeToPar: number | null;
+  }[],
+  roundsCounted: number,
+): CareerLeaderboardRow[] {
+  const ranked = new Map(
+    rankEvent(rows.map((row) => ({
+      competitorId: row.competitorId,
+      relativeToPar: row.relativeToPar,
+    }))).map((standing) => [standing.competitorId, standing]),
+  );
+  return rows
+    .map((row) => {
+      const standing = ranked.get(row.competitorId)!;
+      return {
+        slotId: row.slotId,
+        competitorId: row.competitorId,
+        competitorType: row.competitorType,
+        displayName: row.displayName,
+        completed: standing.completed,
+        noShow: false,
+        roundsCompleted: standing.completed ? roundsCounted : 0,
+        relativeToPar: standing.relativeToPar,
+        rank: standing.rank,
+        points: null,
+        isMe: row.isMe,
+      };
+    })
+    .sort((left, right) =>
+      (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER)
+      || left.slotId - right.slotId);
+}
 
 export interface CareerScheduleEntry {
   readonly competitionId: string;
@@ -77,18 +129,36 @@ export interface CareerLeaderboardRow {
   readonly displayName: string;
   readonly completed: boolean;
   readonly noShow: boolean;
+  /** How many rounds are counted in `relativeToPar`. */
+  readonly roundsCompleted: number;
+  /** Cumulative score through the revealed round — never a full-event total
+   * while rounds are still hidden. */
   readonly relativeToPar: number | null;
   readonly rank: number | null;
+  /** Event points exist only once the event is final. */
   readonly points: number | null;
+  readonly isMe: boolean;
 }
 
 export interface CareerEventLeaderboardView {
   /**
-   * False while the viewer has not completed this event: opponents' scores are
-   * withheld. Knowing the number to beat changes aggression decisions, so this
-   * is an anti-exploit rule, not a presentation choice.
+   * False until the viewer has completed at least one round: opponents' scores
+   * are withheld. Knowing the number to beat changes aggression decisions, so
+   * this is an anti-exploit rule, not a presentation choice.
    */
   readonly revealed: boolean;
+  /**
+   * How many of the event's rounds the whole field is shown through. It always
+   * equals the viewer's own completed rounds — never what happens to exist in
+   * the database — so finishing round two reveals exactly two rounds.
+   */
+  readonly roundsRevealed: number;
+  /**
+   * False only for a multi-round event formed before per-round bot cards were
+   * stored. Splitting its locked total would be an invention, so the field
+   * stays hidden until the event is complete and its immutable total is used.
+   */
+  readonly roundCardsAvailable: boolean;
   readonly competition: {
     readonly id: string;
     readonly eventNumber: number | null;
@@ -109,6 +179,53 @@ export interface CareerEventLeaderboardView {
   };
   readonly settled: boolean;
   readonly standings: readonly CareerLeaderboardRow[];
+}
+
+/** One event's cell in the season table. Unrevealed cells carry no scores. */
+export interface CareerSeasonEventCell {
+  readonly eventIndex: number;
+  readonly eventNumber: number;
+  readonly revealed: boolean;
+  readonly relativeToPar: number | null;
+  readonly rank: number | null;
+  readonly points: number | null;
+  /** True when this event is one of the best three currently counting. */
+  readonly counting: boolean;
+}
+
+export interface CareerSeasonTableRow {
+  readonly competitorId: string;
+  readonly profileId: string | null;
+  readonly displayName: string;
+  readonly isMe: boolean;
+  readonly tier: string;
+  readonly nextTier: string;
+  readonly rank: number | null;
+  readonly seasonPoints: number;
+  readonly eventsCompleted: number;
+  readonly movement: string;
+  readonly events: readonly CareerSeasonEventCell[];
+}
+
+export interface CareerSeasonTableView {
+  readonly cohortId: string;
+  readonly seasonNumber: number;
+  readonly tier: string;
+  readonly state: string;
+  /** True once the immutable final standings exist; ranks then never change. */
+  readonly settled: boolean;
+  readonly eventsTotal: number;
+  /** Events the viewer has completed — the whole table's visibility frontier. */
+  readonly eventsRevealed: number;
+  readonly countingEvents: number;
+  readonly events: readonly {
+    readonly competitionId: string;
+    readonly eventIndex: number;
+    readonly eventNumber: number;
+    readonly courseName: string;
+    readonly revealed: boolean;
+  }[];
+  readonly standings: readonly CareerSeasonTableRow[];
 }
 
 export interface CareerSeasonStandingView {
@@ -340,7 +457,14 @@ export async function careerStateWithRepair(
   return { state, repair };
 }
 
-/** Read an event's leaderboard: the committed final if settled, else live results. */
+/**
+ * Read an event's leaderboard, revealed one round at a time.
+ *
+ * The frontier is the viewer's own completed rounds. Finish round one and the
+ * whole field's cumulative round-one scores appear; rounds two to four stay
+ * sealed. Bot cumulative scores are summed from the immutable per-round cards
+ * written at field lock — nothing here divides, splits, or re-simulates a total.
+ */
 export async function careerEventLeaderboard(
   db: PrismaClient,
   competitionId: string,
@@ -397,7 +521,6 @@ export async function careerEventLeaderboard(
       },
     })
     : null;
-  const revealed = viewerEntry?.completed === true;
 
   const base = {
     id: competition.id,
@@ -426,95 +549,130 @@ export async function careerEventLeaderboard(
     cumulativeRelativeToPar,
     currentRoundId: currentRound?.roundId ?? viewerEntry?.roundId ?? null,
   };
-  const final = await db.careerEventFinal.findFirst({
-    where: { competitionId },
-    orderBy: { createdAt: "desc" },
-    select: { standings: true },
+  const roundsTotal = competition.roundsPerPlayer;
+  const eventComplete = viewerEntry?.completed === true;
+  // The frontier is the viewer's own play, never what exists in the database.
+  const roundsRevealed = eventComplete ? roundsTotal : roundsCompleted;
+  const orderedSlots = [...slotByNumber.values()].sort((left, right) => left.slotId - right.slotId);
+  const identityFor = (slot: typeof orderedSlots[number]): string =>
+    slot.competitorType === "HUMAN"
+      ? `human:${slot.profileId ?? slot.slotId}`
+      : `bot:${slot.botIdentityId ?? slot.slotId}`;
+  /** Names and seats are public from the moment the field locks; scores are not. */
+  const nameOnlyRows = (roundCardsAvailable: boolean): CareerEventLeaderboardView => ({
+    competition: base,
+    playerProgress,
+    settled: false,
+    revealed: false,
+    roundsRevealed: 0,
+    roundCardsAvailable,
+    standings: orderedSlots.map((slot) => ({
+      slotId: slot.slotId,
+      competitorId: identityFor(slot),
+      competitorType: slot.competitorType,
+      displayName: displayName(slot.slotId),
+      completed: false,
+      noShow: false,
+      roundsCompleted: 0,
+      relativeToPar: null,
+      rank: null,
+      points: null,
+      isMe: slot.profileId != null && slot.profileId === viewerProfileId,
+    })),
   });
-  if (final) {
-    const finalStandings = (final.standings as unknown as CareerEventStanding[]) ?? [];
-    return {
-      competition: base,
-      playerProgress,
-      settled: true,
-      revealed,
-      standings: [...finalStandings]
-        .sort((left, right) =>
-          (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER)
-          || left.slotId - right.slotId)
-        .map((standing) => ({
-          slotId: standing.slotId,
-          competitorId: standing.competitorId,
-          competitorType: standing.competitorType,
-          displayName: displayName(standing.slotId),
-          completed: standing.completed,
-          noShow: standing.noShow,
-          relativeToPar: standing.relativeToPar,
-          rank: standing.rank,
-          points: standing.points,
-        })),
-    };
-  }
-  // Not settled yet — surface the locked results in leaderboard order.
-  const results = await db.careerResult.findMany({
-    where: { competitionId },
-    orderBy: [{ completed: "desc" }, { relativeToPar: "asc" }, { slotId: "asc" }],
-    select: {
-      slotId: true,
-      competitorType: true,
-      relativeToPar: true,
-      completed: true,
-    },
-  });
-  // Unsettled: the bot cards already exist, so they must stay hidden until the
-  // viewer has played. Their own row is always visible.
-  if (!revealed) {
-    const mine = viewerProfileId
-      ? [...slotByNumber.values()].find((slot) => slot.profileId === viewerProfileId)
-      : undefined;
+
+  if (roundsRevealed === 0) return nameOnlyRows(true);
+
+  if (roundsRevealed >= roundsTotal) {
+    // The event is complete for the viewer: show the immutable final if it has
+    // been published, otherwise the same ordering computed from locked results.
+    const final = await db.careerEventFinal.findFirst({
+      where: { competitionId },
+      orderBy: { createdAt: "desc" },
+      select: { standings: true },
+    });
+    if (final) {
+      const finalStandings = (final.standings as unknown as CareerEventStanding[]) ?? [];
+      return {
+        competition: base,
+        playerProgress,
+        settled: true,
+        revealed: true,
+        roundsRevealed: roundsTotal,
+        roundCardsAvailable: true,
+        standings: [...finalStandings]
+          .sort((left, right) =>
+            (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER)
+            || left.slotId - right.slotId)
+          .map((standing) => ({
+            slotId: standing.slotId,
+            competitorId: standing.competitorId,
+            competitorType: standing.competitorType,
+            displayName: displayName(standing.slotId),
+            completed: standing.completed,
+            noShow: standing.noShow,
+            roundsCompleted: standing.completed ? roundsTotal : 0,
+            relativeToPar: standing.relativeToPar,
+            rank: standing.rank,
+            points: standing.points,
+            isMe: standing.profileId != null && standing.profileId === viewerProfileId,
+          })),
+      };
+    }
+    const results = await db.careerResult.findMany({
+      where: { competitionId },
+      select: { slotId: true, competitorType: true, relativeToPar: true, completed: true },
+    });
+    const scoreBySlot = new Map(results.map((result) => [
+      result.slotId,
+      result.completed ? result.relativeToPar : null,
+    ]));
     return {
       competition: base,
       playerProgress,
       settled: false,
-      revealed: false,
-      standings: mine
-        ? [{
-          slotId: mine.slotId,
-          competitorId: `human:${mine.profileId}`,
-          competitorType: "HUMAN" as const,
-          displayName: displayName(mine.slotId),
-          completed: false,
-          noShow: false,
-          relativeToPar: null,
-          rank: null,
-          points: null,
-        }]
-        : [],
+      revealed: true,
+      roundsRevealed: roundsTotal,
+      roundCardsAvailable: true,
+      standings: rankCumulativeStandings(
+        orderedSlots.map((slot) => ({
+          slotId: slot.slotId,
+          competitorId: identityFor(slot),
+          competitorType: slot.competitorType,
+          displayName: displayName(slot.slotId),
+          isMe: slot.profileId != null && slot.profileId === viewerProfileId,
+          relativeToPar: scoreBySlot.get(slot.slotId) ?? null,
+        })),
+        roundsTotal,
+      ),
     };
   }
 
+  // Partway through: sum each bot's stored cards through the revealed round.
+  const botCumulative = await careerBotCumulativeBySlot(db, competitionId, roundsRevealed);
+  if (!botCumulative) return nameOnlyRows(false);
+  const viewerSlotId = orderedSlots
+    .find((slot) => slot.profileId != null && slot.profileId === viewerProfileId)?.slotId;
   return {
     competition: base,
     playerProgress,
     settled: false,
     revealed: true,
-    standings: results.map((result, index) => {
-      const slot = slotByNumber.get(result.slotId);
-      const identity = slot?.competitorType === "HUMAN"
-        ? `human:${slot.profileId ?? result.slotId}`
-        : `bot:${slot?.botIdentityId ?? result.slotId}`;
-      return {
-        slotId: result.slotId,
-        competitorId: identity,
-        competitorType: result.competitorType,
-        displayName: displayName(result.slotId),
-        completed: result.completed,
-        noShow: false,
-        relativeToPar: result.relativeToPar,
-        rank: result.completed ? index + 1 : null,
-        points: null,
-      };
-    }),
+    roundsRevealed,
+    roundCardsAvailable: true,
+    standings: rankCumulativeStandings(
+      orderedSlots.map((slot) => ({
+        slotId: slot.slotId,
+        competitorId: identityFor(slot),
+        competitorType: slot.competitorType,
+        displayName: displayName(slot.slotId),
+        isMe: slot.slotId === viewerSlotId,
+        relativeToPar: slot.slotId === viewerSlotId
+          ? cumulativeRelativeToPar
+          : botCumulative.get(slot.slotId) ?? null,
+      })),
+      roundsRevealed,
+    ),
   };
 }
 
@@ -609,6 +767,201 @@ export async function careerSeasonStandings(
       movement: isHuman ? humanHistory?.movement ?? "HOLD" : "RIVAL",
     };
   });
+}
+
+/**
+ * The season table as the player should see it at any moment.
+ *
+ * All twenty competitors are listed from the instant the field locks, including
+ * before a single card is played. Event results appear only as the viewer
+ * completes each event, and an event counts for every competitor or for none —
+ * so an unrevealed event is absent from the maths rather than scored as zero.
+ * Once the season is settled the immutable final standings are used verbatim.
+ */
+export async function careerSeasonTable(
+  db: PrismaClient,
+  cohortId: string,
+  viewerProfileId: string,
+): Promise<CareerSeasonTableView | null> {
+  const cohort = await db.careerCohort.findUnique({
+    where: { id: cohortId },
+    include: {
+      competitions: {
+        where: { kind: "EVENT" },
+        orderBy: { eventNumber: "asc" },
+        include: {
+          course: { select: { name: true } },
+          finals: { orderBy: { createdAt: "desc" }, take: 1 },
+          results: {
+            select: { slotId: true, competitorType: true, relativeToPar: true, completed: true },
+          },
+          lockRevisions: {
+            orderBy: { revision: "desc" },
+            take: 1,
+            include: {
+              slots: {
+                orderBy: { slotId: "asc" },
+                include: {
+                  profile: { include: { user: { select: { username: true } } } },
+                  botIdentity: { select: { displayName: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!cohort) return null;
+
+  const entries = await db.careerEventEntry.findMany({
+    where: { profileId: viewerProfileId, competition: { cohortId } },
+    select: { competitionId: true, completed: true },
+  });
+  const completedByViewer = new Set(
+    entries.filter((entry) => entry.completed).map((entry) => entry.competitionId),
+  );
+
+  const events = cohort.competitions.map((competition, index) => ({
+    competitionId: competition.id,
+    eventIndex: (competition.eventNumber ?? index + 1) - 1,
+    eventNumber: competition.eventNumber ?? index + 1,
+    courseName: competition.course.name,
+    revealed: completedByViewer.has(competition.id),
+  }));
+  const eventsRevealed = events.filter((event) => event.revealed).length;
+
+  // Identities come from the locked field, so every rival is named from the
+  // start — only their scores wait on the viewer.
+  const identities = new Map<string, { displayName: string; profileId: string | null }>();
+  for (const competition of cohort.competitions) {
+    for (const slot of competition.lockRevisions[0]?.slots ?? []) {
+      const competitorId = slot.competitorType === "HUMAN"
+        ? `human:${slot.profileId}`
+        : `bot:${slot.botIdentityId}`;
+      if (identities.has(competitorId)) continue;
+      identities.set(competitorId, {
+        displayName: slot.profile?.user.username
+          ?? slot.botIdentity?.displayName
+          ?? (slot.competitorType === "HUMAN" ? "Player" : `Rival ${slot.slotId}`),
+        profileId: slot.profileId,
+      });
+    }
+  }
+
+  // Per-event standings for revealed events only: the published final when it
+  // exists, else the identical calculation over the locked results.
+  const revealedResults = new Map<string, SeasonEventResult[]>();
+  for (const competition of cohort.competitions) {
+    if (!completedByViewer.has(competition.id)) continue;
+    const eventIndex = (competition.eventNumber ?? 1) - 1;
+    const final = competition.finals[0];
+    const standings: readonly CareerEventStanding[] = final && Array.isArray(final.standings)
+      ? final.standings as unknown as CareerEventStanding[]
+      : calculateCareerEventStandings(
+        (competition.lockRevisions[0]?.slots ?? []).map((slot) => {
+          const result = competition.results.find((candidate) => candidate.slotId === slot.slotId);
+          return {
+            slotId: slot.slotId,
+            competitorType: slot.competitorType,
+            profileId: slot.profileId,
+            botIdentityId: slot.botIdentityId,
+            relativeToPar: result?.relativeToPar ?? null,
+            completed: result?.completed ?? false,
+          };
+        }),
+      );
+    for (const standing of standings) {
+      const list = revealedResults.get(standing.competitorId) ?? [];
+      list.push({
+        eventIndex,
+        competitorId: standing.competitorId,
+        completed: standing.completed,
+        relativeToPar: standing.relativeToPar,
+        rank: standing.rank,
+        points: standing.points,
+      });
+      revealedResults.set(standing.competitorId, list);
+    }
+  }
+
+  const settledStandings = cohort.state === "SETTLED"
+    ? await careerSeasonStandings(db, cohortId)
+    : [];
+  const settled = settledStandings.length > 0;
+  const settledByCompetitor = new Map(settledStandings.map((row) => [row.competitorId, row]));
+
+  const summaries = [...identities.keys()].map((competitorId) => ({
+    competitorId,
+    summary: summarizeSeason({
+      competitorId,
+      events: revealedResults.get(competitorId) ?? [],
+      fallbackDraw: hashSeed(`career:season-fallback:${cohortId}:${competitorId}`),
+    }),
+  }));
+  const ordered = settled
+    // Settled seasons are immutable: keep the published order exactly.
+    ? settledStandings
+      .map((row) => summaries.find((entry) => entry.competitorId === row.competitorId))
+      .filter((entry): entry is typeof summaries[number] => entry != null)
+    : [...summaries].sort((left, right) => {
+      const performance = compareSeasonPerformance(left.summary, right.summary);
+      if (performance !== 0) return performance;
+      if (left.summary.fallbackDraw !== right.summary.fallbackDraw) {
+        return left.summary.fallbackDraw - right.summary.fallbackDraw;
+      }
+      return left.competitorId.localeCompare(right.competitorId);
+    });
+
+  const standings: CareerSeasonTableRow[] = ordered.map((entry, index) => {
+    const identity = identities.get(entry.competitorId)!;
+    const settledRow = settledByCompetitor.get(entry.competitorId);
+    const counting = new Set(entry.summary.countingEventIndexes);
+    const byIndex = new Map(
+      (revealedResults.get(entry.competitorId) ?? []).map((result) => [result.eventIndex, result]),
+    );
+    return {
+      competitorId: entry.competitorId,
+      profileId: identity.profileId,
+      displayName: identity.displayName,
+      isMe: identity.profileId === viewerProfileId,
+      tier: settledRow?.tier ?? cohort.tier,
+      nextTier: settledRow?.nextTier ?? cohort.tier,
+      // Before anything is revealed there is no competitive result, so there is
+      // no rank to show — an invented "1st of 20" would be meaningless.
+      rank: settled
+        ? settledRow?.rank ?? null
+        : eventsRevealed > 0 ? index + 1 : null,
+      seasonPoints: settledRow?.seasonPoints ?? entry.summary.seasonPoints,
+      eventsCompleted: entry.summary.completedEvents,
+      movement: settledRow?.movement ?? (identity.profileId ? "HOLD" : "RIVAL"),
+      events: events.map((event) => {
+        const result = byIndex.get(event.eventIndex);
+        return {
+          eventIndex: event.eventIndex,
+          eventNumber: event.eventNumber,
+          revealed: event.revealed,
+          relativeToPar: result?.relativeToPar ?? null,
+          rank: result?.rank ?? null,
+          points: result?.points ?? null,
+          counting: result != null && counting.has(event.eventIndex),
+        };
+      }),
+    };
+  });
+
+  return {
+    cohortId,
+    seasonNumber: cohort.seasonNumber,
+    tier: cohort.tier,
+    state: cohort.state,
+    settled,
+    eventsTotal: events.length,
+    eventsRevealed,
+    countingEvents: 3,
+    events,
+    standings,
+  };
 }
 
 /** Read a Championship's field + results by world + cycle (latest if omitted). */

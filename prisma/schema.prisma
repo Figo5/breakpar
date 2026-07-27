@@ -501,6 +501,7 @@ model CareerCompetition {
   lockRevisions CareerLockRevision[]
   slots         CareerFieldSlot[]
   results       CareerResult[]
+  botRounds     CareerBotRoundResult[]
   finals        CareerEventFinal[]
   eventEntries  CareerEventEntry[]
 
@@ -563,8 +564,35 @@ model CareerLockRevision {
   competition CareerCompetition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   slots       CareerFieldSlot[]
   results     CareerResult[]
+  botRounds   CareerBotRoundResult[]
 
   @@unique([competitionId, revision])
+}
+
+/// One immutable bot card inside a multi-round Career event.
+///
+/// The event total in CareerResult is the SUM of these rows, which exist so a
+/// leaderboard can be revealed round by round without ever dividing, guessing,
+/// or re-simulating a total. Rows are generated deterministically during field
+/// formation from the pinned formula bundle and are never rewritten: reads must
+/// treat them as read-only. The unique (lockRevisionId, slotId, roundNumber)
+/// makes a duplicate card impossible.
+model CareerBotRoundResult {
+  id             String   @id @default(cuid())
+  competitionId  String
+  lockRevisionId String
+  slotId         Int
+  roundNumber    Int
+  relativeToPar  Int
+  seed           String
+  formulaVersion String
+  createdAt      DateTime @default(now())
+
+  competition  CareerCompetition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  lockRevision CareerLockRevision @relation(fields: [lockRevisionId], references: [id], onDelete: Cascade)
+
+  @@unique([lockRevisionId, slotId, roundNumber])
+  @@index([competitionId, roundNumber])
 }
 
 model CareerFieldSlot {

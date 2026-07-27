@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   availabilityLabel,
   canContestChampionship,
+  cumulativeLabel,
   eventAvailability,
   lifecycleLabel,
   movementLabel,
   pointsLabel,
+  revealLabel,
+  roundProgressLabel,
   scoreLabel,
+  seasonRevealLabel,
   seasonsUntilChampionship,
   sourceLabel,
   tierLabel,
@@ -63,5 +67,41 @@ describe("Career UI presentation", () => {
     expect(canContestChampionship("LOCAL")).toBe(false);
     expect(canContestChampionship("CHALLENGER")).toBe(true);
     expect(canContestChampionship("PRO")).toBe(true);
+  });
+
+  it("labels the round the player is on without ever running past the last one", () => {
+    expect(roundProgressLabel(0, 4)).toBe("Round 1 of 4");
+    expect(roundProgressLabel(2, 4)).toBe("Round 3 of 4");
+    // A finished event points at its last round, not an imaginary fifth.
+    expect(roundProgressLabel(4, 4)).toBe("Round 4 of 4");
+    expect(roundProgressLabel(1, 1)).toBe("Round 1 of 1");
+  });
+
+  it("states how much of an event leaderboard is on show", () => {
+    expect(revealLabel(0, 4)).toBe("Scores hidden until you play");
+    expect(revealLabel(1, 4)).toBe("Through round 1 of 4");
+    expect(revealLabel(3, 4)).toBe("Through round 3 of 4");
+    expect(revealLabel(4, 4)).toBe("All 4 rounds");
+    // A partial reveal must never read as complete.
+    for (const revealed of [1, 2, 3]) {
+      expect(revealLabel(revealed, 4)).not.toMatch(/final|all/i);
+    }
+  });
+
+  it("states how much of a season table is on show", () => {
+    expect(seasonRevealLabel(0, 4)).toBe("No results yet");
+    expect(seasonRevealLabel(1, 4)).toBe("Provisional · 1 of 4 events");
+    expect(seasonRevealLabel(3, 4)).toBe("Provisional · 3 of 4 events");
+    expect(seasonRevealLabel(4, 4)).toBe("Final · all four events");
+    for (const revealed of [1, 2, 3]) {
+      expect(seasonRevealLabel(revealed, 4)).toMatch(/provisional/i);
+    }
+  });
+
+  it("renders a missing cumulative score as a dash, never as level par", () => {
+    expect(cumulativeLabel(null)).toBe("—");
+    expect(cumulativeLabel(0)).toBe("E");
+    expect(cumulativeLabel(-6)).toBe("-6");
+    expect(cumulativeLabel(11)).toBe("+11");
   });
 });

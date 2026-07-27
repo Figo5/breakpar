@@ -19,6 +19,12 @@ import {
   pinCareerFormulaBundle,
 } from "./formulaBundle";
 import { CAREER_BASE_FIELD_SIZE } from "./constants";
+import {
+  careerBotRoundCards,
+  careerBotRoundSeed,
+  sumBotRoundCards,
+  type CareerBotRoundCard,
+} from "./botRounds";
 
 export const DEFAULT_FORMATION_LEASE_MS = 5 * 60 * 1000;
 
@@ -84,6 +90,8 @@ interface CalculatedResult {
   readonly completed: boolean;
   readonly roundId: string | null;
   readonly outputHash: string | null;
+  /** Bots only: the immutable cards this total is the sum of. */
+  readonly roundCards: readonly CareerBotRoundCard[];
 }
 
 interface CalculatedEventLock {
@@ -375,26 +383,35 @@ export class CareerFormationService {
                 relativeToPar: entry!.relativeToPar,
               })
               : null,
+            roundCards: [],
           };
         }
         const assignment = assignments.find((candidate) => candidate.slotId === slot.slotId)!;
-        const relativeToPar = Array.from(
+        // Each card is generated once, here, and persisted. The event total is
+        // their sum — never the other way around, so a round-by-round reveal
+        // never has to split or approximate a total.
+        const roundCards: CareerBotRoundCard[] = Array.from(
           { length: event.roundsPerPlayer },
-          (_, roundIndex) => this.simulateBotRound(
-            `${seedNamespace}:round${roundIndex + 1}:slot${slot.slotId}`,
-            gameCourse,
-            {
-              ability: assignment.abilityBand,
-              tendency: assignment.tendency,
-            },
-          ),
-        ).reduce((sum, score) => sum + score, 0);
+          (_, roundIndex) => {
+            const seed = careerBotRoundSeed(seedNamespace, roundIndex + 1, slot.slotId);
+            return {
+              roundNumber: roundIndex + 1,
+              relativeToPar: this.simulateBotRound(seed, gameCourse, {
+                ability: assignment.abilityBand,
+                tendency: assignment.tendency,
+              }),
+              seed,
+            };
+          },
+        );
+        const relativeToPar = sumBotRoundCards(roundCards);
         return {
           slotId: slot.slotId,
           competitorType: "BOT",
           relativeToPar,
           completed: true,
               roundId: null,
+          roundCards,
           outputHash: canonicalHash({
             seedNamespace,
             slotId: slot.slotId,
@@ -596,6 +613,17 @@ export class CareerFormationService {
             outputHash: result.outputHash,
           })),
         });
+        const botCards = event.results.flatMap((result) =>
+          result.roundCards.map((card) => ({
+            competitionId: event.competitionId,
+            lockRevisionId: revision.id,
+            slotId: result.slotId,
+            roundNumber: card.roundNumber,
+            relativeToPar: card.relativeToPar,
+            seed: card.seed,
+            formulaVersion: CAREER_FORMULA_VERSION,
+          })));
+        if (botCards.length > 0) await tx.careerBotRoundResult.createMany({ data: botCards });
       }
 
       await tx.careerStagedEffect.createMany({

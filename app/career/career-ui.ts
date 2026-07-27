@@ -95,3 +95,28 @@ export function seasonsUntilChampionship(settledSeasons: number, perCycle = 4): 
 export function canContestChampionship(tier: string): boolean {
   return tier === "CHALLENGER" || tier === "PRO";
 }
+
+/** "Round 3 of 4" — the round the player is about to play, or the last one. */
+export function roundProgressLabel(roundsCompleted: number, roundsTotal: number): string {
+  const round = Math.min(Math.max(roundsCompleted, 0) + 1, Math.max(roundsTotal, 1));
+  return `Round ${round} of ${roundsTotal}`;
+}
+
+/** How much of an event leaderboard is currently on show. */
+export function revealLabel(roundsRevealed: number, roundsTotal: number): string {
+  if (roundsRevealed <= 0) return "Scores hidden until you play";
+  if (roundsRevealed >= roundsTotal) return `All ${roundsTotal} rounds`;
+  return `Through round ${roundsRevealed} of ${roundsTotal}`;
+}
+
+/** How much of a season table is currently on show. */
+export function seasonRevealLabel(eventsRevealed: number, eventsTotal: number): string {
+  if (eventsRevealed <= 0) return "No results yet";
+  if (eventsRevealed >= eventsTotal) return "Final · all four events";
+  return `Provisional · ${eventsRevealed} of ${eventsTotal} events`;
+}
+
+/** Cumulative score through a partial event, never a projected total. */
+export function cumulativeLabel(relativeToPar: number | null): string {
+  return relativeToPar == null ? "—" : scoreLabel(relativeToPar);
+}
