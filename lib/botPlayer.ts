@@ -179,7 +179,7 @@ export function simulateBotRound(seedKey: string, courseSlug: string, botKey: st
 
   for (let hi = 0; hi < course.holes.length; hi++) {
     const h = course.holes[hi];
-    const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex };
+    const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex, yardage: h.yardage };
     const d = holeDifficulty(spec, cond);
     st.holesLeft = course.holes.length - hi;
 

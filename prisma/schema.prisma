@@ -19,10 +19,10 @@ model User {
   // A user is backed by EITHER a Clerk account or an anonymous guest id.
   clerkId   String?  @unique // Clerk subject, once signed in
   guestId   String?  @unique // anonymous cookie identity for zero-login play
-  username  String            // display only — not unique (guests share patterns)
-  email     String?  @unique  // null for guests / providers without email
-  xHandle   String?           // X/Twitter handle ONLY (no @, no URL); optional
-  imageUrl  String?           // Clerk profile image (imageUrl), synced on login; null = show initial
+  username  String // display only — not unique (guests share patterns)
+  email     String?  @unique // null for guests / providers without email
+  xHandle   String? // X/Twitter handle ONLY (no @, no URL); optional
+  imageUrl  String? // Clerk profile image (imageUrl), synced on login; null = show initial
   createdAt DateTime @default(now())
 
   // Public profile (accounts only; guests never get one). Default PUBLIC with an
@@ -35,10 +35,12 @@ model User {
   // uniquely for /u/[username] while guests keep sharing display names. Prisma
   // can't express a filtered unique in-schema, so it lives in migration SQL.
 
-  rounds       Round[]
-  streak       Streak?
-  trophyAwards TrophyAward[]
-  tournamentEntries TournamentEntry[]
+  rounds             Round[]
+  streak             Streak?
+  trophyAwards       TrophyAward[]
+  tournamentEntries  TournamentEntry[]
+  careerProfiles     CareerProfile[]
+  careerEventEntries CareerEventEntry[]
 
   // Challenges (accounts only). Directed: challenger -> opponent, both accounts.
   challengesSent     Challenge[] @relation("challengesSent")
@@ -69,29 +71,30 @@ model Follow {
 }
 
 model Course {
-  id         String  @id @default(cuid())
-  slug       String  @unique
+  id         String @id @default(cuid())
+  slug       String @unique
   name       String
   location   String
   rating     Float
   slope      Int
-  difficulty Int     // 1..10
+  difficulty Int // 1..10
   wind       Int
   greens     String
 
-  holes      Hole[]
-  rounds     Round[]
-  challenges Challenge[]
-  tournaments Tournament[]
+  holes              Hole[]
+  rounds             Round[]
+  challenges         Challenge[]
+  tournaments        Tournament[]
+  careerCompetitions CareerCompetition[]
 }
 
 model Hole {
   id          String @id @default(cuid())
   courseId    String
-  holeNumber  Int    // 1..18
+  holeNumber  Int // 1..18
   par         Int
   yardage     Int
-  strokeIndex Int    // 1 = hardest
+  strokeIndex Int // 1 = hardest
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
@@ -99,26 +102,26 @@ model Hole {
 }
 
 model Round {
-  id          String   @id @default(cuid())
-  userId      String
-  courseId    String
-  mode        String   @default("daily") // "daily" (ranked) | "unlimited" (practice) | "challenge" (head-to-head) | "tournament"
-  dateKey     String?  // "2026-06-25" for daily rounds; null for unlimited/challenge play
+  id                String   @id @default(cuid())
+  userId            String
+  courseId          String
+  mode              String   @default("daily") // daily | unlimited | challenge | tournament | career
+  dateKey           String? // "2026-06-25" for daily rounds; null for unlimited/challenge play
   // Shared RNG namespace for challenge rounds (= Challenge.seedKey) so both
   // players face identical hole conditions. null for daily/unlimited -> the hole
   // route seeds from round.id as before (byte-identical, calibration untouched).
-  // Tournament rounds set seedKey = "{tournamentId}:{roundNo}" so the whole field
-  // shares one seed per round (fair), yet each round of the week differs.
-  seedKey     String?
+  // Tournament rounds persist one deterministically neutralized seed per round
+  // so the whole field shares fair conditions without extreme hot/cold seeds.
+  seedKey           String?
   // Tournament linkage (null for non-tournament rounds). A round belongs to one
   // tournament entry and is one of the 4 numbered rounds (1..4).
   tournamentEntryId String?
   tournamentRoundNo Int?
-  score       Int      @default(0)
-  relativeToPar Int    @default(0)
-  completed   Boolean  @default(false)
-  durationMs  Int?
-  playedAt    DateTime @default(now())
+  score             Int      @default(0)
+  relativeToPar     Int      @default(0)
+  completed         Boolean  @default(false)
+  durationMs        Int?
+  playedAt          DateTime @default(now())
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   course      Course       @relation(fields: [courseId], references: [id])
@@ -129,7 +132,9 @@ model Round {
   challengerFor Challenge? @relation("challengerRound")
   opponentFor   Challenge? @relation("opponentRound")
 
-  tournamentEntry TournamentEntry? @relation(fields: [tournamentEntryId], references: [id], onDelete: Cascade)
+  tournamentEntry          TournamentEntry?          @relation(fields: [tournamentEntryId], references: [id], onDelete: Cascade)
+  careerEventEntry         CareerEventEntry?
+  careerChampionshipResult CareerChampionshipResult?
 
   // one ranked round per player per day. Unlimited rounds use dateKey = null,
   // and Postgres treats each NULL as distinct, so a player can have many.
@@ -171,24 +176,24 @@ model Challenge {
 // cumulative to-par, a mid-week cut. Self-activating by clock — status is
 // DERIVED from now vs. startsAt/cutAt/endsAt (a stored `status` is only a cache
 // the read-path refreshes lazily; no cron required). Everyone plays the SAME
-// course from a per-round shared seed ("{tournamentId}:{roundNo}"), so scores
-// are comparable. Accounts only.
+// course from one persisted, neutralized seed per round, so scores are
+// comparable without letting an extreme seed move the whole field. Accounts only.
 model Tournament {
-  id        String   @id @default(cuid())
-  weekKey   String   @unique // e.g. "2026-W28" — one tournament per week
-  courseId  String
-  name      String   @default("Weekly Tournament")
-  startsAt  DateTime // Mon 00:00 ET — rounds 1-2 open
-  cutAt     DateTime // Thu 00:00 ET (end of Thu) — cut computed, rounds 1-2 close
-  endsAt    DateTime // Sun end — rounds 3-4 close, final settled
-  cutPercent Int     @default(30) // top X% advance...
-  cutMin     Int     @default(20) // ...but at least this many always advance
+  id            String    @id @default(cuid())
+  weekKey       String    @unique // e.g. "2026-W28" — one tournament per week
+  courseId      String
+  name          String    @default("Weekly Tournament")
+  startsAt      DateTime // Mon 00:00 ET — rounds 1-2 open
+  cutAt         DateTime // Thu 00:00 ET (end of Thu) — cut computed, rounds 1-2 close
+  endsAt        DateTime // Sun end — rounds 3-4 close, final settled
+  cutPercent    Int       @default(30) // top X% advance...
+  cutMin        Int       @default(20) // ...but at least this many always advance
   // Lifecycle cache — the read path recomputes phase from the clock and updates
   // this lazily. "upcoming" | "round1_2" | "cut" | "round3_4" | "complete".
-  status    String   @default("upcoming")
+  status        String    @default("upcoming")
   cutComputedAt DateTime? // set once the cut has been resolved (idempotent guard)
-  winnerUserId  String?   // set once finalized
-  createdAt DateTime @default(now())
+  winnerUserId  String? // set once finalized
+  createdAt     DateTime  @default(now())
 
   course  Course            @relation(fields: [courseId], references: [id])
   entries TournamentEntry[]
@@ -232,11 +237,11 @@ model HoleResult {
 
 model Feedback {
   id        String   @id @default(cuid())
-  userId    String?  // null for fully anonymous senders
+  userId    String? // null for fully anonymous senders
   kind      String   @default("general") // "bug" | "course" | "general"
   message   String
-  email     String?  // optional reply-to the sender chose to share
-  path      String?  // page the widget was opened from
+  email     String? // optional reply-to the sender chose to share
+  path      String? // page the widget was opened from
   resolved  Boolean  @default(false) // triaged/handled flag for the admin inbox
   createdAt DateTime @default(now())
 
@@ -253,7 +258,7 @@ model Feedback {
 model TrophyAward {
   id         String    @id @default(cuid())
   userId     String
-  trophyId   String    // matches the lib/trophies catalogue id (e.g. "first-eagle")
+  trophyId   String // matches the lib/trophies catalogue id (e.g. "first-eagle")
   unlockedAt DateTime? // real time for a genuine unlock; null = backfilled (unknown)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -263,15 +268,571 @@ model TrophyAward {
 }
 
 model Streak {
-  id                 String @id @default(cuid())
-  userId             String @unique
-  daysPlayed         Int    @default(0)
-  currentStreak      Int    @default(0)
-  maxStreak          Int    @default(0) // longest day-streak ever (survives a miss)
-  underParStreak     Int    @default(0) // consecutive under-par days
-  underParTotal      Int    @default(0) // total under-par days (for win %)
-  bestScore          Int    @default(999) // best relative-to-par score
-  lastPlayedKey      String?
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  daysPlayed     Int     @default(0)
+  currentStreak  Int     @default(0)
+  maxStreak      Int     @default(0) // longest day-streak ever (survives a miss)
+  underParStreak Int     @default(0) // consecutive under-par days
+  underParTotal  Int     @default(0) // total under-par days (for win %)
+  bestScore      Int     @default(999) // best relative-to-par score
+  lastPlayedKey  String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum CareerTier {
+  LOCAL
+  CHALLENGER
+  PRO
+}
+
+enum CareerAbility {
+  RUSTY
+  SCRATCH
+  ACE
+}
+
+enum CareerTendency {
+  CONSERVATIVE
+  BALANCED
+  AGGRESSIVE
+  SITUATIONAL
+}
+
+enum CareerProfileStatus {
+  ACTIVE
+  PAUSED
+  RETIRED
+}
+
+enum CareerCompetitionKind {
+  EVENT
+  CHAMPIONSHIP
+}
+
+enum CareerCompetitionState {
+  FORMING
+  LOCKING
+  LOCKED
+  ACTIVE
+  ENDED
+  SETTLED
+  MANUAL_REVIEW
+  VOID
+}
+
+enum CareerCohortState {
+  FORMING
+  ACTIVE
+  ENDED
+  SETTLED
+  MANUAL_REVIEW
+}
+
+enum CareerAttemptState {
+  CLAIMED
+  SNAPSHOTTED
+  CALCULATED
+  COMMITTED
+  FAILED_RETRYABLE
+  SUPERSEDED
+  MANUAL_REVIEW
+}
+
+enum CareerAggregateType {
+  EVENT
+  SEASON
+  CHAMPIONSHIP
+  QUALIFICATION
+  FIELD_LOCK
+}
+
+enum CareerCompetitorType {
+  HUMAN
+  BOT
+}
+
+enum CareerMovement {
+  PROMOTE
+  HOLD
+  RELEGATE
+  INACTIVE
+}
+
+/// A player's personal, permanent Career Journey.
+///
+/// Player-paced Career v1: this is no longer a shared, date-keyed world. Exactly
+/// one profile belongs to each Journey and `worldKey` is the stable personal key
+/// `journey:{userId}`, whose uniqueness enforces one Journey per player. There is
+/// no season length, no calendar window, and no shared enrollment.
+model CareerWorld {
+  id             String   @id @default(cuid())
+  worldKey       String   @unique
+  state          String   @default("ACTIVE")
+  formulaVersion String   @default("career-v2-player-paced")
+  createdAt      DateTime @default(now())
+
+  profiles      CareerProfile[]
+  bots          CareerBotIdentity[]
+  cohorts       CareerCohort[]
+  championships CareerChampionship[]
+}
+
+model CareerBotIdentity {
+  id          String         @id @default(cuid())
+  worldId     String
+  botKey      String
+  displayName String
+  homeFlavor  String
+  tendency    CareerTendency
+  recurring   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+
+  world               CareerWorld                @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  fieldSlots          CareerFieldSlot[]
+  championshipSlots   CareerChampionshipSlot[]
+  championshipResults CareerChampionshipResult[]
+
+  @@unique([worldId, botKey])
+  @@index([worldId, recurring])
+}
+
+/// The player's Career identity within their Journey.
+///
+/// `status` is retained only as an account-level archival flag; it must not
+/// affect ordinary progression, because nothing expires in player-paced Career.
+/// `consecutiveInactiveSeasons` is gone: a season cannot be missed, only unplayed.
+model CareerProfile {
+  id               String              @id @default(cuid())
+  userId           String
+  worldId          String
+  tier             CareerTier          @default(LOCAL)
+  status           CareerProfileStatus @default(ACTIVE)
+  movementEvidence Json                @default("[]")
+  legacyTotal      Int                 @default(0)
+  currentSeason    Int                 @default(1)
+  settledSeasons   Int                 @default(0)
+  createdAt        DateTime            @default(now())
+
+  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  world               CareerWorld                @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  histories           CareerSeasonHistory[]
+  ratings             CareerRatingHistory[]
+  legacy              CareerLegacyLedger[]
+  trophies            CareerTrophy[]
+  memberships         CareerCohortMember[]
+  fieldSlots          CareerFieldSlot[]
+  eventEntries        CareerEventEntry[]
+  championshipSlots   CareerChampionshipSlot[]
+  championshipResults CareerChampionshipResult[]
+
+  @@unique([userId, worldId])
+  @@index([worldId, tier])
+}
+
+/// One personal season: four events against a locked 1-human + 19-bot field.
+///
+/// The cohort IS the season in player-paced Career — the old shared, dated
+/// `CareerSeason` parent is gone. A season carries no start, end, or deadline;
+/// it is created ACTIVE with its field already locked and settles when the
+/// player's fourth event completes.
+model CareerCohort {
+  id             String            @id @default(cuid())
+  worldId        String
+  seasonNumber   Int
+  tier           CareerTier
+  state          CareerCohortState @default(FORMING)
+  lockedAt       DateTime?
+  settledAt      DateTime?
+  fencingToken   Int               @default(0)
+  claimOwner     String?
+  claimToken     Int?
+  leaseExpiresAt DateTime?
+  createdAt      DateTime          @default(now())
+
+  world        CareerWorld             @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  competitions CareerCompetition[]
+  settlement   CareerSeasonSettlement?
+  members      CareerCohortMember[]
+
+  @@unique([worldId, seasonNumber, tier])
+  @@index([state])
+}
+
+model CareerCohortMember {
+  id        String   @id @default(cuid())
+  cohortId  String
+  profileId String
+  slotId    Int
+  joinedAt  DateTime @default(now())
+
+  cohort       CareerCohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  profile      CareerProfile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  eventEntries CareerEventEntry[]
+
+  @@unique([cohortId, profileId])
+  @@unique([cohortId, slotId])
+  @@index([profileId])
+}
+
+model CareerCompetition {
+  id              String                 @id @default(cuid())
+  kind            CareerCompetitionKind
+  cohortId        String?
+  eventNumber     Int?
+  championshipId  String?
+  courseId        String
+  state           CareerCompetitionState @default(FORMING)
+  targetFieldSize Int                    @default(20)
+  unlocksAt       DateTime
+  deadlineAt      DateTime
+  fencingToken    Int                    @default(0)
+  claimOwner      String?
+  claimToken      Int?
+  leaseExpiresAt  DateTime?
+  createdAt       DateTime               @default(now())
+
+  cohort        CareerCohort?        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  championship  CareerChampionship?  @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  course        Course               @relation(fields: [courseId], references: [id])
+  lockRevisions CareerLockRevision[]
+  slots         CareerFieldSlot[]
+  results       CareerResult[]
+  finals        CareerEventFinal[]
+  eventEntries  CareerEventEntry[]
+
+  @@unique([cohortId, eventNumber])
+  @@index([state, deadlineAt])
+}
+
+model CareerEventEntry {
+  id            String    @id @default(cuid())
+  competitionId String
+  memberId      String
+  profileId     String
+  userId        String
+  roundId       String?   @unique
+  completed     Boolean   @default(false)
+  relativeToPar Int?
+  submittedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  competition CareerCompetition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  member      CareerCohortMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  profile     CareerProfile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  round       Round?             @relation(fields: [roundId], references: [id], onDelete: SetNull)
+
+  @@unique([competitionId, profileId])
+  @@unique([competitionId, memberId])
+  @@index([userId])
+}
+
+model CareerLockRevision {
+  id             String   @id @default(cuid())
+  competitionId  String
+  revision       Int
+  lockHash       String
+  formulaBundle  Json
+  rosterSnapshot Json
+  createdAt      DateTime @default(now())
+
+  competition CareerCompetition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  slots       CareerFieldSlot[]
+  results     CareerResult[]
+
+  @@unique([competitionId, revision])
+}
+
+model CareerFieldSlot {
+  id             String               @id @default(cuid())
+  competitionId  String
+  lockRevisionId String
+  slotId         Int
+  competitorType CareerCompetitorType
+  profileId      String?
+  botIdentityId  String?
+  abilityBand    CareerAbility?
+  tendency       CareerTendency?
+  seedNamespace  String
+
+  competition  CareerCompetition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  lockRevision CareerLockRevision @relation(fields: [lockRevisionId], references: [id], onDelete: Cascade)
+  profile      CareerProfile?     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  botIdentity  CareerBotIdentity? @relation(fields: [botIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([lockRevisionId, slotId])
+  @@index([competitionId, competitorType])
+}
+
+model CareerResult {
+  id             String               @id @default(cuid())
+  competitionId  String
+  lockRevisionId String
+  slotId         Int
+  competitorType CareerCompetitorType
+  relativeToPar  Int?
+  completed      Boolean              @default(false)
+  roundId        String?
+  outputHash     String?
+  createdAt      DateTime             @default(now())
+
+  competition  CareerCompetition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  lockRevision CareerLockRevision @relation(fields: [lockRevisionId], references: [id], onDelete: Cascade)
+
+  @@unique([lockRevisionId, slotId])
+}
+
+model CareerEventFinal {
+  id             String   @id @default(cuid())
+  competitionId  String
+  lockRevisionId String
+  formulaVersion String
+  standings      Json
+  outputHash     String
+  createdAt      DateTime @default(now())
+
+  competition CareerCompetition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, lockRevisionId, formulaVersion])
+}
+
+model CareerSeasonSettlement {
+  id             String   @id @default(cuid())
+  cohortId       String   @unique
+  seasonNumber   Int
+  formulaVersion String
+  revision       Int      @default(1)
+  inputHash      String
+  outputHash     String
+  committedAt    DateTime @default(now())
+
+  cohort CareerCohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+}
+
+model CareerSeasonHistory {
+  id              String         @id @default(cuid())
+  profileId       String
+  cohortId        String
+  worldId         String
+  seasonNumber    Int
+  tier            CareerTier
+  nextTier        CareerTier
+  active          Boolean
+  completedEvents Int
+  rank            Int?
+  activeFieldSize Int
+  seasonPoints    Float
+  movement        CareerMovement
+  evidence        Json
+  revisionId      String
+  createdAt       DateTime       @default(now())
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, cohortId])
+  @@index([worldId, seasonNumber])
+}
+
+model CareerRatingHistory {
+  id           String     @id @default(cuid())
+  profileId    String
+  worldId      String
+  seasonNumber Int
+  rating       Float
+  active       Boolean
+  tier         CareerTier
+  createdAt    DateTime   @default(now())
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, worldId, seasonNumber])
+}
+
+model CareerLegacyLedger {
+  id          String   @id @default(cuid())
+  profileId   String
+  sourceType  String
+  sourceId    String
+  awardType   String
+  points      Int
+  revisionId  String
+  payloadHash String
+  createdAt   DateTime @default(now())
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, sourceType, sourceId, awardType])
+  @@index([profileId])
+}
+
+model CareerTrophy {
+  id         String   @id @default(cuid())
+  profileId  String
+  sourceType String
+  sourceId   String
+  trophyType String
+  revisionId String
+  createdAt  DateTime @default(now())
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, sourceType, sourceId, trophyType])
+}
+
+model CareerChampionship {
+  id             String                 @id @default(cuid())
+  worldId        String
+  cycleNumber    Int
+  state          CareerCompetitionState @default(FORMING)
+  deadlineAt     DateTime
+  fencingToken   Int                    @default(0)
+  claimOwner     String?
+  claimToken     Int?
+  leaseExpiresAt DateTime?
+  createdAt      DateTime               @default(now())
+
+  world        CareerWorld                @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  competitions CareerCompetition[]
+  slots        CareerChampionshipSlot[]
+  results      CareerChampionshipResult[]
+
+  @@unique([worldId, cycleNumber])
+}
+
+/// NOTE: PARTIAL UNIQUE INDEXES on (championshipId, profileId) WHERE profileId
+/// IS NOT NULL and (championshipId, botIdentityId) WHERE botIdentityId IS NOT
+/// NULL are added via raw SQL in a migration — they stop a competitor holding
+/// two slots in one field. Carry them forward if these migrations are squashed.
+model CareerChampionshipSlot {
+  id             String               @id @default(cuid())
+  championshipId String
+  slotNumber     Int
+  competitorType CareerCompetitorType
+  profileId      String?
+  botIdentityId  String?
+  source         String
+  sourceTrace    Json
+
+  championship CareerChampionship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  profile      CareerProfile?     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  botIdentity  CareerBotIdentity? @relation(fields: [botIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([championshipId, slotNumber])
+}
+
+model CareerChampionshipResult {
+  id             String               @id @default(cuid())
+  championshipId String
+  slotNumber     Int
+  competitorType CareerCompetitorType
+  profileId      String?
+  botIdentityId  String?
+  relativeToPar  Int?
+  completed      Boolean              @default(false)
+  roundId        String?              @unique
+  outputHash     String?
+  rank           Int?
+  isWinner       Boolean              @default(false)
+
+  championship CareerChampionship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  profile      CareerProfile?     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  botIdentity  CareerBotIdentity? @relation(fields: [botIdentityId], references: [id], onDelete: Cascade)
+  round        Round?             @relation(fields: [roundId], references: [id], onDelete: SetNull)
+
+  @@unique([championshipId, slotNumber])
+}
+
+/// NOTE: a PARTIAL UNIQUE INDEX on (aggregateType, aggregateId) WHERE
+/// state = 'COMMITTED' is added via raw SQL in a migration — it is the
+/// database-level backstop behind "an aggregate settles exactly once". Prisma
+/// cannot express a filtered unique in-schema, so it lives in migration SQL and
+/// MUST be carried forward if these migrations are ever squashed.
+model CareerSettlementAttempt {
+  id                   String              @id @default(cuid())
+  aggregateType        CareerAggregateType
+  aggregateId          String
+  fencingToken         Int
+  state                CareerAttemptState  @default(CLAIMED)
+  owner                String
+  trigger              String
+  codeRevision         String?
+  leaseExpiresAt       DateTime
+  formulaBundleVersion String?
+  inputHash            String?
+  outputHash           String?
+  inputSnapshot        Json?
+  outputSnapshot       Json?
+  expectedEffectCount  Int?
+  error                Json?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  stagedEffects CareerStagedEffect[]
+
+  @@unique([aggregateType, aggregateId, fencingToken])
+  @@index([aggregateType, aggregateId, state])
+  @@index([state, leaseExpiresAt])
+}
+
+model CareerStagedEffect {
+  id          String   @id @default(cuid())
+  attemptId   String
+  effectKey   String
+  effectType  String
+  scope       String
+  isOutbox    Boolean  @default(false)
+  payload     Json
+  payloadHash String
+  createdAt   DateTime @default(now())
+
+  attempt CareerSettlementAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, effectKey])
+  @@index([attemptId])
+}
+
+model CareerCommittedEffect {
+  id                  String              @id @default(cuid())
+  aggregateType       CareerAggregateType
+  aggregateId         String
+  committedRevisionId String
+  effectKey           String              @unique
+  effectType          String
+  scope               String
+  isOutbox            Boolean             @default(false)
+  payload             Json
+  payloadHash         String
+  createdAt           DateTime            @default(now())
+
+  @@index([aggregateType, aggregateId])
+  @@index([committedRevisionId])
+}
+
+model CareerOutbox {
+  id                  String    @id @default(cuid())
+  committedRevisionId String
+  effectType          String
+  scope               String
+  payload             Json
+  deliveredAt         DateTime?
+  attempts            Int       @default(0)
+  createdAt           DateTime  @default(now())
+
+  @@unique([committedRevisionId, effectType, scope])
+  @@index([deliveredAt])
+}
+
+model CareerOperatorAudit {
+  id            String              @id @default(cuid())
+  actor         String
+  command       String
+  aggregateType CareerAggregateType
+  aggregateId   String
+  expectedState String?
+  before        Json?
+  after         Json?
+  reason        String
+  createdAt     DateTime            @default(now())
 }

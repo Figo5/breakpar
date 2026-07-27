@@ -15,6 +15,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-27",
+    items: [
+      "Scoring now plays more like casual golf: real approach yardage changes proximity, and the displayed putt slope and break affect the roll.",
+      "Previous-hole momentum is now flavor only, so a bad hole cannot secretly make the next hole harder.",
+      "Post-hole reviews now include seeded weather and course events in the exact odds shown, with permanent safeguards against unfair safe-shot blow-ups.",
+      "The safest short-game play can no longer create a triple-bogey disaster unless a real penalty stroke is involved.",
+      "Tee-shot odds now separate ideal attacking position from an ordinary fairway, making each decision's reward and trouble risk clearer.",
+      "Weekly tournaments now reject extreme shared round seeds while preserving identical conditions for the entire field.",
+      "Added Career Mode, an unlimited personal tour with four-event seasons, recurring rivals, promotion and relegation, Tour Rating, and permanent Legacy progress.",
+      "Added optional Championships every four completed seasons for Challenger and Pro players.",
+      "Career events have one attempt, safely resume the same round, and open the next season immediately after all four events are complete.",
+      "Career progress is isolated from the daily challenge, streaks, weekly tournaments, challenges, practice records, and existing trophies.",
+    ],
+  },
+  {
     date: "2026-07-23",
     items: [
       "Fixed round results overstating how many strokes a score finished over par.",

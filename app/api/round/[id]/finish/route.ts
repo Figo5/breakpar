@@ -6,6 +6,12 @@ import { awardTrophiesOnFinish } from "@/lib/trophies.server";
 import { settleChallengeOnFinish } from "@/lib/challenge";
 import { settleTournamentRound } from "@/lib/tournament.server";
 import { route } from "@/lib/api";
+import { finishCareerRound } from "@/lib/career/eventPlay";
+import {
+  advanceCareerAfterFinish,
+  advanceChampionshipAfterFinish,
+} from "@/lib/career/journey";
+import { finishCareerChampionshipRound } from "@/lib/career/championshipPlay";
 
 // POST: finalize the round and roll up streak + best-score stats.
 export const POST = route(async (
@@ -22,7 +28,11 @@ export const POST = route(async (
 
   const round = await prisma.round.findUnique({
     where: { id: roundId },
-    include: { holeResults: true },
+    include: {
+      holeResults: true,
+      careerEventEntry: { select: { id: true, competitionId: true } },
+      careerChampionshipResult: { select: { id: true, championshipId: true } },
+    },
   });
   if (!round || round.userId !== user.id)
     return NextResponse.json({ error: "not-found" }, { status: 404 });
@@ -33,6 +43,50 @@ export const POST = route(async (
   // Derive it from the round's creation timestamp rather than a client-supplied
   // value (which a client could set to 0 to win every tie).
   const durationMs = Date.now() - round.playedAt.getTime();
+
+  // Career rounds publish only to their immutable event entry/result. They are
+  // excluded from streaks, trophies, daily records, and Weekly Tournament.
+  if (round.mode === "career") {
+    const result = round.careerChampionshipResult
+      ? await finishCareerChampionshipRound(prisma, roundId, user.id, durationMs)
+      : await finishCareerRound(prisma, roundId, user.id, durationMs);
+    if (!result.ok) {
+      const status = result.error === "not-found" ? 404 : 409;
+      return NextResponse.json({ error: result.error }, { status });
+    }
+
+    // Completion-driven progression: finalize this event and, if it was the
+    // fourth, settle the season and open the next one. Deliberately non-fatal —
+    // the player's score is already committed above, so a settlement hiccup must
+    // never fail their request. The recovery scan completes anything left over.
+    let advanced = null;
+    if (!result.replayed) {
+      try {
+        if (round.careerChampionshipResult) {
+          advanced = await advanceChampionshipAfterFinish(
+            prisma,
+            round.careerChampionshipResult.championshipId,
+          );
+        } else if (round.careerEventEntry) {
+          advanced = await advanceCareerAfterFinish(
+            prisma,
+            round.careerEventEntry.competitionId,
+          );
+        }
+      } catch (err) {
+        console.error("[career] post-finish advance failed", { roundId, err });
+      }
+    }
+
+    return NextResponse.json({
+      score: result.score,
+      relativeToPar: result.relativeToPar,
+      streak: null,
+      newTrophies: [],
+      replayed: result.replayed,
+      career: advanced,
+    });
+  }
 
   // Idempotency / concurrency guard. Finalizing is a one-time false->true
   // transition: claim it with a conditional update so exactly one caller wins,

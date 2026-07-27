@@ -43,6 +43,17 @@ describe("greenWeights", () => {
         for (const v of Object.values(greenWeights(src, d, hole, c)))
           expect(v).toBeGreaterThanOrEqual(0);
   });
+  it("rewards a wedge and makes a long approach less precise", () => {
+    const close = greenWeights("fairway", "normal", hole, c, 95);
+    const long = greenWeights("fairway", "normal", hole, c, 235);
+    const closeLooks = (close.kickin + close.makeable) /
+      (close.kickin + close.makeable + close.lag + close.scramble);
+    const longLooks = (long.kickin + long.makeable) /
+      (long.kickin + long.makeable + long.lag + long.scramble);
+    expect(closeLooks).toBeGreaterThan(longLooks);
+    expect(close.scramble / Object.values(close).reduce((a, b) => a + b, 0))
+      .toBeLessThan(long.scramble / Object.values(long).reduce((a, b) => a + b, 0));
+  });
 });
 
 describe("puttWeights", () => {
@@ -81,6 +92,15 @@ describe("puttWeights", () => {
       expect(mods.reduce((sum, m) => sum + m.three, 0) / mods.length).toBeCloseTo(1);
     }
   });
+  it("uses the displayed slope and break without overpowering distance", () => {
+    const uphill = puttWeights("long", "normal", "Medium", 35, "straight", "uphill");
+    const downhill = puttWeights("long", "normal", "Medium", 35, "straight", "downhill");
+    const straight = puttWeights("short", "normal", "Medium", 12, "straight", "flat");
+    const breaking = puttWeights("short", "normal", "Medium", 12, "L", "flat");
+    expect(downhill.threeputt).toBeGreaterThan(uphill.threeputt);
+    expect(breaking.oneputt).toBeLessThan(straight.oneputt);
+    expect(downhill.threeputt / uphill.threeputt).toBeLessThan(1.6);
+  });
 });
 
 describe("scrambleWeights", () => {
@@ -99,6 +119,11 @@ describe("scrambleWeights", () => {
     expect(doublePlus("safe")).toBeLessThan(doublePlus("normal"));
     expect(doublePlus("normal")).toBeLessThan(doublePlus("aggressive"));
     expect(doublePlus("normal")).toBeLessThan(0.2);
+  });
+  it("the safe recovery cannot create an unpenalized triple-bogey disaster", () => {
+    const safe = scrambleWeights("safe", hole, c);
+    expect(safe.disaster).toBe(0);
+    expect(safe.blowup).toBeGreaterThan(0);
   });
 });
 

@@ -20,6 +20,7 @@ import { resolveHoleChain, type ChainResult } from "../lib/engine/shots";
 import { type Decision, type Outcome } from "../lib/engine/probabilities";
 import { AGGRESSIVE_BUDGET } from "../lib/holeRead";
 import { holeShotSeed, eventSeed as evSeed, hazardSeed as hzSeed, scoringEventSeed as scSeed, mulberry32, hashSeed } from "../lib/engine/rng";
+import { assessTournamentSeeds, selectNeutralTournamentSeed } from "../lib/tournamentSeed";
 
 const N = 40_000;
 
@@ -146,7 +147,7 @@ for (const [name, p] of Object.entries(players)) {
 
     for (let hi = 0; hi < c.holes.length; hi++) {
       const h = c.holes[hi];
-      const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex };
+      const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex, yardage: h.yardage };
       const d = holeDifficulty(spec, cond);
       st.holesLeft = c.holes.length - hi;
 
@@ -399,7 +400,7 @@ for (const slug of FIELD_COURSES) {
       const recent: Outcome[] = [];
       for (let hi = 0; hi < course.holes.length; hi++) {
         const h = course.holes[hi];
-        const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex };
+        const spec: HoleSpec = { number: h.number, par: h.par, strokeIndex: h.strokeIndex, yardage: h.yardage };
         const d = holeDifficulty(spec, cond);
         st.holesLeft = course.holes.length - hi;
         const opts = {
@@ -451,6 +452,52 @@ if (fieldFailures.length) {
   process.exit(1);
 }
 console.log("✓ shared-seed field spread + per-course means within band (all classes)");
+
+// The production selector evaluates 11 shared candidates and takes the median
+// simulated field mean. Gate the selector itself across hazard classes: its
+// chosen seed must stay close to the candidate panel's center, never one of the
+// hot/cold tails that produced the launch tournament's -7.63 field round.
+console.log("\nNEUTRAL TOURNAMENT SEED SELECTION");
+const neutralFailures: string[] = [];
+for (const slug of FIELD_COURSES) {
+  const course = COURSES.find((candidate) => candidate.slug === slug);
+  if (!course) continue;
+  let maxCenterDelta = 0;
+  const selectedMeans: number[] = [];
+  for (let sample = 0; sample < 5; sample++) {
+    const baseSeedKey = `calibrate-neutral:${slug}:${sample}`;
+    const assessed = assessTournamentSeeds(baseSeedKey, course);
+    const center = assessed.reduce((sum, candidate) => sum + candidate.fieldMean, 0) / assessed.length;
+    const selectedKey = selectNeutralTournamentSeed(assessed);
+    const selected = assessed.find((candidate) => candidate.seedKey === selectedKey);
+    if (!selected) {
+      neutralFailures.push(`${slug} selector returned a seed outside its candidate set`);
+      continue;
+    }
+    selectedMeans.push(selected.fieldMean);
+    maxCenterDelta = Math.max(maxCenterDelta, Math.abs(selected.fieldMean - center));
+  }
+  const selectedMean = selectedMeans.reduce((sum, value) => sum + value, 0) / selectedMeans.length;
+  const selectedSpread = Math.sqrt(
+    selectedMeans.reduce((sum, value) => sum + (value - selectedMean) ** 2, 0)
+      / selectedMeans.length,
+  );
+  const ok = maxCenterDelta <= 1.5 && selectedSpread <= 1.5;
+  if (!ok) {
+    neutralFailures.push(
+      `${slug} center delta ${maxCenterDelta.toFixed(2)}, selected-seed spread ${selectedSpread.toFixed(2)}`,
+    );
+  }
+  console.log(
+    `  ${slug.padEnd(22)} max center delta ${maxCenterDelta.toFixed(2)} <= 1.50` +
+      `   selected-seed spread ${selectedSpread.toFixed(2)} <= 1.50 ${ok ? "✓" : "✗"}`,
+  );
+}
+if (neutralFailures.length) {
+  console.error(`\n✗ neutral tournament seed checks failed: ${neutralFailures.join("; ")}`);
+  process.exit(1);
+}
+console.log("✓ neutral selector rejects tournament-wide hot/cold tails");
 
 const gap = results.skilled - results.naive;
 const gapGreedy = results.skilled - results.greedy;

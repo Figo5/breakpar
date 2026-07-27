@@ -89,9 +89,9 @@ export function riskRead(
   c: Conditions
 ): { tone: Tone; text: string } {
   const bucket = difficultyBucket(h, c);
-  if (decision === "safe") return { tone: "good", text: "Bankable" };
+  if (decision === "safe") return { tone: "good", text: "Lowest trouble" };
   if (decision === "normal")
-    return bucket === 2 ? { tone: "warn", text: "Some risk" } : { tone: "good", text: "Solid" };
+    return bucket === 0 ? { tone: "good", text: "Balanced" } : { tone: "warn", text: "Some risk" };
   // aggressive
   return bucket === 0
     ? { tone: "good", text: "Green light" }

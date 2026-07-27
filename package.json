@@ -16,9 +16,13 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "career:freeze": "tsx scripts/career-formula-freeze.ts",
+    "career:simulate": "tsx scripts/career-simulate.ts",
+    "career:simulate:player-paced": "tsx scripts/career-player-paced-simulate.ts",
     "engine:calibrate": "tsx scripts/calibrate.ts",
     "engine:audit": "tsx scripts/scoring-audit.ts",
     "test": "vitest run",
+    "test:career-db": "vitest run --config vitest.career-db.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

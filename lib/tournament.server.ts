@@ -34,6 +34,7 @@ import {
   type TournamentPhase,
   type CutCandidate,
 } from "@/lib/tournament";
+import { neutralTournamentSeedKey } from "@/lib/tournamentSeed";
 
 /** Exclude tournament rounds from lifetime stats (mirrors NON_CHALLENGE). */
 export const NON_TOURNAMENT = { mode: { not: "tournament" } } as const;
@@ -385,7 +386,8 @@ export type StartRoundResult =
  * - I must have made the cut to play 3-4,
  * - one attempt per round (the @@unique([tournamentEntryId, tournamentRoundNo])
  *   plus a conditional link, mirroring the challenge race-safety).
- * Auto-joins on first play. Shared per-round seed = "{tournamentId}:{roundNo}".
+ * Auto-joins on first play. The first starter deterministically selects a
+ * neutral shared seed; every later starter reuses the persisted seed.
  */
 export async function startTournamentRound(
   userId: string,
@@ -426,7 +428,33 @@ export async function startTournamentRound(
     return { ok: true, roundId: existing.id };
   }
 
-  // Create the round with the shared per-round seed. The @@unique makes a
+  // Reuse a seed already persisted by the first player in this round. This
+  // freezes the field's conditions across deployments. If nobody has started,
+  // choose the median of a deterministic candidate panel so an extreme hot/cold
+  // seed cannot move the whole leaderboard several strokes.
+  const seededRound = await prisma.round.findFirst({
+    where: {
+      tournamentRoundNo: roundNo,
+      seedKey: { not: null },
+      tournamentEntry: { tournamentId: t.id },
+    },
+    orderBy: { playedAt: "asc" },
+    select: { seedKey: true },
+  });
+  let sharedSeedKey = seededRound?.seedKey ?? null;
+  if (!sharedSeedKey) {
+    const courseRow = await prisma.course.findUnique({
+      where: { id: t.courseId },
+      select: { slug: true },
+    });
+    const course = courseRow ? courseBySlug(courseRow.slug) : null;
+    const baseSeedKey = tournamentSeedKey(t.id, roundNo);
+    sharedSeedKey = course
+      ? neutralTournamentSeedKey(baseSeedKey, course)
+      : baseSeedKey;
+  }
+
+  // Create the round with the selected shared seed. The @@unique makes a
   // concurrent double-create safe: the loser catches P2002 and resumes.
   try {
     const round = await prisma.round.create({
@@ -435,7 +463,7 @@ export async function startTournamentRound(
         courseId: t.courseId,
         mode: "tournament",
         dateKey: null,
-        seedKey: tournamentSeedKey(t.id, roundNo),
+        seedKey: sharedSeedKey,
         tournamentEntryId: entry.id,
         tournamentRoundNo: roundNo,
       },

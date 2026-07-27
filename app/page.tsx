@@ -85,7 +85,10 @@ export default async function Home() {
             You&apos;ve played today.{me.streak > 0 ? ` ${me.streak}-day streak.` : ""} New course in <NextCourseTimer />
           </div>
           <Link href={`/result/${me.playedTodayRoundId}`} className="cta">See today&apos;s result</Link>
-          <Link href="/courses" className="cta ghost" style={{ marginTop: 10 }}>Play unlimited · Browse courses</Link>
+          <div className="home-secondary-actions">
+            <Link href="/courses" className="cta ghost">Play unlimited</Link>
+            <Link href="/career" className="cta ghost career">Career mode</Link>
+          </div>
         </>
       ) : (
         <>
@@ -101,7 +104,10 @@ export default async function Home() {
           <Link href="/play" className="cta">
             {me.inProgressRoundId ? "Resume round" : "Tee Off"}
           </Link>
-          <Link href="/courses" className="cta ghost" style={{ marginTop: 10 }}>Play unlimited · Browse courses</Link>
+          <div className="home-secondary-actions">
+            <Link href="/courses" className="cta ghost">Play unlimited</Link>
+            <Link href="/career" className="cta ghost career">Career mode</Link>
+          </div>
         </>
       )}
 

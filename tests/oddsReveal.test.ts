@@ -34,6 +34,15 @@ describe("teeOddsReveal", () => {
   it("goodPct equals dialed + fairway", () => {
     const r = teeOddsReveal(hole, conditions);
     expect(r.normal.goodPct).toBe(r.normal.pct.dialed + r.normal.pct.fairway);
+    expect(r.normal.idealPct).toBe(r.normal.pct.dialed);
+  });
+
+  it("reconstructs the seeded event-adjusted odds", () => {
+    const base = teeOddsReveal(hole, conditions);
+    const gust = teeOddsReveal(hole, conditions, "GUST");
+    expect(gust.normal.idealPct).toBeLessThan(base.normal.idealPct);
+    expect(gust.normal.troublePct).toBeGreaterThan(base.normal.troublePct);
+    expect(teeOddsReveal(hole, conditions, "MOMENTUM_DOWN")).toEqual(base);
   });
 });
 
@@ -41,12 +50,14 @@ describe("teeOddsTakeaway", () => {
   it("safe takeaway mentions the lowest trouble risk framing", () => {
     const t = teeOddsTakeaway("safe", hole, conditions);
     expect(t.toLowerCase()).toContain("safe");
-    expect(t.toLowerCase()).toContain("variance");
+    expect(t.toLowerCase()).toContain("protects");
+    expect(t.toLowerCase()).toContain("ideal");
   });
 
   it("aggressive takeaway explains the trade and that the decision shifted odds", () => {
     const t = teeOddsTakeaway("aggressive", hole, conditions);
-    expect(t.toLowerCase()).toContain("shifted the odds");
+    expect(t.toLowerCase()).toContain("scoring upside");
+    expect(t.toLowerCase()).toContain("ideal-position");
   });
 
   it("produces a non-empty sentence for every decision", () => {
@@ -105,6 +116,11 @@ describe("puttOddsReveal", () => {
       puttOddsReveal("long", "Medium", 45).normal.onePct
     );
   });
+  it("includes the displayed putt geometry and event", () => {
+    const uphill = puttOddsReveal("long", "Medium", 35, "straight", "uphill");
+    const downhill = puttOddsReveal("long", "Medium", 35, "R", "downhill", "DOWNHILL_SLIDER");
+    expect(downhill.normal.threePct).toBeGreaterThan(uphill.normal.threePct);
+  });
 });
 
 describe("approachOddsReveal", () => {
@@ -125,11 +141,20 @@ describe("approachOddsReveal", () => {
     expect(r.aggressive.holeOutPct).toBeGreaterThan(r.safe.holeOutPct);
     expect(r.normal.holeOutPct).toBeCloseTo(0.05);
   });
+  it("shows better proximity from a wedge than a long approach", () => {
+    const wedge = approachOddsReveal("fairway", hole2, conditions, 95);
+    const long = approachOddsReveal("fairway", hole2, conditions, 235);
+    expect(wedge.normal.kickinPct + wedge.normal.makeablePct)
+      .toBeGreaterThan(long.normal.kickinPct + long.normal.makeablePct);
+    expect(wedge.normal.scramblePct).toBeLessThan(long.normal.scramblePct);
+  });
   it("explains that a normal par-5 play includes an automatic third-shot wedge", () => {
     const par5: HoleSpec = { number: 8, par: 5, strokeIndex: 1 };
     expect(approachOddsTakeaway("normal", "rough", par5, conditions).toLowerCase())
       .toMatch(/laid up.*automatic wedge.*third shot/);
     expect(approachOddsTakeaway("aggressive", "rough", par5, conditions).toLowerCase())
+      .toMatch(/forced a third-shot wedge.*no reached-in-two/);
+    expect(approachOddsTakeaway("aggressive", "fairway", par5, conditions).toLowerCase())
       .toContain("green in two");
   });
 });
@@ -152,5 +177,9 @@ describe("scrambleOddsReveal", () => {
     const r = scrambleOddsReveal(hole3, conditions);
     expect(r.aggressive.savePct).toBeGreaterThan(r.safe.savePct);
     expect(r.aggressive.blowupPct + r.aggressive.disasterPct).toBeGreaterThan(r.safe.blowupPct + r.safe.disasterPct);
+  });
+  it("shows that Punch has no disaster outcome of its own", () => {
+    const r = scrambleOddsReveal(hole3, conditions);
+    expect(r.safe.disasterPct).toBe(0);
   });
 });
