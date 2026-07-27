@@ -12,8 +12,10 @@ export interface HoleSpec {
   number: number; // 1..18
   par: number;
   strokeIndex: number; // 1 = hardest, 18 = easiest
-  // Note: yardage is display-only (see CourseHole) and intentionally NOT part
-  // of the difficulty model — don't add it here without recalibrating.
+  /** Optional real hole length. It affects approach proximity, not the broad
+   * SI/course difficulty scalar, so existing fixtures without yardage retain
+   * their historical baseline. */
+  yardage?: number;
 }
 
 export interface Conditions {

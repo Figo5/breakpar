@@ -73,6 +73,8 @@ function PlayInner() {
   const slug = params.get("course"); // present -> unlimited practice
   const challengeId = params.get("challenge"); // present -> head-to-head challenge round
   const tournamentRoundParam = params.get("tournament"); // present -> tournament round N (1..4)
+  const careerEventId = params.get("careerEvent");
+  const careerChampionshipId = params.get("careerChampionship");
   const tournamentRoundNo = tournamentRoundParam ? parseInt(tournamentRoundParam, 10) : null;
   const [course, setCourse] = useState<PlayCourse | null>(null);
   const [puzzleNo, setPuzzleNo] = useState<number | null>(null); // daily puzzle number (label only)
@@ -112,7 +114,17 @@ function PlayInner() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(
-            tournamentRoundNo ? { tournamentRoundNo } : challengeId ? { challengeId } : slug ? { slug } : {}
+            careerChampionshipId
+              ? { careerChampionshipId }
+              : careerEventId
+                ? { careerEventId }
+                : tournamentRoundNo
+                  ? { tournamentRoundNo }
+                  : challengeId
+                    ? { challengeId }
+                    : slug
+                      ? { slug }
+                      : {}
           ),
         });
         if (rRes.status === 401) throw new Error("Please sign in to play.");
@@ -158,7 +170,7 @@ function PlayInner() {
     return () => {
       cancelled = true;
     };
-  }, [slug, challengeId, tournamentRoundNo]);
+  }, [slug, challengeId, tournamentRoundNo, careerEventId, careerChampionshipId]);
 
   // round_abandoned (best-effort): a started round left unfinished. Fires once,
   // on SPA unmount (back to home, etc.) or pagehide (tab close/navigate away).
@@ -282,7 +294,15 @@ function PlayInner() {
         // Challenge rounds land on the side-by-side challenge view; tournament
         // rounds return to the tournament page (standings). Others -> result.
         router.push(
-          tournamentRoundNo ? `/tournament` : challengeId ? `/challenges/${challengeId}` : `/result/${roundId}`
+          careerChampionshipId
+            ? "/career/championship"
+            : careerEventId
+              ? `/career/event/${careerEventId}`
+              : tournamentRoundNo
+                ? "/tournament"
+                : challengeId
+                  ? `/challenges/${challengeId}`
+                  : `/result/${roundId}`
         );
       } catch {
         setError("Couldn't post your card. Tap to retry.");
@@ -327,13 +347,17 @@ function PlayInner() {
   const courseName = course.name.split("—")[0].trim();
   const modeLabel = tournamentRoundNo
     ? `Tournament · R${tournamentRoundNo}`
-    : challengeId
-      ? "Challenge"
-      : slug
-        ? "Practice"
-        : puzzleNo
-          ? `Daily · No. ${puzzleNo}`
-          : "Daily";
+    : careerChampionshipId
+      ? "Career · Championship"
+      : careerEventId
+        ? "Career Event"
+        : challengeId
+          ? "Challenge"
+          : slug
+            ? "Practice"
+            : puzzleNo
+              ? `Daily · No. ${puzzleNo}`
+              : "Daily";
 
   return (
     <div className="play">
@@ -433,7 +457,7 @@ function PlayInner() {
                 <OddsReveal
                   shots={shotLog}
                   decisions={holeDecisions}
-                  hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex }}
+                  hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex, yardage: hole.yardage }}
                   conditions={conditions}
                   greens={course.greens}
                 />
@@ -578,7 +602,7 @@ function OddsReveal({
 }: {
   shots: ShotRecord[];
   decisions: Decision[];
-  hole: { number: number; par: number; strokeIndex: number };
+  hole: { number: number; par: number; strokeIndex: number; yardage: number };
   conditions: { difficulty: number; wind: number };
   greens: GreenSpeed;
 }) {
@@ -602,47 +626,52 @@ function OddsReveal({
   for (const s of shots) {
     if (s.stage === "tee" && s.decision) {
       teeLie = (s.lie as Lie) ?? null;
-      const rows = teeOddsReveal(hole, conditions);
+      const rows = teeOddsReveal(hole, conditions, s.event?.id);
       blocks.push(
-        <StageOdds key="tee" title="Tee shot" chosen={s.decision} order={order}
+        <StageOdds key="tee" title={`Tee shot${s.event ? ` · ${s.event.label}` : ""}`} chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
-            segs: [{ cls: "good", w: rows[d].pct.dialed + rows[d].pct.fairway }, { cls: "rough", w: rows[d].pct.rough }, { cls: "trouble", w: rows[d].pct.trouble }],
-            right: `${rows[d].goodPct}%` }))}
-          legend={[["good", "short grass"], ["rough", "rough"], ["trouble", "trouble"]]}
-          takeaway={teeOddsTakeaway(s.decision, hole, conditions)} />
+            segs: [{ cls: "ideal", w: rows[d].pct.dialed }, { cls: "good", w: rows[d].pct.fairway }, { cls: "rough", w: rows[d].pct.rough }, { cls: "trouble", w: rows[d].pct.trouble }],
+            right: `${rows[d].idealPct}% ideal` }))}
+          legend={[["ideal", "ideal position"], ["good", "fairway"], ["rough", "rough"], ["trouble", "trouble"]]}
+          takeaway={teeOddsTakeaway(s.decision, hole, conditions, s.event?.id)} />
       );
     } else if (s.stage === "approach" && s.decision) {
       const source: GreenSource = isPar3 ? "tee" : (teeLie ?? "fairway");
-      const rows = approachOddsReveal(source, hole, conditions);
+      const yardsToTarget = s.yards ?? (isPar3 ? hole.yardage : undefined);
+      const rows = approachOddsReveal(source, hole, conditions, yardsToTarget, s.event?.id);
       blocks.push(
-        <StageOdds key="approach" title={hole.par === 5 ? "Second shot" : "Approach"} chosen={s.decision} order={order}
+        <StageOdds key="approach"
+          title={`${hole.par === 5 ? "Second shot" : "Approach"}${yardsToTarget ? ` · ${yardsToTarget} yd` : ""}${s.event ? ` · ${s.event.label}` : ""}`}
+          chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].kickinPct + rows[d].makeablePct }, { cls: "rough", w: rows[d].lagPct }, { cls: "trouble", w: rows[d].scramblePct }],
             right: `${rows[d].holeOutPct.toFixed(2)}% in` }))}
           legend={[["good", "birdie look"], ["rough", "long putt"], ["trouble", "missed green"]]}
-          takeaway={approachOddsTakeaway(s.decision, source, hole, conditions)} />
+          takeaway={approachOddsTakeaway(s.decision, source, hole, conditions, yardsToTarget, s.event?.id)} />
       );
     } else if (s.stage === "putt" && s.decision) {
       const bucket = s.green === "makeable" ? "short" : "long";
       const distanceFt = s.distanceFt ?? (bucket === "short" ? 12 : 35);
-      const rows = puttOddsReveal(bucket, greens, distanceFt);
+      const breakDir = s.breakDir ?? "straight";
+      const slope = s.slope ?? "flat";
+      const rows = puttOddsReveal(bucket, greens, distanceFt, breakDir, slope, s.event?.id);
       blocks.push(
-        <StageOdds key="putt" title="Putt" chosen={s.decision} order={order}
+        <StageOdds key="putt" title={`Putt · ${distanceFt} ft · ${slope}${s.event ? ` · ${s.event.label}` : ""}`} chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
             right: `${rows[d].onePct}%` }))}
           legend={[["good", "one-putt"], ["rough", "two-putt"], ["trouble", "three-putt"]]}
-          takeaway={puttOddsTakeaway(s.decision, bucket, greens, distanceFt)} />
+          takeaway={puttOddsTakeaway(s.decision, bucket, greens, distanceFt, breakDir, slope, s.event?.id)} />
       );
     } else if (s.stage === "scramble" && s.decision) {
-      const rows = scrambleOddsReveal(hole, conditions);
+      const rows = scrambleOddsReveal(hole, conditions, s.event?.id);
       blocks.push(
-        <StageOdds key="scramble" title="Short game" chosen={s.decision} order={order}
+        <StageOdds key="scramble" title={`Short game${s.event ? ` · ${s.event.label}` : ""}`} chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].updownPct }, { cls: "rough", w: rows[d].twochipPct }, { cls: "trouble", w: rows[d].blowupPct + rows[d].disasterPct }],
             right: `${rows[d].holeOutPct.toFixed(1)}% in` }))}
           legend={[["good", "up & down"], ["rough", "chip & two-putt"], ["trouble", "blow-up"]]}
-          takeaway={scrambleOddsTakeaway(s.decision, hole, conditions)} />
+          takeaway={scrambleOddsTakeaway(s.decision, hole, conditions, s.event?.id)} />
       );
     }
   }

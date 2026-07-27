@@ -10,6 +10,8 @@ import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
 import { startOrResumeChallengeRound } from "@/lib/challenge";
 import { startTournamentRound } from "@/lib/tournament.server";
+import { startCareerEventRound } from "@/lib/career/eventPlay";
+import { startCareerChampionshipRound } from "@/lib/career/championshipPlay";
 
 /** Shape a Course for the client (used by the play screen). */
 function coursePayload(course: Course) {
@@ -37,18 +39,64 @@ export const POST = route(async (req: Request) => {
 
   const { user, newGuestId } = await getOrStartUser();
 
-  const body = (await req.json().catch(() => ({}))) as { slug?: string; challengeId?: string; tournamentRoundNo?: number };
+  const body = (await req.json().catch(() => ({}))) as {
+    slug?: string;
+    challengeId?: string;
+    tournamentRoundNo?: number;
+    careerEventId?: string;
+    careerChampionshipId?: string;
+  };
 
   const roundInclude = { holeResults: true, course: { select: { slug: true } } } as const;
   let round;
 
-  // ---- TOURNAMENT round: start/resume MY round N of the current weekly
-  // tournament (accounts only). Shared per-round seed; one attempt per round;
-  // phase + cut gating enforced server-side.
-  if (typeof body.tournamentRoundNo === "number") {
+  // Mode-specific rounds all reuse the same play surface. Each service owns its
+  // own enrollment, schedule, seed, and exactly-once resume rules.
+  if (
+    typeof body.careerChampionshipId === "string"
+    && body.careerChampionshipId.length > 0
+  ) {
+    const started = await startCareerChampionshipRound(
+      prisma,
+      user.id,
+      body.careerChampionshipId,
+    );
+    if (!started.ok) {
+      const code = started.error === "not-found"
+        ? 404
+        : started.error === "not-qualified"
+          ? 403
+          : 409;
+      return NextResponse.json({ error: started.error }, { status: code });
+    }
+    round = await prisma.round.findUniqueOrThrow({
+      where: { id: started.roundId },
+      include: roundInclude,
+    });
+  } else if (typeof body.careerEventId === "string" && body.careerEventId.length > 0) {
+    const started = await startCareerEventRound(prisma, user.id, body.careerEventId);
+    if (!started.ok) {
+      const code = started.error === "not-found"
+        ? 404
+        : started.error === "not-enrolled"
+          ? 403
+          : 409;
+      return NextResponse.json({ error: started.error }, { status: code });
+    }
+    round = await prisma.round.findUniqueOrThrow({
+      where: { id: started.roundId },
+      include: roundInclude,
+    });
+  } else if (typeof body.tournamentRoundNo === "number") {
     if (!user.clerkId)
       return NextResponse.json({ error: "account-required" }, { status: 403 });
-const started = await startTournamentRound(user.id, body.tournamentRoundNo, new Date(), user.username);    if (!started.ok) {
+    const started = await startTournamentRound(
+      user.id,
+      body.tournamentRoundNo,
+      new Date(),
+      user.username,
+    );
+    if (!started.ok) {
       const code = started.error === "not-found" ? 404 : 409;
       return NextResponse.json({ error: started.error }, { status: code });
     }

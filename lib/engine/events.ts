@@ -153,16 +153,6 @@ const MOMENTUM_UP: EventDef = {
   tone: "good",
   stages: ["tee", "approach"],
   weight: 0,
-  tee: (w) => {
-    w.dialed *= 1.2;
-    w.fairway *= 1.08;
-    w.trouble *= 0.8;
-  },
-  green: (w) => {
-    w.kickin *= 1.2;
-    w.makeable *= 1.08;
-    w.scramble *= 0.85;
-  },
 };
 
 const MOMENTUM_DOWN: EventDef = {
@@ -172,16 +162,6 @@ const MOMENTUM_DOWN: EventDef = {
   tone: "bad",
   stages: ["tee", "approach"],
   weight: 0,
-  tee: (w) => {
-    w.dialed *= 0.85;
-    w.rough *= 1.12;
-    w.trouble *= 1.15;
-  },
-  green: (w) => {
-    w.kickin *= 0.85;
-    w.makeable *= 0.92;
-    w.scramble *= 1.15;
-  },
 };
 
 const instanceOf = (e: EventDef): EventInstance => ({
@@ -256,6 +236,20 @@ export function applyEvent(
   else if (stage === "approach" && def.green) def.green(weights as Record<GreenResult, number>);
   else if (stage === "putt" && def.putt) def.putt(weights as Record<PuttResult, number>);
   else if (stage === "scramble" && def.scramble) def.scramble(weights as Record<ScrambleResult, number>);
+}
+
+/** Apply the same seeded event to a reconstructed odds table. This keeps the
+ * post-hole "odds you faced" display identical to resolution. Momentum events
+ * intentionally have no mutator: they remain visible flavor without secretly
+ * rewarding or punishing a player for the previous hole. */
+export function applyEventById(
+  eventId: string | null | undefined,
+  stage: EventStage,
+  weights: Record<string, number>,
+): void {
+  if (!eventId) return;
+  const def = [...EVENTS, MOMENTUM_UP, MOMENTUM_DOWN].find((event) => event.id === eventId);
+  if (def) applyEvent(def, stage, weights);
 }
 
 export { EVENTS };

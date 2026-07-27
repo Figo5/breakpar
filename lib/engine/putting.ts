@@ -156,12 +156,26 @@ export const PAR5_GO_FOR_GREEN_LEAN = {
   scramble: 1.4,
 };
 
+/** Restrained proximity adjustment. Yardage should make a wedge feel different
+ * from a long iron, but lie, decision, SI, course and wind remain the dominant
+ * inputs. Undefined yardage deliberately preserves the legacy baseline. */
+export function approachDistanceModifiers(yardsToTarget?: number): Record<GreenResult, number> {
+  if (yardsToTarget == null) return { kickin: 1, makeable: 1, lag: 1, scramble: 1 };
+  if (yardsToTarget <= 110) return { kickin: 1.2, makeable: 1.1, lag: 0.9, scramble: 0.85 };
+  if (yardsToTarget <= 150) return { kickin: 1.08, makeable: 1.05, lag: 0.96, scramble: 0.94 };
+  if (yardsToTarget <= 190) return { kickin: 1, makeable: 1, lag: 1, scramble: 1 };
+  if (yardsToTarget <= 230) return { kickin: 0.9, makeable: 0.95, lag: 1.05, scramble: 1.1 };
+  return { kickin: 0.78, makeable: 0.88, lag: 1.12, scramble: 1.22 };
+}
+
 /** Difficulty-adjusted GreenResult odds for an approach decision. */
 export function greenWeights(
   source: GreenSource,
   decision: Decision,
   hole: HoleSpec,
-  c: Conditions
+  c: Conditions,
+  yardsToTarget?: number,
+  reachedInTwo?: boolean,
 ): Record<GreenResult, number> {
   const d = holeDifficulty(hole, c);
   const aggressive = decision === "aggressive" ? 1 : 0;
@@ -174,7 +188,7 @@ export function greenWeights(
   // Par-5 wedge-third lean: laid-up / normally-played par 5s set up better
   // birdie looks than a par-4 approach. Non-aggressive par-5 path only; the
   // aggressive go-for-it (reached-in-two -> eagle) route is left untouched.
-  if (hole.par === 5 && decision !== "aggressive") {
+  if (hole.par === 5 && (decision !== "aggressive" || reachedInTwo === false)) {
     const L = PAR5_LAYUP_LEAN;
     w.kickin *= L.kickin;
     w.makeable *= L.makeable;
@@ -187,6 +201,11 @@ export function greenWeights(
     w.lag *= L.lag;
     w.scramble *= L.scramble;
   }
+  const distance = approachDistanceModifiers(yardsToTarget);
+  w.kickin *= distance.kickin;
+  w.makeable *= distance.makeable;
+  w.lag *= distance.lag;
+  w.scramble *= distance.scramble;
   return w;
 }
 
@@ -269,13 +288,29 @@ export function puttWeights(
   bucket: Exclude<PuttBucket, "tap">,
   decision: Decision,
   speed: GreenSpeed,
-  distanceFt: number
+  distanceFt: number,
+  breakDir: "L" | "R" | "straight" = "straight",
+  slope: "uphill" | "downhill" | "flat" = "flat",
 ): Record<PuttResult, number> {
   const w = fillPutt(PUTT_BASE[bucket][decision]);
   const speedMod = GREEN_SPEED_MOD[speed];
   const distanceMod = puttDistanceModifiers(bucket, distanceFt);
   w.oneputt *= speedMod.make * distanceMod.make;
   w.threeputt *= speedMod.three * distanceMod.three;
+  // The read shown to the player is real information. Break has a small make
+  // tax; downhill putts trade a touch of make upside for poorer distance
+  // control, while uphill putts are easier to cozy close.
+  if (breakDir !== "straight") {
+    w.oneputt *= 0.97;
+    w.threeputt *= 1.03;
+  }
+  if (slope === "downhill") {
+    w.oneputt *= 1.04;
+    w.threeputt *= 1.22;
+  } else if (slope === "uphill") {
+    w.oneputt *= 0.96;
+    w.threeputt *= 0.82;
+  }
   return w;
 }
 
@@ -302,7 +337,10 @@ export const SHORT_DECISION_LABEL: Record<Decision, string> = {
  * and Flop still makes the most par-saves but carries the most double+ risk.
  */
 const SCRAMBLE_BASE: Record<Decision, Partial<Record<ScrambleResult, number>>> = {
-  safe: { updown: 34, twochip: 61, blowup: 4, disaster: 1 },
+  // Punch is the explicit card-protection choice. It may still make bogey or
+  // double, and real hazard penalties still count, but the recovery shot itself
+  // can never manufacture a triple-bogey "disaster" from otherwise safe play.
+  safe: { updown: 34, twochip: 62, blowup: 4, disaster: 0 },
   normal: { updown: 40, twochip: 48, blowup: 10, disaster: 2 },
   aggressive: { updown: 48, twochip: 35, blowup: 14, disaster: 3 },
 };

@@ -51,12 +51,50 @@ export const PATCH = route(async (
 
   const round = await prisma.round.findUnique({
     where: { id: roundId },
-    include: { holeResults: true, course: { select: { slug: true } } },
+    include: {
+      holeResults: true,
+      course: { select: { slug: true } },
+      careerEventEntry: {
+        include: { competition: true },
+      },
+      careerChampionshipResult: {
+        include: {
+          championship: {
+            include: {
+              competitions: {
+                where: { kind: "CHAMPIONSHIP" },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+    },
   });
   if (!round || round.userId !== user.id)
     return NextResponse.json({ error: "not-found" }, { status: 404 });
   if (round.completed)
     return NextResponse.json({ error: "round-complete" }, { status: 409 });
+  if (round.mode === "career") {
+    const event = round.careerEventEntry?.competition;
+    const championship =
+      round.careerChampionshipResult?.championship.competitions[0];
+    const now = new Date();
+    const playable = event
+      ? event.unlocksAt.getTime() <= now.getTime()
+        && event.deadlineAt.getTime() > now.getTime()
+        && (
+          event.state === "ACTIVE"
+          || (event.state === "FORMING" && event.eventNumber === 1)
+        )
+      : !!championship
+        && championship.unlocksAt.getTime() <= now.getTime()
+        && championship.deadlineAt.getTime() > now.getTime()
+        && championship.state === "ACTIVE";
+    if (!playable) {
+      return NextResponse.json({ error: "career-event-closed" }, { status: 409 });
+    }
+  }
 
   // Anti re-roll: a hole already resolved returns its stored result unchanged.
   const existing = round.holeResults.find((h) => h.holeNumber === holeNumber);
@@ -84,6 +122,7 @@ export const PATCH = route(async (
     number: holeData.number,
     par: holeData.par,
     strokeIndex: holeData.strokeIndex,
+    yardage: holeData.yardage,
   };
 
   // Aggression budget — counted across the round on TEE/APPROACH decisions only

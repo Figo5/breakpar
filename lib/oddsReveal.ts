@@ -16,7 +16,7 @@
  * pre-decision readout (which would turn the game into solved arithmetic).
  */
 
-import { teeWeights, type Lie } from "@/lib/engine/shots";
+import { canReachPar5InTwo, teeWeights, type Lie } from "@/lib/engine/shots";
 import type { Decision } from "@/lib/engine/probabilities";
 import type { HoleSpec, Conditions } from "@/lib/engine/resolveHole";
 import {
@@ -36,6 +36,7 @@ import {
   approachScoringEventRate,
   scrambleScoringEventRate,
 } from "@/lib/engine/scoringEvents";
+import { applyEventById } from "@/lib/engine/events";
 
 export interface OddsRow {
   decision: Decision;
@@ -44,6 +45,8 @@ export interface OddsRow {
   pct: Record<Lie, number>;
   /** "Good" outcome share = dialed + fairway (found the short grass). */
   goodPct: number;
+  /** Best-position share. Kept separate so "short grass" does not hide reward. */
+  idealPct: number;
   /** "Trouble" share = trouble lie (the blow-up seed). */
   troublePct: number;
 }
@@ -72,13 +75,16 @@ function toPct(w: Record<Lie, number>): Record<Lie, number> {
   return out;
 }
 
-function rowFor(decision: Decision, hole: HoleSpec, c: Conditions): OddsRow {
-  const pct = toPct(teeWeights(decision, hole, c));
+function rowFor(decision: Decision, hole: HoleSpec, c: Conditions, eventId?: string | null): OddsRow {
+  const weights = teeWeights(decision, hole, c);
+  applyEventById(eventId, "tee", weights);
+  const pct = toPct(weights);
   return {
     decision,
     label: DECISION_LABEL[decision],
     pct,
     goodPct: pct.dialed + pct.fairway,
+    idealPct: pct.dialed,
     troublePct: pct.trouble,
   };
 }
@@ -92,12 +98,13 @@ function rowFor(decision: Decision, hole: HoleSpec, c: Conditions): OddsRow {
  */
 export function teeOddsReveal(
   hole: HoleSpec,
-  c: Conditions
+  c: Conditions,
+  eventId?: string | null,
 ): { safe: OddsRow; normal: OddsRow; aggressive: OddsRow } {
   return {
-    safe: rowFor("safe", hole, c),
-    normal: rowFor("normal", hole, c),
-    aggressive: rowFor("aggressive", hole, c),
+    safe: rowFor("safe", hole, c, eventId),
+    normal: rowFor("normal", hole, c, eventId),
+    aggressive: rowFor("aggressive", hole, c, eventId),
   };
 }
 
@@ -106,20 +113,23 @@ export function teeOddsReveal(
  * the "your call mattered" sentence. Frames variance honestly: a good lie isn't
  * a good score guarantee, and a safe play lowers risk without eliminating it.
  */
-export function teeOddsTakeaway(chosen: Decision, hole: HoleSpec, c: Conditions): string {
-  const rows = teeOddsReveal(hole, c);
+export function teeOddsTakeaway(
+  chosen: Decision,
+  hole: HoleSpec,
+  c: Conditions,
+  eventId?: string | null,
+): string {
+  const rows = teeOddsReveal(hole, c, eventId);
   const mine = rows[chosen];
   if (chosen === "safe") {
-    return `Safe gave you the best odds of finding short grass (${mine.goodPct}%) and the lowest trouble risk (${mine.troublePct}%) — but golf still has variance, so a bogey is always on the table.`;
+    return `Safe minimized trouble (${mine.troublePct}%) and favored a routine fairway, but produced fewer ideal attacking positions (${mine.idealPct}%). It protects the card rather than maximizing birdie chances.`;
   }
   const safe = rows.safe;
-  const goodDelta = mine.goodPct - safe.goodPct;
   const troubleDelta = mine.troublePct - safe.troublePct;
-  const goodPhrase =
-    goodDelta >= 0
-      ? `a slightly better shot at a great position (${mine.goodPct}% vs ${safe.goodPct}% safe)`
-      : `a lower chance of the short grass (${mine.goodPct}% vs ${safe.goodPct}% safe)`;
-  return `Going ${DECISION_LABEL[chosen].toLowerCase()} traded ${goodPhrase} for more trouble risk (${mine.troublePct}% vs ${safe.troublePct}% safe). Your decision shifted the odds — the outcome was one roll inside them.`;
+  const riskPhrase = troubleDelta > 0
+    ? `more trouble risk (${mine.troublePct}% vs ${safe.troublePct}% safe)`
+    : `the same trouble risk as safe (${mine.troublePct}%)`;
+  return `Going ${DECISION_LABEL[chosen].toLowerCase()} raised the ideal-position chance to ${mine.idealPct}% (vs ${safe.idealPct}% safe) with ${riskPhrase}. More scoring upside, less protection.`;
 }
 
 // ===========================================================================
@@ -153,8 +163,18 @@ function puttToPct(w: Record<PuttResult, number>): { one: number; two: number; t
   return { one: m.oneputt, two: m.twoputt, three: m.threeputt };
 }
 
-function puttRowFor(decision: Decision, bucket: Exclude<PuttBucket, "tap">, speed: GreenSpeed, distanceFt: number): PuttOddsRow {
-  const p = puttToPct(puttWeights(bucket, decision, speed, distanceFt));
+function puttRowFor(
+  decision: Decision,
+  bucket: Exclude<PuttBucket, "tap">,
+  speed: GreenSpeed,
+  distanceFt: number,
+  breakDir: "L" | "R" | "straight",
+  slope: "uphill" | "downhill" | "flat",
+  eventId?: string | null,
+): PuttOddsRow {
+  const weights = puttWeights(bucket, decision, speed, distanceFt, breakDir, slope);
+  applyEventById(eventId, "putt", weights);
+  const p = puttToPct(weights);
   return { decision, label: PUTT_DECISION_LABEL[decision], onePct: p.one, twoPct: p.two, threePct: p.three };
 }
 
@@ -163,12 +183,15 @@ function puttRowFor(decision: Decision, bucket: Exclude<PuttBucket, "tap">, spee
 export function puttOddsReveal(
   bucket: Exclude<PuttBucket, "tap">,
   speed: GreenSpeed,
-  distanceFt: number
+  distanceFt: number,
+  breakDir: "L" | "R" | "straight" = "straight",
+  slope: "uphill" | "downhill" | "flat" = "flat",
+  eventId?: string | null,
 ): { safe: PuttOddsRow; normal: PuttOddsRow; aggressive: PuttOddsRow } {
   return {
-    safe: puttRowFor("safe", bucket, speed, distanceFt),
-    normal: puttRowFor("normal", bucket, speed, distanceFt),
-    aggressive: puttRowFor("aggressive", bucket, speed, distanceFt),
+    safe: puttRowFor("safe", bucket, speed, distanceFt, breakDir, slope, eventId),
+    normal: puttRowFor("normal", bucket, speed, distanceFt, breakDir, slope, eventId),
+    aggressive: puttRowFor("aggressive", bucket, speed, distanceFt, breakDir, slope, eventId),
   };
 }
 
@@ -178,9 +201,12 @@ export function puttOddsTakeaway(
   chosen: Decision,
   bucket: Exclude<PuttBucket, "tap">,
   speed: GreenSpeed,
-  distanceFt: number
+  distanceFt: number,
+  breakDir: "L" | "R" | "straight" = "straight",
+  slope: "uphill" | "downhill" | "flat" = "flat",
+  eventId?: string | null,
 ): string {
-  const rows = puttOddsReveal(bucket, speed, distanceFt);
+  const rows = puttOddsReveal(bucket, speed, distanceFt, breakDir, slope, eventId);
   const mine = rows[chosen];
   const lag = rows.safe;
   const dist = `${distanceFt}-foot`;
@@ -220,10 +246,21 @@ function greenToPct(w: Record<GreenResult, number>): Record<GreenResult, number>
   return out;
 }
 
-function approachRowFor(decision: Decision, source: GreenSource, hole: HoleSpec, c: Conditions): ApproachOddsRow {
-  const p = greenToPct(greenWeights(source, decision, hole, c));
-  const reachedInTwo = hole.par === 5 && decision === "aggressive";
+function approachRowFor(
+  decision: Decision,
+  source: GreenSource,
+  hole: HoleSpec,
+  c: Conditions,
+  yardsToTarget?: number,
+  eventId?: string | null,
+): ApproachOddsRow {
+  const reachedInTwo = source !== "tee"
+    && canReachPar5InTwo(hole.par, source, decision, yardsToTarget);
   const layupWedge = hole.par === 5 && !reachedInTwo;
+  const scoringYards = layupWedge ? 95 : yardsToTarget;
+  const weights = greenWeights(source, decision, hole, c, scoringYards, reachedInTwo);
+  applyEventById(eventId, "approach", weights);
+  const p = greenToPct(weights);
   return {
     decision,
     label: DECISION_LABEL[decision],
@@ -241,21 +278,35 @@ function approachRowFor(decision: Decision, source: GreenSource, hole: HoleSpec,
 export function approachOddsReveal(
   source: GreenSource,
   hole: HoleSpec,
-  c: Conditions
+  c: Conditions,
+  yardsToTarget?: number,
+  eventId?: string | null,
 ): { safe: ApproachOddsRow; normal: ApproachOddsRow; aggressive: ApproachOddsRow } {
   return {
-    safe: approachRowFor("safe", source, hole, c),
-    normal: approachRowFor("normal", source, hole, c),
-    aggressive: approachRowFor("aggressive", source, hole, c),
+    safe: approachRowFor("safe", source, hole, c, yardsToTarget, eventId),
+    normal: approachRowFor("normal", source, hole, c, yardsToTarget, eventId),
+    aggressive: approachRowFor("aggressive", source, hole, c, yardsToTarget, eventId),
   };
 }
 
-export function approachOddsTakeaway(chosen: Decision, source: GreenSource, hole: HoleSpec, c: Conditions): string {
-  const rows = approachOddsReveal(source, hole, c);
+export function approachOddsTakeaway(
+  chosen: Decision,
+  source: GreenSource,
+  hole: HoleSpec,
+  c: Conditions,
+  yardsToTarget?: number,
+  eventId?: string | null,
+): string {
+  const rows = approachOddsReveal(source, hole, c, yardsToTarget, eventId);
   const mine = rows[chosen];
   const safe = rows.safe;
-  if (hole.par === 5 && chosen !== "aggressive") {
+  const reachedInTwo = source !== "tee"
+    && canReachPar5InTwo(hole.par, source, chosen, yardsToTarget);
+  if (hole.par === 5 && !reachedInTwo) {
     const play = chosen === "safe" ? "The safe play" : "The normal play";
+    if (chosen === "aggressive") {
+      return `You tried to go for it, but the ${source} lie forced a third-shot wedge. That route had a ${mine.greenPct}% chance to hit the green and no reached-in-two scoring offset.`;
+    }
     return `${play} laid up, then attacked with the automatic wedge. That third shot had a ${mine.greenPct}% chance to hit the green and a ${mine.holeOutPct.toFixed(2)}% hole-out chance.`;
   }
   if (hole.par === 5) {
@@ -297,8 +348,15 @@ function scrambleToPct(w: Record<ScrambleResult, number>): Record<ScrambleResult
   return out;
 }
 
-function scrambleRowFor(decision: Decision, hole: HoleSpec, c: Conditions): ScrambleOddsRow {
-  const p = scrambleToPct(scrambleWeights(decision, hole, c));
+function scrambleRowFor(
+  decision: Decision,
+  hole: HoleSpec,
+  c: Conditions,
+  eventId?: string | null,
+): ScrambleOddsRow {
+  const weights = scrambleWeights(decision, hole, c);
+  applyEventById(eventId, "scramble", weights);
+  const p = scrambleToPct(weights);
   return {
     decision,
     label: SHORT_DECISION_LABEL[decision],
@@ -313,17 +371,23 @@ function scrambleRowFor(decision: Decision, hole: HoleSpec, c: Conditions): Scra
 
 export function scrambleOddsReveal(
   hole: HoleSpec,
-  c: Conditions
+  c: Conditions,
+  eventId?: string | null,
 ): { safe: ScrambleOddsRow; normal: ScrambleOddsRow; aggressive: ScrambleOddsRow } {
   return {
-    safe: scrambleRowFor("safe", hole, c),
-    normal: scrambleRowFor("normal", hole, c),
-    aggressive: scrambleRowFor("aggressive", hole, c),
+    safe: scrambleRowFor("safe", hole, c, eventId),
+    normal: scrambleRowFor("normal", hole, c, eventId),
+    aggressive: scrambleRowFor("aggressive", hole, c, eventId),
   };
 }
 
-export function scrambleOddsTakeaway(chosen: Decision, hole: HoleSpec, c: Conditions): string {
-  const rows = scrambleOddsReveal(hole, c);
+export function scrambleOddsTakeaway(
+  chosen: Decision,
+  hole: HoleSpec,
+  c: Conditions,
+  eventId?: string | null,
+): string {
+  const rows = scrambleOddsReveal(hole, c, eventId);
   const mine = rows[chosen];
   const punch = rows.safe;
   const doublePlus = (r: ScrambleOddsRow) => r.blowupPct + r.disasterPct;

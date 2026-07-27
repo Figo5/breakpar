@@ -69,6 +69,17 @@ describe("resolveHoleChain — par 4 stage chain", () => {
     expect(res.strokes).toBe(par4.par + res.scoreDelta!);
     expect(res.shots.filter((s) => s.decision).length).toBeLessThanOrEqual(MAX_DECISIONS);
   });
+
+  it("all-safe play cannot create a triple without a real penalty stroke", () => {
+    for (const hole of [par3, par4, par5]) {
+      for (let base = 1; base <= 3000; base++) {
+        const result = playToEnd(hole, base, () => "safe");
+        if ((result.penaltyStrokes ?? 0) === 0) {
+          expect(result.scoreDelta, `par ${hole.par}, seed ${base}`).toBeLessThan(3);
+        }
+      }
+    }
+  });
 });
 
 describe("resolveHoleChain — par 3 plays unlike par 4", () => {
@@ -158,6 +169,9 @@ describe("par-5 visible third shot and reached-in-two eligibility", () => {
     expect(canReachPar5InTwo(5, "trouble", "aggressive")).toBe(false);
     expect(canReachPar5InTwo(5, "fairway", "normal")).toBe(false);
     expect(canReachPar5InTwo(4, "fairway", "aggressive")).toBe(false);
+    expect(canReachPar5InTwo(5, "fairway", "aggressive", 245)).toBe(true);
+    expect(canReachPar5InTwo(5, "fairway", "aggressive", 255)).toBe(false);
+    expect(canReachPar5InTwo(5, "dialed", "aggressive", 265)).toBe(true);
   });
   it("the layup consumes no decision: `used` counts only real (index>=0) shots", () => {
     for (let base = 1; base <= 200; base++) {

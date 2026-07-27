@@ -6,6 +6,10 @@
     {
       "path": "/api/tournament/tick",
       "schedule": "10 4 * * *"
+    },
+    {
+      "path": "/api/career/tick",
+      "schedule": "20 4 * * *"
     }
   ]
 }

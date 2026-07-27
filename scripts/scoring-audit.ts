@@ -103,7 +103,12 @@ for (const [playerIndex, player] of Object.values(players).entries()) {
 
     for (let holeIndex = 0; holeIndex < course.holes.length; holeIndex++) {
       const hole = course.holes[holeIndex];
-      const spec: HoleSpec = { number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex };
+      const spec: HoleSpec = {
+        number: hole.number,
+        par: hole.par,
+        strokeIndex: hole.strokeIndex,
+        yardage: hole.yardage,
+      };
       const difficulty = holeDifficulty(spec, conditions);
       const key = round + playerIndex * ROUNDS_PER_PLAYER;
       const opts = {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rollEvent, momentumFor, applyEvent, EVENT_FIRE_RATE, EVENTS } from "@/lib/engine/events";
+import { rollEvent, momentumFor, applyEvent, applyEventById, EVENT_FIRE_RATE, EVENTS } from "@/lib/engine/events";
 import type { Lie } from "@/lib/engine/shots";
 import type { Outcome } from "@/lib/engine/probabilities";
 
@@ -55,5 +55,11 @@ describe("applyEvent", () => {
     applyEvent(gust, "tee", w as unknown as Record<string, number>);
     expect(w.dialed).toBeLessThan(30);
     expect(w.trouble).toBeGreaterThan(10);
+  });
+
+  it("keeps momentum visible but narration-only", () => {
+    const w: Record<Lie, number> = { dialed: 30, fairway: 40, rough: 20, trouble: 10 };
+    applyEventById("MOMENTUM_DOWN", "tee", w as unknown as Record<string, number>);
+    expect(w).toEqual({ dialed: 30, fairway: 40, rough: 20, trouble: 10 });
   });
 });
