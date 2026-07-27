@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { route } from "@/lib/api";
+import { cronAuthorizationError } from "@/lib/cronAuth";
 import { getActiveTournament, lastCompletedChampion } from "@/lib/tournament.server";
 
 /**
@@ -21,16 +22,8 @@ import { getActiveTournament, lastCompletedChampion } from "@/lib/tournament.ser
 export const dynamic = "force-dynamic";
 
 export const GET = route(async (req: Request) => {
-  // Vercel signs cron invocations with CRON_SECRET when it's configured. Enforce
-  // it when set so the endpoint can't be used to poke the lifecycle from outside;
-  // when unset (local dev) it stays open.
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-  }
+  const authError = cronAuthorizationError(req);
+  if (authError) return authError;
 
   const now = new Date();
   const tournament = await getActiveTournament(now);

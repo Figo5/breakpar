@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { route } from "@/lib/api";
+import { cronAuthorizationError } from "@/lib/cronAuth";
 import { prisma } from "@/lib/db";
 import { runCareerTick } from "@/lib/career/scheduler";
 
@@ -17,16 +18,8 @@ import { runCareerTick } from "@/lib/career/scheduler";
 export const dynamic = "force-dynamic";
 
 export const GET = route(async (req: Request) => {
-  // Vercel signs cron invocations with CRON_SECRET when it's configured. Enforce
-  // it when set so the endpoint can't drive the lifecycle from outside; when
-  // unset (local dev) it stays open. Mirrors the Tournament tick.
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-  }
+  const authError = cronAuthorizationError(req);
+  if (authError) return authError;
 
   const summary = await runCareerTick(prisma);
   return NextResponse.json({ ok: true, ...summary });
