@@ -42,7 +42,11 @@ import { hashSeed } from "@/lib/engine/rng";
 import { canonicalHash, canonicalStringify } from "./canonical";
 import { careerEffectKey } from "./effectKeys";
 import { championshipUnlock } from "./championship";
-import { CAREER_CURRENT_FORMULA_BUNDLE, CAREER_FORMULA_VERSION } from "./formulaBundle";
+import {
+  CAREER_CURRENT_FORMULA_BUNDLE,
+  CAREER_FORMULA_VERSION,
+  requireCareerFormulaBundle,
+} from "./formulaBundle";
 import {
   CareerSettlementEngine,
   type ClaimSettlementResult,
@@ -101,6 +105,13 @@ export interface CareerSeasonSettlementInput {
   readonly tier: CareerTier;
   /** Event IDs indexed exactly like SeasonEventResult.eventIndex (0..3). */
   readonly eventIds: readonly string[];
+  /**
+   * The formula package each event was SETTLED under, in event order. A season
+   * in flight across a package bump legitimately holds a mix, so the mix is
+   * recorded here to keep the settlement auditable. Optional: snapshots frozen
+   * before this field existed resume without it, and it never feeds the maths.
+   */
+  readonly eventFormulaVersions?: readonly string[];
   readonly competitors: readonly SeasonSettlementCompetitor[];
   /** Prior state for each HUMAN competitor, keyed by competitorId. */
   readonly humanState: Readonly<Record<string, SeasonSettlementProfileState>>;
@@ -547,24 +558,33 @@ export class CareerSeasonSettlementService {
       throw new Error(`Career cohort ${cohort.id} has invalid event identities`);
     }
 
-    // Load each event's single committed final, pinned to the frozen formula.
+    // Load each event's single committed final.
+    //
+    // An event's final is pinned to the formula package that SETTLED THAT
+    // EVENT, which is not necessarily the package now settling the season: a
+    // season still in flight when a new package ships legitimately holds finals
+    // from both. Filtering by the CURRENT version here made every straddling
+    // season permanently unsettleable — it threw, was marked retryable, and the
+    // scheduler retried it forever. Take the event's own committed final and
+    // record which package produced it.
     const finals = cohort.competitions.map((competition) => {
       if (competition.state !== "SETTLED") {
         throw new Error(`Career event ${competition.id} is not settled`);
       }
-      const committed = competition.finals.filter(
-        (final) => final.formulaVersion === CAREER_FORMULA_VERSION,
-      );
-      if (committed.length !== 1) {
+      if (competition.finals.length !== 1) {
         throw new Error(
-          `Career event ${competition.id} must have exactly one committed final for ${CAREER_FORMULA_VERSION}`,
+          `Career event ${competition.id} must have exactly one committed final `
+          + `(found ${competition.finals.length})`,
         );
       }
+      const final = competition.finals[0];
+      // The package still has to RESOLVE — an unknown one is unauditable and
+      // must stop settlement rather than be silently accepted.
+      requireCareerFormulaBundle(final.formulaVersion);
       if (competition.lockRevisions.length !== 1) {
         throw new Error(`Career event ${competition.id} must have exactly one lock revision`);
       }
       const lock = competition.lockRevisions[0];
-      const final = committed[0];
       if (final.lockRevisionId !== lock.id) {
         throw new Error(`Career event ${competition.id} final references the wrong lock revision`);
       }
@@ -586,6 +606,7 @@ export class CareerSeasonSettlementService {
       }
       return {
         eventNumber: competition.eventNumber ?? 0,
+        formulaVersion: final.formulaVersion,
         standings,
       };
     });
@@ -724,6 +745,7 @@ export class CareerSeasonSettlementService {
       seasonNumber: cohort.seasonNumber,
       tier: RULES_TIER[cohort.tier],
       eventIds: cohort.competitions.map((competition) => competition.id),
+      eventFormulaVersions: finals.map((final) => final.formulaVersion),
       competitors,
       humanState,
     };
