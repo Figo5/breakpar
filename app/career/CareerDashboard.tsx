@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { careerLegacyTitle } from "@/lib/career/legacy";
 import type { CareerStateView } from "@/lib/career/read";
 import {
   availabilityLabel,
@@ -146,11 +147,11 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
           <b>{Math.round(rating)}</b>
           <small>{state.latestRating ? `After season ${state.latestRating.seasonNumber}` : "Builds after your first season"}</small>
         </div>
-        <div className="card">
+        <Link href="/career/legacy" className="card career-legacy-card">
           <span>Legacy</span>
           <b>{state.profile.legacyTotal}</b>
-          <small>Permanent points</small>
-        </div>
+          <small>{careerLegacyTitle(state.profile.legacyTotal).title} · see breakdown →</small>
+        </Link>
       </div>
 
       {state.latestSettledSeason && (

@@ -17,6 +17,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "career:freeze": "tsx scripts/career-formula-freeze.ts",
+    "career:backfill-bot-rounds": "tsx scripts/career-backfill-bot-rounds.ts",
     "career:simulate": "tsx scripts/career-simulate.ts",
     "career:simulate:player-paced": "tsx scripts/career-player-paced-simulate.ts",
     "engine:calibrate": "tsx scripts/calibrate.ts",

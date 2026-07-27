@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import type { CareerEventLeaderboardView } from "@/lib/career/read";
-import { lifecycleLabel, pointsLabel, scoreLabel } from "../../career-ui";
+import {
+  cumulativeLabel,
+  lifecycleLabel,
+  pointsLabel,
+  revealLabel,
+  roundProgressLabel,
+  scoreLabel,
+} from "../../career-ui";
 import { CareerChrome, CareerError, CareerLoading } from "../../CareerChrome";
 
 export function CareerEvent({ eventId }: { eventId: string }) {
@@ -38,17 +45,19 @@ export function CareerEvent({ eventId }: { eventId: string }) {
   }
 
   const event = view.competition;
-  const playable = event.state === "ACTIVE";
-  // Opponents stay hidden until the player's own card is in: knowing the number
-  // to beat would change how they play the round.
-  const hidden = !view.revealed;
   const progress = view.playerProgress;
+  const eventComplete = progress.roundsCompleted >= progress.roundsTotal;
+  const playable = event.state === "ACTIVE" && !eventComplete;
+  const nextRound = progress.nextRound ?? progress.roundsTotal;
+  // Scores stay hidden until the player's own card for the round is in: knowing
+  // the number to beat would change how they play it.
+  const hidden = !view.revealed;
 
   return (
     <CareerChrome eyebrow="Event">
       <div className="career-event-hero">
         <div className="career-kicker">
-          Event {event.eventNumber ?? "—"} · Round {progress.nextRound ?? progress.roundsTotal} of {progress.roundsTotal}
+          Event {event.eventNumber ?? "—"} · {lifecycleLabel(event.state)}
         </div>
         <h1>{event.courseName}</h1>
         <p>{event.courseLocation}</p>
@@ -56,26 +65,28 @@ export function CareerEvent({ eventId }: { eventId: string }) {
 
       <div className="career-event-progress">
         <div>
-          <span>Event progress</span>
-          <b>{progress.roundsCompleted} / {progress.roundsTotal} rounds</b>
+          <span>Your progress</span>
+          <b>{roundProgressLabel(progress.roundsCompleted, progress.roundsTotal)}</b>
         </div>
         <div>
           <span>Cumulative</span>
-          <b>{scoreLabel(progress.cumulativeRelativeToPar)}</b>
+          <b>
+            {progress.roundsCompleted > 0
+              ? scoreLabel(progress.cumulativeRelativeToPar)
+              : "—"}
+          </b>
         </div>
       </div>
 
-      {playable && hidden && (
+      {playable && (
         <Link href={`/play?careerEvent=${encodeURIComponent(event.id)}`} className="cta career-primary">
-          {progress.currentRoundId
-            ? `Resume Round ${progress.nextRound}`
-            : `Play Round ${progress.nextRound}`}
+          {progress.currentRoundId ? `Resume round ${nextRound}` : `Play round ${nextRound}`}
         </Link>
       )}
-      {playable && !hidden && (
+      {eventComplete && event.state === "ACTIVE" && (
         <div className="career-context good">
           <b>Your card is posted</b>
-          All four rounds are complete. Your cumulative score counts toward the season.
+          All {progress.roundsTotal} rounds are in. Your cumulative score counts toward the season.
         </div>
       )}
       {event.state === "FORMING" || event.state === "LOCKING" ? (
@@ -96,41 +107,63 @@ export function CareerEvent({ eventId }: { eventId: string }) {
       <div className="career-section-head">
         <div>
           <span>{view.settled ? "Final leaderboard" : "Leaderboard"}</span>
-          <b>{hidden ? "Hidden" : `${view.standings.length || "—"} players`}</b>
+          <b>{revealLabel(view.roundsRevealed, progress.roundsTotal)}</b>
         </div>
         <Link href="/career/season">Season →</Link>
       </div>
 
-      {hidden ? (
-        <div className="career-empty">
-          <b>Scores are revealed when you finish.</b>
-          <span>
-            Your nineteen rivals have already played four rounds here. Their totals
-            stay sealed until all four of your cards are in, so you play your own
-            event — not their leaderboard.
-          </span>
+      {hidden && (
+        <div className="career-context">
+          <b>
+            {view.roundCardsAvailable
+              ? "Scores unlock as you play"
+              : "Scores unlock when you finish"}
+          </b>
+          {view.roundCardsAvailable
+            ? `Your nineteen rivals are already out there. Post round ${nextRound} and the whole field's cards through that round appear — the rounds after it stay sealed until you reach them.`
+            : "This event was formed before round-by-round cards were stored, so rival scores stay sealed until you complete every round. Nothing here is estimated."}
         </div>
-      ) : view.standings.length === 0 ? (
+      )}
+
+      {view.standings.length === 0 ? (
         <div className="career-empty">
-          <b>No scores on the board yet.</b>
-          <span>This event has no published field.</span>
+          <b>No field published yet.</b>
+          <span>Your rivals are still being set for this event.</span>
         </div>
       ) : (
         <div className="career-board">
           <div className="career-board-head">
-            <span>Pos</span><span>Player</span><span>Score</span><span>Pts</span>
+            <span>Pos</span>
+            <span>Player</span>
+            <span>{view.roundsRevealed >= progress.roundsTotal ? "Total" : "Thru"}</span>
+            <span>{view.settled ? "Pts" : "Rds"}</span>
           </div>
           {view.standings.map((row) => (
-            <div className="career-board-row" key={row.competitorId}>
+            <div className={`career-board-row ${row.isMe ? "is-me" : ""}`} key={row.competitorId}>
               <span>{row.rank ?? "—"}</span>
               <span>
                 <b>{row.displayName}</b>
-                <small>{row.competitorType === "BOT" ? "Rival" : "You"}</small>
+                <small>{row.isMe ? "You" : "Rival"}</small>
               </span>
-              <span>{scoreLabel(row.relativeToPar)}</span>
-              <span>{pointsLabel(row.points)}</span>
+              <span>{hidden ? "—" : cumulativeLabel(row.relativeToPar)}</span>
+              <span>
+                {view.settled
+                  ? pointsLabel(row.points)
+                  : hidden
+                    ? "—"
+                    : `${row.roundsCompleted}/${progress.roundsTotal}`}
+              </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {!hidden && !view.settled && view.roundsRevealed < progress.roundsTotal && (
+        <div className="career-context">
+          <b>Live through round {view.roundsRevealed}</b>
+          Every score above is cumulative through round {view.roundsRevealed} only. Rounds{" "}
+          {view.roundsRevealed + 1} to {progress.roundsTotal} are sealed for the whole field, and
+          event points are awarded once all {progress.roundsTotal} rounds are in.
         </div>
       )}
 

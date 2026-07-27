@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import type { CareerSeasonStandingView, CareerStateView } from "@/lib/career/read";
-import { movementLabel, pointsLabel, tierLabel } from "../career-ui";
+import type { CareerSeasonTableView, CareerStateView } from "@/lib/career/read";
+import {
+  cumulativeLabel,
+  movementLabel,
+  pointsLabel,
+  seasonRevealLabel,
+  tierLabel,
+} from "../career-ui";
 import { CareerChrome, CareerError, CareerLoading } from "../CareerChrome";
 
 export function CareerSeason({ cohortId }: { cohortId?: string }) {
   const [state, setState] = useState<CareerStateView | null>(null);
-  const [standings, setStandings] = useState<CareerSeasonStandingView[]>([]);
+  const [table, setTable] = useState<CareerSeasonTableView | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,7 +28,7 @@ export function CareerSeason({ cohortId }: { cohortId?: string }) {
       const selectedCohortId = cohortId ?? statePayload.state?.cohort?.id;
       if (!statePayload.state || !selectedCohortId) {
         setState(statePayload.state);
-        setStandings([]);
+        setTable(null);
         setLoaded(true);
         return;
       }
@@ -31,11 +37,8 @@ export function CareerSeason({ cohortId }: { cohortId?: string }) {
         { cache: "no-store" },
       );
       if (!standingsResponse.ok) throw new Error("Season standings are temporarily unavailable.");
-      const standingsPayload = await standingsResponse.json() as {
-        standings: CareerSeasonStandingView[];
-      };
       setState(statePayload.state);
-      setStandings(standingsPayload.standings);
+      setTable(await standingsResponse.json() as CareerSeasonTableView);
       setLoaded(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
@@ -65,7 +68,7 @@ export function CareerSeason({ cohortId }: { cohortId?: string }) {
     );
   }
 
-  if (!state.cohort && !cohortId) {
+  if (!table) {
     return (
       <CareerChrome eyebrow="Season">
         <div className="career-empty">
@@ -77,85 +80,114 @@ export function CareerSeason({ cohortId }: { cohortId?: string }) {
     );
   }
 
-  const selected = cohortId
-    ? state.latestSettledSeason?.cohortId === cohortId
-      ? {
-        seasonNumber: state.latestSettledSeason.seasonNumber,
-        tier: state.latestSettledSeason.tier,
-        settled: true,
-      }
-      : null
-    : state.cohort
-      ? {
-        seasonNumber: state.cohort.seasonNumber,
-        tier: state.cohort.tier,
-        settled: state.cohort.state === "SETTLED",
-      }
-      : null;
-  if (!selected) {
-    return (
-      <CareerChrome eyebrow="Season">
-        <div className="career-empty">
-          <b>Season not found.</b>
-          <span>This season is not part of your Career Journey.</span>
-          <Link href="/career" className="cta ghost">Back to my career</Link>
-        </div>
-      </CareerChrome>
-    );
-  }
+  const mine = table.standings.find((row) => row.isMe);
+  const remaining = table.eventsTotal - table.eventsRevealed;
 
-  const mine = standings.find((row) => row.profileId === state.profile.id);
   return (
     <CareerChrome eyebrow="Season">
       <div className="career-season-hero">
-        <div className="career-kicker">{tierLabel(selected.tier)}</div>
-        <h1>Season {selected.seasonNumber}</h1>
+        <div className="career-kicker">{tierLabel(table.tier)}</div>
+        <h1>Season {table.seasonNumber}</h1>
         <p>
-          {selected.settled
-            ? "Final standings · Your best three event-point totals counted."
-            : "Your best three event-point totals count. A season settles once all four cards are in."}
+          {table.settled
+            ? "Final standings · your best three event totals counted."
+            : "Your best three event totals count. The table updates each time you complete an event."}
         </p>
       </div>
 
       {mine && (
         <div className="career-my-season">
-          <span>Your position</span>
+          <span>{table.settled ? "Your finish" : "Your position"}</span>
           <b>{mine.rank ? `#${mine.rank}` : "—"}</b>
           <strong>{pointsLabel(mine.seasonPoints)} points</strong>
-          <small>{movementLabel(mine.movement, mine.tier, mine.nextTier)}</small>
+          <small>
+            {table.settled
+              ? movementLabel(mine.movement, mine.tier, mine.nextTier)
+              : `${table.eventsRevealed} of ${table.eventsTotal} events played${
+                remaining > 0 ? ` · ${remaining} still to count` : ""
+              }`}
+          </small>
         </div>
       )}
 
-      {standings.length === 0 ? (
-        <div className="career-empty">
-          <b>Standings settle after all four events.</b>
-          <span>Every event stays playable until you finish it — nothing expires. Final movement is never calculated from a partial table.</span>
+      <div className="career-section-head">
+        <div>
+          <span>Standings</span>
+          <b>{seasonRevealLabel(table.eventsRevealed, table.eventsTotal)}</b>
         </div>
-      ) : (
-        <div className="career-board career-season-board">
-          <div className="career-board-head">
-            <span>Pos</span><span>Player</span><span>Points</span><span>Move</span>
-          </div>
-          {standings.map((row) => (
-            <div
-              className={`career-board-row ${row.profileId === state.profile.id ? "is-me" : ""}`}
-              key={row.competitorId}
-            >
-              <span>{row.rank ?? "—"}</span>
-              <span><b>{row.displayName}</b><small>{tierLabel(row.tier)}</small></span>
-              <span>{pointsLabel(row.seasonPoints)}</span>
-              <span className={`career-movement move-${row.movement.toLowerCase()}`}>
-                {row.movement === "PROMOTE"
+        <span className="career-section-note">{table.standings.length} players</span>
+      </div>
+
+      <div className="career-board career-season-board">
+        <div className="career-board-head">
+          <span>Pos</span><span>Player</span><span>Points</span><span>{table.settled ? "Move" : "Ev"}</span>
+        </div>
+        {table.standings.map((row) => (
+          <div className={`career-board-row ${row.isMe ? "is-me" : ""}`} key={row.competitorId}>
+            <span>{row.rank ?? "—"}</span>
+            <span>
+              <b>{row.displayName}</b>
+              <small>{row.isMe ? "You" : "Rival"}</small>
+            </span>
+            <span>{table.eventsRevealed > 0 ? pointsLabel(row.seasonPoints) : "—"}</span>
+            <span className={table.settled ? `career-movement move-${row.movement.toLowerCase()}` : ""}>
+              {table.settled
+                ? row.movement === "PROMOTE"
                   ? "↑"
                   : row.movement === "RELEGATE"
                     ? "↓"
                     : row.movement === "RIVAL"
                       ? "—"
-                      : "•"}
-              </span>
-            </div>
-          ))}
+                      : "•"
+                : `${row.eventsCompleted}/${table.eventsTotal}`}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {table.eventsRevealed === 0 && (
+        <div className="career-context">
+          <b>Your field is set — the scoring is not</b>
+          All {table.standings.length} players are already in this season. Nobody has a
+          position yet because no event has been completed. Finish an event and its
+          results appear here for the whole field.
         </div>
+      )}
+
+      {mine && table.eventsRevealed > 0 && (
+        <>
+          <div className="career-section-head">
+            <div>
+              <span>Your card</span>
+              <b>Best {table.countingEvents} of {table.eventsTotal} count</b>
+            </div>
+          </div>
+          <div className="career-your-events">
+            {mine.events.map((cell) => (
+              <div
+                className={`career-your-event ${cell.counting ? "is-counting" : ""} ${cell.revealed ? "" : "is-hidden"}`}
+                key={cell.eventIndex}
+              >
+                <span>Event {cell.eventNumber}</span>
+                <b>{cell.revealed ? pointsLabel(cell.points) : "—"}</b>
+                <small>
+                  {cell.revealed
+                    ? `${cumulativeLabel(cell.relativeToPar)} · ${cell.rank ? `#${cell.rank}` : "—"}${cell.counting ? " · counting" : ""}`
+                    : "Not played yet"}
+                </small>
+              </div>
+            ))}
+          </div>
+          {!table.settled && (
+            <div className="career-context">
+              <b>Provisional through {table.eventsRevealed} of {table.eventsTotal}</b>
+              Only events you have completed are scored, for you and for every rival
+              alike. Events you have not played are left out of the maths entirely —
+              they are never counted as zero, so they cannot drag your position down.
+              Once all four are in, this table is the final one.
+            </div>
+          )}
+        </>
       )}
 
       <div className="career-context">

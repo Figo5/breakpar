@@ -101,3 +101,30 @@ describe("Career schema — no-shows are unreachable, so the column is gone", ()
     expect(fieldNames(name)).not.toContain("noShow");
   });
 });
+
+describe("Career schema — bot round cards are immutable and unique", () => {
+  it("CareerBotRoundResult stores one card per slot per round", () => {
+    const model = models.get("CareerBotRoundResult");
+    expect(model).toBeDefined();
+    expect(fieldNames("CareerBotRoundResult")).toEqual(expect.arrayContaining([
+      "competitionId",
+      "lockRevisionId",
+      "slotId",
+      "roundNumber",
+      "relativeToPar",
+      // The seed and the package it was rolled under, so a card is always
+      // traceable back to the pinned formation inputs that produced it.
+      "seed",
+      "formulaVersion",
+    ]));
+    // A duplicate card would let a leaderboard double-count a round.
+    expect(model!.uniqueFields).toContainEqual(["lockRevisionId", "slotId", "roundNumber"]);
+  });
+
+  it("keeps the card as an integer score, never a divisible total", () => {
+    const relativeToPar = models.get("CareerBotRoundResult")!.fields
+      .find((field) => field.name === "relativeToPar")!;
+    expect(relativeToPar.type).toBe("Int");
+    expect(relativeToPar.isRequired).toBe(true);
+  });
+});

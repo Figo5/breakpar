@@ -153,9 +153,12 @@ describe("Completion-driven event settlement", () => {
     });
     expect((await advanceCareerAfterFinish(db, first.id, OPTS)).eventsSettled).toBe(0);
 
+    // One card in: the field is revealed THROUGH ROUND ONE only.
     const board = await careerEventLeaderboard(db, first.id, state.profile.id);
     expect(board).toMatchObject({
-      revealed: false,
+      revealed: true,
+      roundsRevealed: 1,
+      settled: false,
       playerProgress: {
         roundsCompleted: 1,
         roundsTotal: 4,
@@ -163,6 +166,18 @@ describe("Completion-driven event settlement", () => {
         cumulativeRelativeToPar: -2,
       },
     });
+    // Every visible score is one round, not four, and no points are published.
+    expect(board!.standings).toHaveLength(20);
+    expect(board!.standings.every((row) => row.roundsCompleted === 1)).toBe(true);
+    expect(board!.standings.every((row) => row.points === null)).toBe(true);
+    const finalTotals = await db.careerResult.findMany({
+      where: { competitionId: first.id, competitorType: "BOT" },
+      select: { slotId: true, relativeToPar: true },
+    });
+    const cumulative = new Map(board!.standings.map((row) => [row.slotId, row.relativeToPar]));
+    for (const total of finalTotals) {
+      expect(cumulative.get(total.slotId)).not.toBe(total.relativeToPar);
+    }
 
     const roundTwo = await startCareerEventRound(db, user.id, first.id);
     const resumed = await startCareerEventRound(db, user.id, first.id);
@@ -391,13 +406,19 @@ describe("Opponent reveal rule", () => {
     const state = await startCareerJourney(db, user.id, OPTS);
     const first = state.competitions[0];
 
-    // Before playing: the bot cards already exist in the locked field, but
-    // knowing the number to beat would change aggression, so nothing shows.
+    // Before playing: the field and its names are public, but the bot cards
+    // already exist in the locked field and knowing the number to beat would
+    // change aggression — so every score stays sealed.
     const hidden = await careerEventLeaderboard(db, first.id, state.profile.id);
     expect(hidden).not.toBeNull();
     expect(hidden!.revealed).toBe(false);
+    expect(hidden!.roundsRevealed).toBe(0);
+    expect(hidden!.standings).toHaveLength(20);
+    expect(hidden!.standings.filter((row) => row.competitorType === "BOT")).toHaveLength(19);
     expect(hidden!.standings.every((row) => row.relativeToPar === null)).toBe(true);
-    expect(hidden!.standings.filter((row) => row.competitorType === "BOT")).toHaveLength(0);
+    expect(hidden!.standings.every((row) => row.rank === null)).toBe(true);
+    expect(hidden!.standings.every((row) => row.points === null)).toBe(true);
+    expect(hidden!.standings.filter((row) => row.isMe)).toHaveLength(1);
 
     await playEvent(user.id, first.id, -4);
 
@@ -407,12 +428,15 @@ describe("Opponent reveal rule", () => {
     expect(shown!.standings.some((row) => row.competitorType === "BOT")).toBe(true);
   });
 
-  it("reveals nothing to an anonymous viewer", async () => {
+  it("names the field but reveals no score to an anonymous viewer", async () => {
     const user = await newUser("anon");
     const state = await startCareerJourney(db, user.id, OPTS);
     const board = await careerEventLeaderboard(db, state.competitions[0].id, null);
     expect(board!.revealed).toBe(false);
-    expect(board!.standings).toHaveLength(0);
+    expect(board!.roundsRevealed).toBe(0);
+    expect(board!.standings).toHaveLength(20);
+    expect(board!.standings.every((row) => row.relativeToPar === null)).toBe(true);
+    expect(board!.standings.every((row) => row.isMe === false)).toBe(true);
   });
 });
 
