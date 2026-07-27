@@ -42,24 +42,40 @@ export function CareerEvent({ eventId }: { eventId: string }) {
   // Opponents stay hidden until the player's own card is in: knowing the number
   // to beat would change how they play the round.
   const hidden = !view.revealed;
+  const progress = view.playerProgress;
 
   return (
     <CareerChrome eyebrow="Event">
       <div className="career-event-hero">
-        <div className="career-kicker">Event {event.eventNumber ?? "—"} · {lifecycleLabel(event.state)}</div>
+        <div className="career-kicker">
+          Event {event.eventNumber ?? "—"} · Round {progress.nextRound ?? progress.roundsTotal} of {progress.roundsTotal}
+        </div>
         <h1>{event.courseName}</h1>
         <p>{event.courseLocation}</p>
       </div>
 
+      <div className="career-event-progress">
+        <div>
+          <span>Event progress</span>
+          <b>{progress.roundsCompleted} / {progress.roundsTotal} rounds</b>
+        </div>
+        <div>
+          <span>Cumulative</span>
+          <b>{scoreLabel(progress.cumulativeRelativeToPar)}</b>
+        </div>
+      </div>
+
       {playable && hidden && (
         <Link href={`/play?careerEvent=${encodeURIComponent(event.id)}`} className="cta career-primary">
-          Play this event
+          {progress.currentRoundId
+            ? `Resume Round ${progress.nextRound}`
+            : `Play Round ${progress.nextRound}`}
         </Link>
       )}
       {playable && !hidden && (
         <div className="career-context good">
           <b>Your card is posted</b>
-          One attempt per event — this one is done. Your score counts toward the season.
+          All four rounds are complete. Your cumulative score counts toward the season.
         </div>
       )}
       {event.state === "FORMING" || event.state === "LOCKING" ? (
@@ -89,8 +105,9 @@ export function CareerEvent({ eventId }: { eventId: string }) {
         <div className="career-empty">
           <b>Scores are revealed when you finish.</b>
           <span>
-            Your nineteen rivals have already played this course. Their cards stay
-            sealed until yours is in, so you play your own round — not theirs.
+            Your nineteen rivals have already played four rounds here. Their totals
+            stay sealed until all four of your cards are in, so you play your own
+            event — not their leaderboard.
           </span>
         </div>
       ) : view.standings.length === 0 ? (

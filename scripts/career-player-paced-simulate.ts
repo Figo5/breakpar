@@ -12,7 +12,7 @@ import {
   simulatePlayerPacedCareer,
   type PlayerPacedCareerSimulation,
 } from "../lib/career/playerPacedSimulator";
-import { CAREER_V2_FORMULA_BUNDLE } from "../lib/career/formulaBundle";
+import { CAREER_V3_FORMULA_BUNDLE } from "../lib/career/formulaBundle";
 import { tourRating, type RatingSeason } from "../lib/career/rules";
 import {
   ABILITY_BANDS,
@@ -101,14 +101,14 @@ if (!options.quick && options.seasons < Math.max(...requiredHorizons)) {
 }
 
 console.log(
-  `Building ${CAREER_V2_FORMULA_BUNDLE.id} real-engine score bank `
+  `Building ${CAREER_V3_FORMULA_BUNDLE.id} real-engine score bank `
   + `(${options.bankSamples} rounds/archetype)…`,
 );
 const bank = buildScoreBank(
   options.seed,
   options.bankSamples,
-  CAREER_V2_FORMULA_BUNDLE.ability.model,
-  { ...CAREER_V2_FORMULA_BUNDLE.ability.errorRates },
+  CAREER_V3_FORMULA_BUNDLE.ability.model,
+  { ...CAREER_V3_FORMULA_BUNDLE.ability.errorRates },
 );
 
 const simulations = new Map<AbilityBand, PlayerPacedCareerSimulation[]>();
@@ -145,7 +145,7 @@ const horizons = requiredHorizons.filter((horizon) => horizon <= options.seasons
 const lines: string[] = [
   "# Player-paced Career long-horizon simulation",
   "",
-  `Formula package: \`${CAREER_V2_FORMULA_BUNDLE.id}\`.`,
+  `Formula package: \`${CAREER_V3_FORMULA_BUNDLE.id}\`.`,
   "",
   "This analysis models one player plus nineteen tier-scaled named bots, four immediately playable events per season, best three counting, Candidate-H rolling movement without a human cap, a Championship check every fourth settled season gated on Challenger/Pro, and no inactivity. Every unlocked Championship is played immediately for the Legacy curve; qualification points are earned at season settlement either way.",
   "",

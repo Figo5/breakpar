@@ -25,8 +25,11 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Weekly tournaments now reject extreme shared round seeds while preserving identical conditions for the entire field.",
       "Added Career Mode, an unlimited personal tour with four-event seasons, recurring rivals, promotion and relegation, Tour Rating, and permanent Legacy progress.",
       "Added optional Championships every four completed seasons for Challenger and Pro players.",
-      "Career events have one attempt, safely resume the same round, and open the next season immediately after all four events are complete.",
-      "Career progress is isolated from the daily challenge, streaks, weekly tournaments, challenges, practice records, and existing trophies.",
+      "Career events now have four cumulative rounds apiece, for 16 rounds in each season; every round has one attempt and safely resumes in place.",
+      "Career Mode now explains the exact promotion and relegation requirements on the dashboard and season standings.",
+      "Completed season standings remain available after the next season opens.",
+      "Career rounds are now labeled correctly on profiles, Hall of Fame records, result cards, shared results, and link previews.",
+      "Career progression is isolated from the daily challenge, streaks, weekly tournaments, challenges, and existing trophies.",
     ],
   },
   {

@@ -7,7 +7,7 @@ import type { CareerSeasonStandingView, CareerStateView } from "@/lib/career/rea
 import { movementLabel, pointsLabel, tierLabel } from "../career-ui";
 import { CareerChrome, CareerError, CareerLoading } from "../CareerChrome";
 
-export function CareerSeason() {
+export function CareerSeason({ cohortId }: { cohortId?: string }) {
   const [state, setState] = useState<CareerStateView | null>(null);
   const [standings, setStandings] = useState<CareerSeasonStandingView[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -19,14 +19,15 @@ export function CareerSeason() {
       const stateResponse = await fetch("/api/career/state", { cache: "no-store" });
       if (!stateResponse.ok) throw new Error("Your Career season is temporarily unavailable.");
       const statePayload = await stateResponse.json() as { state: CareerStateView | null };
-      if (!statePayload.state?.cohort) {
+      const selectedCohortId = cohortId ?? statePayload.state?.cohort?.id;
+      if (!statePayload.state || !selectedCohortId) {
         setState(statePayload.state);
         setStandings([]);
         setLoaded(true);
         return;
       }
       const standingsResponse = await fetch(
-        `/api/career/season/standings?cohortId=${encodeURIComponent(statePayload.state.cohort.id)}`,
+        `/api/career/season/standings?cohortId=${encodeURIComponent(selectedCohortId)}`,
         { cache: "no-store" },
       );
       if (!standingsResponse.ok) throw new Error("Season standings are temporarily unavailable.");
@@ -39,7 +40,7 @@ export function CareerSeason() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
     }
-  }, []);
+  }, [cohortId]);
 
   useEffect(() => {
     void load();
@@ -53,7 +54,18 @@ export function CareerSeason() {
     );
   }
 
-  if (!state?.cohort) {
+  if (!state) {
+    return (
+      <CareerChrome eyebrow="Season">
+        <div className="career-empty">
+          <b>No Career Journey found.</b>
+          <Link href="/career" className="cta ghost">Back to Career Mode</Link>
+        </div>
+      </CareerChrome>
+    );
+  }
+
+  if (!state.cohort && !cohortId) {
     return (
       <CareerChrome eyebrow="Season">
         <div className="career-empty">
@@ -65,13 +77,44 @@ export function CareerSeason() {
     );
   }
 
+  const selected = cohortId
+    ? state.latestSettledSeason?.cohortId === cohortId
+      ? {
+        seasonNumber: state.latestSettledSeason.seasonNumber,
+        tier: state.latestSettledSeason.tier,
+        settled: true,
+      }
+      : null
+    : state.cohort
+      ? {
+        seasonNumber: state.cohort.seasonNumber,
+        tier: state.cohort.tier,
+        settled: state.cohort.state === "SETTLED",
+      }
+      : null;
+  if (!selected) {
+    return (
+      <CareerChrome eyebrow="Season">
+        <div className="career-empty">
+          <b>Season not found.</b>
+          <span>This season is not part of your Career Journey.</span>
+          <Link href="/career" className="cta ghost">Back to my career</Link>
+        </div>
+      </CareerChrome>
+    );
+  }
+
   const mine = standings.find((row) => row.profileId === state.profile.id);
   return (
     <CareerChrome eyebrow="Season">
       <div className="career-season-hero">
-        <div className="career-kicker">{tierLabel(state.cohort.tier)}</div>
-        <h1>Season {state.cohort.seasonNumber}</h1>
-        <p>Your best three event-point totals count. A season settles once all four cards are in.</p>
+        <div className="career-kicker">{tierLabel(selected.tier)}</div>
+        <h1>Season {selected.seasonNumber}</h1>
+        <p>
+          {selected.settled
+            ? "Final standings · Your best three event-point totals counted."
+            : "Your best three event-point totals count. A season settles once all four cards are in."}
+        </p>
       </div>
 
       {mine && (
@@ -96,13 +139,19 @@ export function CareerSeason() {
           {standings.map((row) => (
             <div
               className={`career-board-row ${row.profileId === state.profile.id ? "is-me" : ""}`}
-              key={row.profileId}
+              key={row.competitorId}
             >
               <span>{row.rank ?? "—"}</span>
               <span><b>{row.displayName}</b><small>{tierLabel(row.tier)}</small></span>
               <span>{pointsLabel(row.seasonPoints)}</span>
               <span className={`career-movement move-${row.movement.toLowerCase()}`}>
-                {row.movement === "PROMOTE" ? "↑" : row.movement === "RELEGATE" ? "↓" : "•"}
+                {row.movement === "PROMOTE"
+                  ? "↑"
+                  : row.movement === "RELEGATE"
+                    ? "↓"
+                    : row.movement === "RIVAL"
+                      ? "—"
+                      : "•"}
               </span>
             </div>
           ))}
@@ -110,9 +159,12 @@ export function CareerSeason() {
       )}
 
       <div className="career-context">
-        <b>Movement uses form, not one lucky season</b>
-        Your last two completed seasons feed promotion and relegation, so a single
-        hot or cold run never decides your tour on its own.
+        <b>Exactly how movement works</b>
+        Season 1 establishes form. Promotion requires both stored form results
+        at or above the 58th percentile and their average at or above the 65th.
+        At Challenger or Pro, an average at or below the 32nd percentile causes
+        relegation. A reduced piece of promotion form carries into the new tour;
+        Local cannot relegate and Pro cannot promote.
       </div>
 
       <div className="career-links">

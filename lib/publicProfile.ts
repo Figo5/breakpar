@@ -34,7 +34,7 @@ export interface PublicRound {
   id: string;
   courseName: string;
   par: number;
-  mode: "daily" | "unlimited";
+  mode: string;
   puzzleNo: number | null;
   relativeToPar: number;
   playedAt: string; // ISO
@@ -184,7 +184,7 @@ export async function getPublicProfile(username: string): Promise<PublicProfileR
         id: r.id,
         courseName: c.name.split("—")[0].trim(),
         par: coursePar(c),
-        mode: r.mode === "daily" ? "daily" : "unlimited",
+        mode: r.mode,
         puzzleNo: r.dateKey ? puzzleNumberForKey(r.dateKey) : null,
         relativeToPar: r.relativeToPar,
         playedAt: r.playedAt.toISOString(),

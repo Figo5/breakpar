@@ -16,7 +16,7 @@ export interface ProfileRound {
   rank: number;
   courseName: string;
   par: number;
-  mode: "daily" | "unlimited";
+  mode: string;
   puzzleNo: number | null;
   score: number; // total strokes
   relativeToPar: number;
@@ -59,7 +59,7 @@ function shape(
     rank,
     courseName: course.name.split("—")[0].trim(),
     par: coursePar(course),
-    mode: r.mode === "daily" ? "daily" : "unlimited",
+    mode: r.mode,
     puzzleNo: r.dateKey ? puzzleNumberForKey(r.dateKey) : null,
     score: r.score,
     relativeToPar: r.relativeToPar,

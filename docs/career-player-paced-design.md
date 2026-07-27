@@ -1,9 +1,9 @@
 # Career Mode — Player-Paced Design (authoritative for Career v1 cadence)
 
-Status: **implemented and validated locally through Iteration 10; uncommitted
-and unshipped.** The long-horizon Legacy scale and Candidate H are frozen.
-Database invariants, multi-season and Championship flows, non-Career isolation,
-and responsive UI have completed final audit.
+Status: **live, with the four-round event amendment implemented after launch.**
+The long-horizon Legacy scale and Candidate H remain frozen. Database invariants,
+multi-season and Championship flows, non-Career isolation, and responsive UI
+remain authoritative.
 
 ## 0. Scope and supersession
 
@@ -35,11 +35,12 @@ untouched by this design.
 ## 1. Product model in one paragraph
 
 A player owns a private, permanent **Career Journey**. A Journey contains an
-unbounded sequence of **seasons**. Each season is four one-round events against
-a locked field of the player plus nineteen named bots. All four events are
-playable immediately, in any order, one attempt each. When the fourth event is
-finished the season settles deterministically — movement, Tour Rating, Legacy,
-history — and the next season becomes playable in the same transaction. Every
+unbounded sequence of **seasons**. Each season is four events against a locked
+field of the player plus nineteen named bots. Every event is four cumulative
+rounds, with one attempt per numbered round and deterministic resume. All four
+events are playable immediately, in any order. When the fourth event is finished
+the season settles deterministically — movement, Tour Rating, Legacy, history —
+and the next season becomes playable in the same transaction. Every
 fourth settled season unlocks an optional Championship the player may take at any
 later time. Nothing waits on a clock; nothing is lost by not playing.
 
@@ -98,7 +99,8 @@ and no way for a second player to enter another player's Journey.
 
 ```
 field/event seed : career:{worldKey}:{seasonNumber}:{tier}:event{eventNumber}
-per-slot seed    : {eventSeed}:slot{slotId}
+human round seed : {eventSeed}:round{roundNumber}
+per-slot seed    : {eventSeed}:round{roundNumber}:slot{slotId}
 championship     : career:championship:{worldKey}:c{cycleNumber}:slot{slotNumber}
 ```
 
@@ -125,7 +127,8 @@ Sequence at season creation:
    `assignCareerBotSlots` (tier-scaled ability mix preserved, recurring rivals
    preferred).
 3. Human takes slot 1; bots take slots 2–20.
-4. Materialize all 19 bot scores for all 4 events through the real engine.
+4. Materialize four independently seeded rounds for each bot and store the
+   cumulative score for all 4 events through the real engine.
 5. Publish atomically with deterministic effect keys (existing Boundary A).
 
 Why eager, not lazy: it is already implemented and proven; it makes every event
@@ -146,8 +149,8 @@ complete. Settlement is unaffected.
 enter Career
   └─ Journey created (once)
       └─ Season N created + field locked + 4 events ACTIVE   [atomic]
-          ├─ player plays event i (any order, one attempt)
-          │    └─ finish round  →  entry completed          [write path]
+          ├─ player plays event i (any order, four numbered cards)
+          │    └─ finish round 4 → entry completed          [write path]
           │         └─ event i finalized: ACTIVE → ENDED → SETTLED
           ├─ … four times …
           └─ on the 4th event settling:
@@ -266,7 +269,7 @@ and adds a dead-end state — but it is a product call.
 
 | Rule | Enforcement |
 |---|---|
-| One attempt per event | `CareerEventEntry` unique `(competitionId, profileId)`; `roundId` set on first start |
+| One attempt per numbered event round | `CareerEventRound` unique `(entryId, roundNumber)`; `roundId` resumes exactly |
 | Resume returns the same round | `startCareerEventRound` returns the existing `entry.roundId` if present |
 | Refresh/abandon cannot reroll the seed | Seed is derived from the immutable lock namespace and persisted on `Round.seedKey`; it is never recomputed per request |
 | < 4 events cannot settle a season | Cohort only reaches `ENDED` when all four competitions are `SETTLED` |
@@ -508,8 +511,9 @@ countdowns, deadlines, "waiting for other players", inactivity warnings.
 
 - **Not enrolled** → single "Start your Career" CTA.
 - **Season in progress** → four event cards, all playable now, each showing
-  *not started* / *in progress (resume)* / *complete (your score)*; a season
-  progress indicator `n/4`; opponents hidden per §4 until an event is finished.
+  *not started* / *round n of 4 (resume)* / *complete (cumulative score)*; a
+  season progress indicator `n/4`; opponents hidden per §4 until all four rounds
+  of an event are finished.
 - **Season complete, settling** → brief transitional state; must be safe to
   refresh (settlement is idempotent).
 - **Season settled** → result summary (rank, points, movement, rating delta,
@@ -598,7 +602,8 @@ verification, per the session protocol.
 - Journey creation is idempotent under concurrent first entry;
 - season creation locks exactly 20 slots with 1 human and 19 bots, and repeated
   creation returns the same cohort and lock revision;
-- all four events are immediately playable; each allows exactly one attempt;
+- all four events are immediately playable; each allows exactly one attempt per
+  numbered round and exactly four cumulative rounds;
   resume returns the same round and the same seed;
 - an event finalizes on human completion and is idempotent under duplicate finishes;
 - the fourth completion settles the season exactly once under concurrent

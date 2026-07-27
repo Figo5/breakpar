@@ -335,6 +335,7 @@ export class CareerFormationService {
         courseSlug: event.course.slug,
         unlocksAt: event.unlocksAt,
         deadlineAt: event.deadlineAt,
+        roundsPerPlayer: event.roundsPerPlayer,
       })),
     };
     const pin = pinCareerFormulaBundle(CAREER_FORMULA_VERSION, this.runtimeRevision);
@@ -377,14 +378,17 @@ export class CareerFormationService {
           };
         }
         const assignment = assignments.find((candidate) => candidate.slotId === slot.slotId)!;
-        const relativeToPar = this.simulateBotRound(
-          `${seedNamespace}:slot${slot.slotId}`,
-          gameCourse,
-          {
-            ability: assignment.abilityBand,
-            tendency: assignment.tendency,
-          },
-        );
+        const relativeToPar = Array.from(
+          { length: event.roundsPerPlayer },
+          (_, roundIndex) => this.simulateBotRound(
+            `${seedNamespace}:round${roundIndex + 1}:slot${slot.slotId}`,
+            gameCourse,
+            {
+              ability: assignment.abilityBand,
+              tendency: assignment.tendency,
+            },
+          ),
+        ).reduce((sum, score) => sum + score, 0);
         return {
           slotId: slot.slotId,
           competitorType: "BOT",
@@ -394,6 +398,7 @@ export class CareerFormationService {
           outputHash: canonicalHash({
             seedNamespace,
             slotId: slot.slotId,
+            roundsPerPlayer: event.roundsPerPlayer,
             relativeToPar,
             formulaVersion: CAREER_FORMULA_VERSION,
           }),
@@ -406,6 +411,7 @@ export class CareerFormationService {
         courseId: event.courseId,
         fieldSize,
         seedNamespace,
+        roundsPerPlayer: event.roundsPerPlayer,
         slots: baseSlots,
       });
       return {

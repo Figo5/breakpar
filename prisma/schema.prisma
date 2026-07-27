@@ -134,6 +134,7 @@ model Round {
 
   tournamentEntry          TournamentEntry?          @relation(fields: [tournamentEntryId], references: [id], onDelete: Cascade)
   careerEventEntry         CareerEventEntry?
+  careerEventRound         CareerEventRound?
   careerChampionshipResult CareerChampionshipResult?
 
   // one ranked round per player per day. Unlimited rounds use dateKey = null,
@@ -485,6 +486,7 @@ model CareerCompetition {
   courseId        String
   state           CareerCompetitionState @default(FORMING)
   targetFieldSize Int                    @default(20)
+  roundsPerPlayer Int                    @default(1)
   unlocksAt       DateTime
   deadlineAt      DateTime
   fencingToken    Int                    @default(0)
@@ -523,10 +525,30 @@ model CareerEventEntry {
   profile     CareerProfile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
   user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   round       Round?             @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  rounds      CareerEventRound[]
 
   @@unique([competitionId, profileId])
   @@unique([competitionId, memberId])
   @@index([userId])
+}
+
+/// One numbered card inside a multi-round Career event. The unique
+/// entry/round-number pair prevents replays; roundId preserves exact resume.
+model CareerEventRound {
+  id            String    @id @default(cuid())
+  entryId       String
+  roundNumber   Int
+  roundId       String    @unique
+  completed     Boolean   @default(false)
+  relativeToPar Int?
+  submittedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  entry CareerEventEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  round Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, roundNumber])
+  @@index([entryId, completed])
 }
 
 model CareerLockRevision {

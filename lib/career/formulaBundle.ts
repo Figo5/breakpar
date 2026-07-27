@@ -21,9 +21,10 @@ export const CAREER_V1_FORMULA_VERSION = CAREER_V1_FREEZE_CANDIDATE.id;
  * See docs/career-player-paced-design.md §12 and §6.
  */
 export const CAREER_V2_FORMULA_VERSION = "career-v2-player-paced";
+export const CAREER_V3_FORMULA_VERSION = "career-v3-four-round-events";
 
 /** The version new settlements pin. */
-export const CAREER_FORMULA_VERSION = CAREER_V2_FORMULA_VERSION;
+export const CAREER_FORMULA_VERSION = CAREER_V3_FORMULA_VERSION;
 
 export const CAREER_COMPONENT_VERSIONS = {
   canonicalSerialization: CAREER_CANONICAL_VERSION,
@@ -35,6 +36,7 @@ export const CAREER_COMPONENT_VERSIONS = {
   botPolicy: "career-bot-error-policy-v1",
   gameEngine: "breakpar-shot-engine-v1",
   scoring: "breakpar-scoring-events-v1",
+  eventFormat: "career-event-format-v1-one-round",
   tourRating: "career-tour-rating-v1",
   legacy: "career-legacy-balanced-v1",
   championshipQualification: "career-championship-qualification-v1",
@@ -243,9 +245,22 @@ const careerV2PlayerPaced: CareerFormulaBundle = deepFreeze({
   },
 });
 
+/** Four-round event package. All movement, points, rating, Legacy, and
+ * Championship rules remain v2-identical; only the event score becomes the
+ * cumulative total of four deterministic cards. */
+const careerV3FourRoundEvents: CareerFormulaBundle = deepFreeze({
+  ...careerV2PlayerPaced,
+  id: CAREER_V3_FORMULA_VERSION,
+  componentVersions: {
+    ...careerV2PlayerPaced.componentVersions,
+    eventFormat: "career-event-format-v2-four-round-cumulative",
+  },
+});
+
 const FORMULA_REGISTRY = new Map<string, CareerFormulaBundle>([
   [careerV1FreezeCandidate.id, careerV1FreezeCandidate],
   [careerV2PlayerPaced.id, careerV2PlayerPaced],
+  [careerV3FourRoundEvents.id, careerV3FourRoundEvents],
 ]);
 
 export function getCareerFormulaBundle(version: string): CareerFormulaBundle | undefined {
@@ -288,5 +303,8 @@ export const CAREER_V1_FORMULA_BUNDLE = careerV1FreezeCandidate;
 /** The player-paced package. */
 export const CAREER_V2_FORMULA_BUNDLE = careerV2PlayerPaced;
 
-/** What new settlements should read. Currently v2. */
-export const CAREER_CURRENT_FORMULA_BUNDLE = careerV2PlayerPaced;
+/** The four-round player-paced package. */
+export const CAREER_V3_FORMULA_BUNDLE = careerV3FourRoundEvents;
+
+/** What new settlements should read. */
+export const CAREER_CURRENT_FORMULA_BUNDLE = careerV3FourRoundEvents;

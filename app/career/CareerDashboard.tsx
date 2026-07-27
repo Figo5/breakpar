@@ -8,6 +8,8 @@ import {
   availabilityLabel,
   canContestChampionship,
   eventAvailability,
+  movementLabel,
+  pointsLabel,
   scoreLabel,
   seasonsUntilChampionship,
   tierLabel,
@@ -80,7 +82,7 @@ function CareerOnboarding({
       <div className="career-kicker">A career that never resets</div>
       <h1 className="wordmark career-wordmark">Career<br /><span>Mode</span></h1>
       <p className="career-intro">
-        Four quick events. Your best three count. Climb from Local to Pro, meet
+        Four events, four rounds each. Your best three events count. Climb from Local to Pro, meet
         recurring rivals, and earn your way into the Championships.
       </p>
 
@@ -97,8 +99,9 @@ function CareerOnboarding({
         <strong>No schedule. No waiting.</strong>
         <p>
           All four events are open the moment your season starts — play them in any
-          order, one attempt each. Finish the fourth and your next season begins
-          immediately. Nothing ever expires.
+          order. Each event is four cumulative rounds with one attempt per round.
+          Complete all sixteen cards and your next season begins immediately.
+          Nothing ever expires.
         </p>
       </div>
 
@@ -118,6 +121,7 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
   const championship = state.championship;
   const eligible = canContestChampionship(state.profile.tier);
   const untilCycle = seasonsUntilChampionship(state.profile.settledSeasons);
+  const fourRoundSeason = state.schedule.every((event) => event.roundsTotal === 4);
 
   return (
     <>
@@ -149,6 +153,31 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
         </div>
       </div>
 
+      {state.latestSettledSeason && (
+        <Link
+          href={`/career/season?cohortId=${encodeURIComponent(state.latestSettledSeason.cohortId)}`}
+          className="career-last-season"
+        >
+          <div>
+            <span>Season {state.latestSettledSeason.seasonNumber} · Final</span>
+            <b>
+              {state.latestSettledSeason.rank
+                ? `Finished #${state.latestSettledSeason.rank} of ${state.latestSettledSeason.fieldSize}`
+                : "Final standings"}
+            </b>
+            <small>
+              {pointsLabel(state.latestSettledSeason.seasonPoints)} points ·{" "}
+              {movementLabel(
+                state.latestSettledSeason.movement,
+                state.latestSettledSeason.tier,
+                state.latestSettledSeason.nextTier,
+              )}
+            </small>
+          </div>
+          <strong>View →</strong>
+        </Link>
+      )}
+
       <div className="career-section-head">
         <div>
           <span>This season</span>
@@ -178,6 +207,12 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
                   <b>{event.courseName}</b>
                   <span>{event.courseLocation}</span>
                   <small>{availabilityLabel(availability)}</small>
+                  <small>
+                    Round {Math.min(event.roundsCompleted + 1, event.roundsTotal)} of {event.roundsTotal}
+                    {event.roundsCompleted > 0 && !event.completed
+                      ? ` · ${scoreLabel(event.relativeToPar)} total`
+                      : ""}
+                  </small>
                 </div>
                 <div className="career-event-score">
                   {event.completed ? scoreLabel(event.relativeToPar) : "→"}
@@ -191,10 +226,21 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
       {state.cohort && !seasonComplete && (
         <div className="career-context">
           <b>Play in any order</b>
-          Every event is open right now, one attempt each. Finish all four to close
-          the season — there is no deadline to beat.
+          {fourRoundSeason
+            ? "Every event is open right now. Finish four numbered rounds in each event, then complete all four events to close the season — there is no deadline to beat."
+            : "This in-progress season keeps its original one-round event format. Complete all four events to close it; your next season will use four rounds per event."}
         </div>
       )}
+
+      <details className="career-rules">
+        <summary>How promotion and relegation work</summary>
+        <div>
+          <p><b>Movement uses two form results.</b> Season 1 establishes form, so nobody moves after only one result. When you are promoted, a reduced piece of that form carries into the new tour as your first result.</p>
+          <p><b>Promotion:</b> both form results must be at or above the 58th percentile and average at or above the 65th percentile — roughly sustained top-eight form. Local can reach Challenger; Challenger can reach Pro.</p>
+          <p><b>Relegation:</b> at Challenger or Pro, a two-result average at or below the 32nd percentile moves you down. Local players cannot be relegated.</p>
+          <p>A single result only moves you when it is paired with existing or carried form.</p>
+        </div>
+      </details>
       {seasonComplete && state.cohort?.state !== "SETTLED" && (
         <div className="career-context">
           <b>All four cards are in</b>

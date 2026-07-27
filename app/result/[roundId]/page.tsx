@@ -19,6 +19,7 @@ import { Avatar } from "@/components/Avatar";
 import { type Outcome } from "@/lib/engine/probabilities";
 import { getCurrentUser } from "@/lib/user";
 import { getStreakBadge } from "@/lib/streak";
+import { roundModeLabel } from "@/lib/roundMode";
 import { type RoundMeta } from "@/lib/analytics";
 import { ShareButton } from "./ShareButton";
 import { ResultTracker } from "./ResultTracker";
@@ -120,6 +121,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
     isDaily && round.completed && stats ? dailyStanding(stats.betterCount, stats.fieldSize) : null;
 
   const courseName = course.name.split("—")[0].trim();
+  const modeLabel = roundModeLabel(round.mode, puzzleNo);
   // The share text snapshots the standing at render (share) time; the page may
   // show a slightly different number later as more people finish today.
   const standingLine = standing ? `\n${standingLabel(standing)}` : "";
@@ -130,7 +132,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
     ? `BREAK PAR #${puzzleNo} ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}${standingLine}\n\n` +
       `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}${handleLine}\nbreakpar.xyz`
-    : `BREAK PAR — Practice ⛳\n${courseName} (Par ${par})\n` +
+    : `BREAK PAR — ${modeLabel} ⛳\n${courseName} (Par ${par})\n` +
       `${round.score} (${relativeLabel(round.relativeToPar)})\n\n${grid}\n\n` +
       `🐦 ${counts.birdiesOrBetter}  ·  ⛳ ${counts.pars}  ·  😬 ${counts.bogeysOrWorse}${handleLine}\nbreakpar.xyz`;
 
@@ -141,11 +143,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
       <div className="final-course">
         {isDaily
           ? `Break Par · No. ${puzzleNo} · `
-          : round.mode === "tournament"
-            ? "Tournament · "
-            : round.mode === "challenge"
-              ? "Challenge · "
-              : "Practice · "}
+          : `${modeLabel} · `}
         {course.name}
       </div>
       <div className="final-score">{round.score}</div>

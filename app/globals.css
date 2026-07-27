@@ -843,6 +843,23 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   letter-spacing:.12em;text-transform:uppercase;color:var(--pm-ink-soft)}
 .career-metrics b{display:block;font-family:'Anton',sans-serif;font-size:28px;line-height:1;color:var(--pm-ink);margin:5px 0}
 .career-metrics small{display:block;font-size:9.5px;color:var(--pm-ink-soft)}
+.career-last-season{display:flex;align-items:center;justify-content:space-between;gap:14px;text-decoration:none;
+  color:var(--pm-ink);background:rgba(242,193,78,.12);border:1px solid rgba(182,137,35,.35);
+  border-radius:13px;padding:13px 14px;margin:0 0 18px}
+.career-last-season>div{min-width:0}
+.career-last-season span,.career-last-season small{display:block}
+.career-last-season span{font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--pm-flag)}
+.career-last-season b{display:block;font-family:'Oswald',sans-serif;font-size:16px;margin:2px 0}
+.career-last-season small{font-size:10px;color:var(--pm-ink-soft);overflow-wrap:anywhere}
+.career-last-season>strong{flex:none;font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;color:var(--pm-safe)}
+.career-rules{margin:16px 0 0;border:1px solid var(--pm-line);border-radius:13px;background:var(--pm-paper-2);
+  color:var(--pm-ink)}
+.career-rules summary{cursor:pointer;padding:13px 14px;font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase}
+.career-rules>div{padding:0 14px 13px;border-top:1px solid var(--pm-line)}
+.career-rules p{font-size:11.5px;line-height:1.48;color:var(--pm-ink-soft);margin:10px 0 0}
+.career-rules p b{color:var(--pm-ink)}
 
 .career-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:18px 0 8px}
 .career-section-head span{display:block;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;
@@ -884,6 +901,11 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .career-empty .cta{margin-top:8px}
 
 .career-event-hero,.career-season-hero,.career-champ-hero{margin:24px 0 16px}
+.career-event-progress{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:-3px 0 13px}
+.career-event-progress>div{background:var(--pm-paper-2);border:1px solid var(--pm-line);border-radius:11px;padding:10px 12px}
+.career-event-progress span{display:block;font-family:'Oswald',sans-serif;font-size:9px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--pm-ink-soft)}
+.career-event-progress b{display:block;font-family:'Oswald',sans-serif;font-size:16px;margin-top:2px}
 .career-event-hero h1,.career-season-hero h1,.career-champ-hero h1{font-family:'Anton',sans-serif;
   font-size:clamp(38px,11vw,58px);font-weight:400;line-height:.95;text-transform:uppercase;color:var(--pm-ink);margin:5px 0}
 .career-event-hero p,.career-season-hero p,.career-champ-hero p{font-size:13px;line-height:1.5;color:var(--pm-ink-soft);margin:6px 0}

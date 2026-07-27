@@ -44,7 +44,7 @@ describe("player-paced Career simulator", () => {
     const second = simulatePlayerPacedCareer(config);
 
     expect(second).toEqual(first);
-    expect(first.formulaVersion).toBe("career-v2-player-paced");
+    expect(first.formulaVersion).toBe("career-v3-four-round-events");
     expect(first.histories).toHaveLength(25);
     expect(first.histories.every((history) => history.movement !== "inactive")).toBe(true);
     expect(first.histories.every((history) => history.legacyTotal >= history.legacyEarned)).toBe(true);
@@ -57,7 +57,7 @@ describe("player-paced Career simulator", () => {
       seasons: 1,
       ability: "ace",
       scoreBank: { ...bank, model: "v5" },
-    })).toThrow(/requires a career-v2-player-paced real-engine score bank/);
+    })).toThrow(/requires a career-v3-four-round-events real-engine score bank/);
   });
 
   it("proves Tour Rating is independent of career volume when recent form matches", () => {

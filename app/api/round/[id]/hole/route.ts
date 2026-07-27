@@ -57,6 +57,11 @@ export const PATCH = route(async (
       careerEventEntry: {
         include: { competition: true },
       },
+      careerEventRound: {
+        include: {
+          entry: { include: { competition: true } },
+        },
+      },
       careerChampionshipResult: {
         include: {
           championship: {
@@ -76,7 +81,8 @@ export const PATCH = route(async (
   if (round.completed)
     return NextResponse.json({ error: "round-complete" }, { status: 409 });
   if (round.mode === "career") {
-    const event = round.careerEventEntry?.competition;
+    const event = round.careerEventRound?.entry.competition
+      ?? round.careerEventEntry?.competition;
     const championship =
       round.careerChampionshipResult?.championship.competitions[0];
     const now = new Date();

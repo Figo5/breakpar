@@ -45,7 +45,7 @@ export interface CourseRecord {
   roundId: string | null;
   relativeToPar: number | null;
   score: number | null;
-  mode: "daily" | "unlimited" | null;
+  mode: string | null;
   puzzleNo: number | null;
   achievedAt: string | null; // ISO
 }
@@ -115,7 +115,7 @@ export function buildRecords(best: Map<string, RoundLite>): CourseRecord[] {
       roundId: r.id,
       relativeToPar: r.relativeToPar,
       score: r.score,
-      mode: r.mode === "daily" ? "daily" : "unlimited",
+      mode: r.mode,
       puzzleNo: r.dateKey ? puzzleNumberForKey(r.dateKey) : null,
       achievedAt: r.playedAt.toISOString(),
     };

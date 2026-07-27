@@ -60,18 +60,22 @@ async function playRound(roundId: string, userId: string, relativeToPar: number)
 
 /** Play one regular event and advance the Career. */
 async function playEvent(userId: string, competitionId: string, relativeToPar: number) {
-  const started = await startCareerEventRound(db, userId, competitionId);
-  if (!started.ok) throw new Error(`start failed: ${started.error}`);
-  await playRound(started.roundId, userId, relativeToPar);
-  const finished = await finishCareerRound(db, started.roundId, userId, 120_000);
-  if (!finished.ok) throw new Error(`finish failed: ${finished.error}`);
-  return advanceCareerAfterFinish(db, competitionId, OPTS);
+  let advanced;
+  for (const roundScore of [relativeToPar, 0, 0, 0]) {
+    const started = await startCareerEventRound(db, userId, competitionId);
+    if (!started.ok) throw new Error(`start failed: ${started.error}`);
+    await playRound(started.roundId, userId, roundScore);
+    const finished = await finishCareerRound(db, started.roundId, userId, 120_000);
+    if (!finished.ok) throw new Error(`finish failed: ${finished.error}`);
+    advanced = await advanceCareerAfterFinish(db, competitionId, OPTS);
+  }
+  return advanced!;
 }
 
 /**
  * Play `seasons` complete seasons at the given per-event score.
  * −6 wins every event (bots are +5) and promotes Local → Challenger → Pro;
- * +20 loses every event and holds the player at the Local floor.
+ * +40 loses every event and holds the player at the Local floor.
  */
 async function playSeasons(userId: string, seasons: number, relativeToPar: number) {
   let last;
@@ -159,7 +163,7 @@ describe("Championship unlock", () => {
 
   it("unlocks nothing for a player who completes a cycle at Local", async () => {
     const user = await newUser("local");
-    await playSeasons(user.id, 4, 20); // loses every event; held at the Local floor
+    await playSeasons(user.id, 4, 40); // loses every event; held at the Local floor
 
     const profile = await db.careerProfile.findFirstOrThrow({ where: { userId: user.id } });
     expect(profile.settledSeasons).toBe(4);

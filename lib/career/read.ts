@@ -16,6 +16,8 @@ import {
   type CareerRepairResult,
 } from "./repair";
 import type { CareerEventStanding } from "./eventSettlement";
+import { hashSeed } from "@/lib/engine/rng";
+import { rankSeason, type SeasonEventResult } from "./rules";
 
 export interface CareerScheduleEntry {
   readonly competitionId: string;
@@ -29,6 +31,8 @@ export interface CareerScheduleEntry {
   readonly completed: boolean;
   readonly relativeToPar: number | null;
   readonly roundId: string | null;
+  readonly roundsCompleted: number;
+  readonly roundsTotal: number;
 }
 
 export interface CareerStateView {
@@ -52,6 +56,18 @@ export interface CareerStateView {
     | null;
   readonly schedule: readonly CareerScheduleEntry[];
   readonly latestRating: { readonly seasonNumber: number; readonly rating: number } | null;
+  /** The player's latest immutable season result, kept visible after the next
+   * season opens immediately. */
+  readonly latestSettledSeason: {
+    readonly cohortId: string;
+    readonly seasonNumber: number;
+    readonly tier: string;
+    readonly nextTier: string;
+    readonly rank: number | null;
+    readonly fieldSize: number;
+    readonly seasonPoints: number;
+    readonly movement: string;
+  } | null;
 }
 
 export interface CareerLeaderboardRow {
@@ -82,13 +98,22 @@ export interface CareerEventLeaderboardView {
     readonly state: string;
     readonly unlocksAt: string;
     readonly deadlineAt: string;
+    readonly roundsPerPlayer: number;
+  };
+  readonly playerProgress: {
+    readonly roundsCompleted: number;
+    readonly roundsTotal: number;
+    readonly nextRound: number | null;
+    readonly cumulativeRelativeToPar: number;
+    readonly currentRoundId: string | null;
   };
   readonly settled: boolean;
   readonly standings: readonly CareerLeaderboardRow[];
 }
 
 export interface CareerSeasonStandingView {
-  readonly profileId: string;
+  readonly competitorId: string;
+  readonly profileId: string | null;
   readonly displayName: string;
   readonly tier: string;
   readonly nextTier: string;
@@ -166,13 +191,29 @@ export async function careerStateForUser(
   const entries = cohort
     ? await db.careerEventEntry.findMany({
       where: { profileId: profile.id, competition: { cohortId: cohort.id } },
-      select: { competitionId: true, completed: true, relativeToPar: true, roundId: true },
+      select: {
+        competitionId: true,
+        completed: true,
+        relativeToPar: true,
+        roundId: true,
+        rounds: {
+          orderBy: { roundNumber: "asc" },
+          select: {
+            roundId: true,
+            roundNumber: true,
+            completed: true,
+            relativeToPar: true,
+          },
+        },
+      },
     })
     : [];
   const entryByCompetition = new Map(entries.map((entry) => [entry.competitionId, entry]));
 
   const schedule: CareerScheduleEntry[] = (cohort?.competitions ?? []).map((competition) => {
     const entry = entryByCompetition.get(competition.id);
+    const completedRounds = entry?.rounds.filter((round) => round.completed) ?? [];
+    const currentRound = entry?.rounds.find((round) => !round.completed);
     return {
       competitionId: competition.id,
       eventNumber: competition.eventNumber,
@@ -184,15 +225,35 @@ export async function careerStateForUser(
       deadlineAt: competition.deadlineAt.toISOString(),
       completed: entry?.completed ?? false,
       relativeToPar: entry?.relativeToPar ?? null,
-      roundId: entry?.roundId ?? null,
+      roundId: currentRound?.roundId ?? entry?.roundId ?? null,
+      roundsCompleted: competition.roundsPerPlayer === 1 && entry?.completed
+        ? 1
+        : completedRounds.length,
+      roundsTotal: competition.roundsPerPlayer,
     };
   });
 
-  const latestRating = await db.careerRatingHistory.findFirst({
-    where: { profileId: profile.id },
-    orderBy: { seasonNumber: "desc" },
-    select: { seasonNumber: true, rating: true },
-  });
+  const [latestRating, latestHistory] = await Promise.all([
+    db.careerRatingHistory.findFirst({
+      where: { profileId: profile.id },
+      orderBy: { seasonNumber: "desc" },
+      select: { seasonNumber: true, rating: true },
+    }),
+    db.careerSeasonHistory.findFirst({
+      where: { profileId: profile.id },
+      orderBy: [{ seasonNumber: "desc" }, { createdAt: "desc" }],
+      select: {
+        cohortId: true,
+        seasonNumber: true,
+        tier: true,
+        nextTier: true,
+        rank: true,
+        activeFieldSize: true,
+        seasonPoints: true,
+        movement: true,
+      },
+    }),
+  ]);
 
   // An unplayed Championship never expires, so surface the oldest outstanding
   // one rather than only the newest.
@@ -222,6 +283,18 @@ export async function careerStateForUser(
       : null,
     schedule,
     latestRating,
+    latestSettledSeason: latestHistory
+      ? {
+        cohortId: latestHistory.cohortId,
+        seasonNumber: latestHistory.seasonNumber,
+        tier: latestHistory.tier,
+        nextTier: latestHistory.nextTier,
+        rank: latestHistory.rank,
+        fieldSize: latestHistory.activeFieldSize,
+        seasonPoints: latestHistory.seasonPoints,
+        movement: latestHistory.movement,
+      }
+      : null,
   };
 }
 
@@ -308,7 +381,20 @@ export async function careerEventLeaderboard(
   const viewerEntry = viewerProfileId
     ? await db.careerEventEntry.findFirst({
       where: { competitionId, profileId: viewerProfileId },
-      select: { completed: true },
+      select: {
+        completed: true,
+        relativeToPar: true,
+        roundId: true,
+        rounds: {
+          orderBy: { roundNumber: "asc" },
+          select: {
+            roundId: true,
+            roundNumber: true,
+            completed: true,
+            relativeToPar: true,
+          },
+        },
+      },
     })
     : null;
   const revealed = viewerEntry?.completed === true;
@@ -322,6 +408,23 @@ export async function careerEventLeaderboard(
     state: competition.state,
     unlocksAt: competition.unlocksAt.toISOString(),
     deadlineAt: competition.deadlineAt.toISOString(),
+    roundsPerPlayer: competition.roundsPerPlayer,
+  };
+  const completedRounds = viewerEntry?.rounds.filter((round) => round.completed) ?? [];
+  const currentRound = viewerEntry?.rounds.find((round) => !round.completed);
+  const legacyCompleted = competition.roundsPerPlayer === 1 && viewerEntry?.completed;
+  const roundsCompleted = legacyCompleted ? 1 : completedRounds.length;
+  const cumulativeRelativeToPar = legacyCompleted
+    ? viewerEntry?.relativeToPar ?? 0
+    : completedRounds.reduce((sum, round) => sum + (round.relativeToPar ?? 0), 0);
+  const playerProgress = {
+    roundsCompleted,
+    roundsTotal: competition.roundsPerPlayer,
+    nextRound: viewerEntry?.completed
+      ? null
+      : Math.min(roundsCompleted + 1, competition.roundsPerPlayer),
+    cumulativeRelativeToPar,
+    currentRoundId: currentRound?.roundId ?? viewerEntry?.roundId ?? null,
   };
   const final = await db.careerEventFinal.findFirst({
     where: { competitionId },
@@ -332,6 +435,7 @@ export async function careerEventLeaderboard(
     const finalStandings = (final.standings as unknown as CareerEventStanding[]) ?? [];
     return {
       competition: base,
+      playerProgress,
       settled: true,
       revealed,
       standings: [...finalStandings]
@@ -370,6 +474,7 @@ export async function careerEventLeaderboard(
       : undefined;
     return {
       competition: base,
+      playerProgress,
       settled: false,
       revealed: false,
       standings: mine
@@ -390,6 +495,7 @@ export async function careerEventLeaderboard(
 
   return {
     competition: base,
+    playerProgress,
     settled: false,
     revealed: true,
     standings: results.map((result, index) => {
@@ -417,30 +523,92 @@ export async function careerSeasonStandings(
   db: PrismaClient,
   cohortId: string,
 ): Promise<CareerSeasonStandingView[]> {
-  const rows = await db.careerSeasonHistory.findMany({
-    where: { cohortId },
-    orderBy: [{ rank: "asc" }, { seasonPoints: "desc" }],
-    select: {
-      profileId: true,
-      profile: { select: { user: { select: { username: true } } } },
-      tier: true,
-      nextTier: true,
-      active: true,
-      rank: true,
-      seasonPoints: true,
-      movement: true,
+  const cohort = await db.careerCohort.findUnique({
+    where: { id: cohortId },
+    include: {
+      competitions: {
+        where: { kind: "EVENT" },
+        orderBy: { eventNumber: "asc" },
+        include: {
+          finals: { orderBy: { createdAt: "desc" }, take: 1 },
+          lockRevisions: {
+            orderBy: { revision: "desc" },
+            take: 1,
+            include: {
+              slots: {
+                include: {
+                  profile: { include: { user: { select: { username: true } } } },
+                  botIdentity: { select: { displayName: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+      members: { select: { profileId: true } },
     },
   });
-  return rows.map((row) => ({
-    profileId: row.profileId,
-    displayName: row.profile.user.username,
-    tier: row.tier,
-    nextTier: row.nextTier,
-    active: row.active,
-    rank: row.rank,
-    seasonPoints: row.seasonPoints,
-    movement: row.movement,
-  }));
+  if (!cohort || cohort.state !== "SETTLED" || cohort.competitions.length !== 4) return [];
+
+  const humanHistory = await db.careerSeasonHistory.findFirst({
+    where: { cohortId },
+    orderBy: { createdAt: "asc" },
+  });
+  const displayNames = new Map<string, {
+    displayName: string;
+    profileId: string | null;
+  }>();
+  for (const slot of cohort.competitions[0]?.lockRevisions[0]?.slots ?? []) {
+    const competitorId = slot.competitorType === "HUMAN"
+      ? `human:${slot.profileId}`
+      : `bot:${slot.botIdentityId}`;
+    displayNames.set(competitorId, {
+      displayName: slot.profile?.user.username
+        ?? slot.botIdentity?.displayName
+        ?? (slot.competitorType === "HUMAN" ? "Player" : `Rival ${slot.slotId}`),
+      profileId: slot.profileId,
+    });
+  }
+
+  const eventsByCompetitor = new Map<string, SeasonEventResult[]>();
+  for (const competition of cohort.competitions) {
+    const eventIndex = (competition.eventNumber ?? 1) - 1;
+    const final = competition.finals[0];
+    if (!final || !Array.isArray(final.standings)) return [];
+    for (const standing of final.standings as unknown as CareerEventStanding[]) {
+      const events = eventsByCompetitor.get(standing.competitorId) ?? [];
+      events.push({
+        eventIndex,
+        competitorId: standing.competitorId,
+        completed: standing.completed,
+        relativeToPar: standing.relativeToPar,
+        rank: standing.rank,
+        points: standing.points,
+      });
+      eventsByCompetitor.set(standing.competitorId, events);
+    }
+  }
+
+  const standings = rankSeason([...eventsByCompetitor].map(([competitorId, events]) => ({
+    competitorId,
+    events,
+    fallbackDraw: hashSeed(`career:season-fallback:${cohort.id}:${competitorId}`),
+  })));
+  return standings.map((standing, index) => {
+    const identity = displayNames.get(standing.competitorId);
+    const isHuman = identity?.profileId != null;
+    return {
+      competitorId: standing.competitorId,
+      profileId: identity?.profileId ?? null,
+      displayName: identity?.displayName ?? "Rival",
+      tier: cohort.tier,
+      nextTier: isHuman ? humanHistory?.nextTier ?? cohort.tier : cohort.tier,
+      active: standing.active,
+      rank: standing.active ? index + 1 : null,
+      seasonPoints: standing.seasonPoints,
+      movement: isHuman ? humanHistory?.movement ?? "HOLD" : "RIVAL",
+    };
+  });
 }
 
 /** Read a Championship's field + results by world + cycle (latest if omitted). */
