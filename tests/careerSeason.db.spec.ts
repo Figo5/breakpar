@@ -400,6 +400,82 @@ describe("Fourth completion settles the season", () => {
   });
 });
 
+describe("Season settlement across a formula-package bump", () => {
+  it("settles a season whose events were settled under different packages", async () => {
+    const user = await newUser("straddle");
+    const state = await startCareerJourney(db, user.id, OPTS);
+
+    // Events 1-3 finish first, then a new formula package ships, then event 4
+    // finishes under it. Re-pinning the earlier finals reproduces exactly that
+    // straddle: identical standings, an older package id. Requiring the CURRENT
+    // package here once made such a season permanently unsettleable.
+    for (const competition of state.competitions.slice(0, 3)) {
+      await playEvent(user.id, competition.id, -3);
+    }
+    const earlier = await db.careerEventFinal.updateMany({
+      where: { competitionId: { in: state.competitions.slice(0, 3).map((c) => c.id) } },
+      data: { formulaVersion: "career-v2-player-paced" },
+    });
+    expect(earlier.count).toBe(3);
+
+    const advanced = await playEvent(user.id, state.competitions[3].id, -3);
+    expect(advanced.seasonSettled).toBe(true);
+    expect(advanced.nextCohortId).not.toBeNull();
+
+    const cohort = await db.careerCohort.findUniqueOrThrow({ where: { id: state.cohort.id } });
+    expect(cohort.state).toBe("SETTLED");
+    expect(await db.careerSeasonSettlement.count({ where: { cohortId: state.cohort.id } })).toBe(1);
+    const history = await db.careerSeasonHistory.findUniqueOrThrow({
+      where: { profileId_cohortId: { profileId: state.profile.id, cohortId: state.cohort.id } },
+    });
+    expect(history.completedEvents).toBe(4);
+
+    // The mix is recorded on the immutable snapshot, so a settlement spanning
+    // two packages stays auditable rather than silently uniform.
+    const attempt = await db.careerSettlementAttempt.findFirstOrThrow({
+      where: { aggregateType: "SEASON", aggregateId: state.cohort.id, state: "COMMITTED" },
+      select: { inputSnapshot: true },
+    });
+    const snapshot = attempt.inputSnapshot as { input?: { eventFormulaVersions?: string[] } };
+    expect(snapshot.input?.eventFormulaVersions).toEqual([
+      "career-v2-player-paced",
+      "career-v2-player-paced",
+      "career-v2-player-paced",
+      "career-v3-four-round-events",
+    ]);
+  }, 120_000);
+
+  it("refuses to settle when an event final pins an unknown package", async () => {
+    const user = await newUser("unknownpkg");
+    const state = await startCareerJourney(db, user.id, OPTS);
+    for (const competition of state.competitions.slice(0, 3)) {
+      await playEvent(user.id, competition.id, -3);
+    }
+    // An unresolvable package cannot be audited, so it must stop settlement
+    // loudly rather than be accepted the way a known older package is.
+    await db.careerEventFinal.updateMany({
+      where: { competitionId: state.competitions[0].id },
+      data: { formulaVersion: "career-v99-does-not-exist" },
+    });
+    await expect(playEvent(user.id, state.competitions[3].id, -3)).rejects.toThrow(/career-v99/);
+    expect((await db.careerCohort.findUniqueOrThrow({ where: { id: state.cohort.id } })).state)
+      .toBe("ENDED");
+
+    // ENDED-but-unsettled is recoverable, not terminal: once the package
+    // resolves again the retry settles it exactly once. This is the path the
+    // eight production seasons take when the fix ships.
+    await db.careerEventFinal.updateMany({
+      where: { competitionId: state.competitions[0].id },
+      data: { formulaVersion: "career-v2-player-paced" },
+    });
+    const recovered = await advanceCareerAfterFinish(db, state.competitions[3].id, OPTS);
+    expect(recovered.seasonSettled).toBe(true);
+    expect((await db.careerCohort.findUniqueOrThrow({ where: { id: state.cohort.id } })).state)
+      .toBe("SETTLED");
+    expect(await db.careerSeasonSettlement.count({ where: { cohortId: state.cohort.id } })).toBe(1);
+  }, 120_000);
+});
+
 describe("Opponent reveal rule", () => {
   it("hides opponents until the viewer has completed the event", async () => {
     const user = await newUser("reveal");
