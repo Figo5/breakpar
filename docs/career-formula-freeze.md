@@ -174,6 +174,15 @@ synchronized, bounded horizon. It is superseded for player-paced Career by:
 The award schedule above is unchanged. Only these display/prestige thresholds
 change; they affect no probability, movement, rating, settlement, or leaderboard.
 
+### Player-paced v3 event-format amendment
+
+Regular Career events now use four independently seeded rounds and rank the
+field by cumulative event score. Best-three-of-four event points, Candidate H
+movement, Tour Rating, Legacy awards, tier scaling, and Championship rules are
+unchanged. The package is versioned `career-v3-four-round-events`; v1/v2 remain
+registered so historical settlement snapshots stay resolvable. Existing settled
+one-round events are immutable and are not recalculated.
+
 `npm run career:simulate:player-paced -- --seed career-player-paced-v1
 --bank-samples 256 --careers-per-ability 200 --seasons 500` simulated 600
 deterministic personal careers and 300,000 settled seasons through the real-engine

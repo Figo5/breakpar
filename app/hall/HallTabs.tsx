@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { relativeLabel } from "@/lib/scoring";
+import { roundModeLabel } from "@/lib/roundMode";
 import type { CourseRecord } from "@/lib/hallOfFame";
 import {
   CATEGORY_META,
@@ -88,7 +89,7 @@ export function HallTabs({
 
 function RecordRow({ r }: { r: CourseRecord }) {
   if (r.played) {
-    const tag = r.mode === "daily" ? (r.puzzleNo ? `#${r.puzzleNo}` : "Daily") : "Practice";
+    const tag = roundModeLabel(r.mode ?? "", r.puzzleNo);
     const badge = r.relativeToPar! < 0 ? "✓" : "";
     return (
       <Link href={`/result/${r.roundId}`} className="lb-row prow">

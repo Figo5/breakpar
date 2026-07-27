@@ -160,7 +160,7 @@ describe("Instant field formation", () => {
       const botResults = results.filter((result) => result.competitorType === "BOT");
       expect(botResults).toHaveLength(19);
       // Every bot has already played; the human has not.
-      expect(botResults.every((result) => result.completed && result.relativeToPar === 3)).toBe(true);
+      expect(botResults.every((result) => result.completed && result.relativeToPar === 12)).toBe(true);
       const human = results.find((result) => result.competitorType === "HUMAN")!;
       expect(human.completed).toBe(false);
     }

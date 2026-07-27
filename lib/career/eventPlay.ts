@@ -1,7 +1,12 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 export type StartCareerEventResult =
-  | { readonly ok: true; readonly roundId: string }
+  | {
+    readonly ok: true;
+    readonly roundId: string;
+    readonly roundNumber: number;
+    readonly roundsTotal: number;
+  }
   | {
     readonly ok: false;
     readonly error:
@@ -17,6 +22,11 @@ export type FinishCareerRoundResult =
     readonly score: number;
     readonly relativeToPar: number;
     readonly replayed: boolean;
+    readonly roundNumber: number;
+    readonly roundsCompleted: number;
+    readonly roundsTotal: number;
+    readonly eventComplete: boolean;
+    readonly eventRelativeToPar: number;
   }
   | {
     readonly ok: false;
@@ -62,6 +72,10 @@ export async function startCareerEventRound(
           },
         },
         round: true,
+        rounds: {
+          orderBy: { roundNumber: "asc" },
+          include: { round: true },
+        },
       },
     });
     if (!entry) {
@@ -73,13 +87,36 @@ export async function startCareerEventRound(
     }
     const eligibility = eventPlayable(entry.competition);
     if (eligibility !== "playable") return { ok: false, error: eligibility } as const;
-    if (entry.round) return { ok: true, roundId: entry.round.id } as const;
     const cohort = entry.competition.cohort;
     if (!cohort || entry.competition.eventNumber == null) {
       return { ok: false, error: "not-found" } as const;
     }
+    const roundsTotal = entry.competition.roundsPerPlayer;
+    // Grandfathered events keep their original one-card contract.
+    if (roundsTotal === 1 && entry.round) {
+      return {
+        ok: true,
+        roundId: entry.round.id,
+        roundNumber: 1,
+        roundsTotal,
+      } as const;
+    }
+    const inProgress = entry.rounds.find((eventRound) => !eventRound.completed);
+    if (inProgress) {
+      return {
+        ok: true,
+        roundId: inProgress.roundId,
+        roundNumber: inProgress.roundNumber,
+        roundsTotal,
+      } as const;
+    }
+    const roundNumber = entry.rounds.filter((eventRound) => eventRound.completed).length + 1;
+    if (entry.completed || roundNumber > roundsTotal) {
+      return { ok: false, error: "event-closed" } as const;
+    }
     const seedKey =
-      `career:${cohort.world.worldKey}:${cohort.seasonNumber}:${cohort.tier.toLowerCase()}:event${entry.competition.eventNumber}`;
+      `career:${cohort.world.worldKey}:${cohort.seasonNumber}:${cohort.tier.toLowerCase()}`
+      + `:event${entry.competition.eventNumber}:round${roundNumber}`;
     const round = await tx.round.create({
       data: {
         userId,
@@ -89,9 +126,12 @@ export async function startCareerEventRound(
         seedKey,
       },
     });
-    await tx.careerEventEntry.update({
-      where: { id: entry.id },
-      data: { roundId: round.id },
+    await tx.careerEventRound.create({
+      data: {
+        entryId: entry.id,
+        roundNumber,
+        roundId: round.id,
+      },
     });
     const lockedSlot = await tx.careerFieldSlot.findFirst({
       where: {
@@ -112,7 +152,7 @@ export async function startCareerEventRound(
         data: { roundId: round.id },
       });
     }
-    return { ok: true, roundId: round.id } as const;
+    return { ok: true, roundId: round.id, roundNumber, roundsTotal } as const;
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     maxWait: 10_000,
@@ -137,32 +177,53 @@ export async function finishCareerRound(
             member: true,
           },
         },
+        careerEventRound: {
+          include: {
+            entry: {
+              include: {
+                competition: true,
+                member: true,
+              },
+            },
+          },
+        },
       },
     });
+    const entry = round?.careerEventRound?.entry ?? round?.careerEventEntry;
     if (
       !round
       || round.userId !== userId
       || round.mode !== "career"
-      || !round.careerEventEntry
+      || !entry
     ) {
       return { ok: false, error: "not-found" } as const;
     }
     if (round.holeResults.length !== 18) {
       return { ok: false, error: "round-incomplete" } as const;
     }
-    if (round.completed && round.careerEventEntry.completed) {
+    const roundsTotal = entry.competition.roundsPerPlayer;
+    const eventRound = round.careerEventRound;
+    if (
+      round.completed
+      && (eventRound?.completed || (round.careerEventEntry && entry.completed))
+    ) {
       return {
         ok: true,
         score: round.score,
         relativeToPar: round.relativeToPar,
         replayed: true,
+        roundNumber: eventRound?.roundNumber ?? 1,
+        roundsCompleted: entry.completed ? roundsTotal : eventRound?.roundNumber ?? 1,
+        roundsTotal,
+        eventComplete: entry.completed,
+        eventRelativeToPar: entry.relativeToPar ?? round.relativeToPar,
       } as const;
     }
 
     const eventRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id"
       FROM "CareerCompetition"
-      WHERE "id" = ${round.careerEventEntry.competitionId}
+      WHERE "id" = ${entry.competitionId}
         AND "kind" = 'EVENT'
         AND "state" = 'ACTIVE'
       FOR UPDATE
@@ -180,20 +241,51 @@ export async function finishCareerRound(
         score: fresh.score,
         relativeToPar: fresh.relativeToPar,
         replayed: true,
+        roundNumber: eventRound?.roundNumber ?? 1,
+        roundsCompleted: eventRound?.roundNumber ?? 1,
+        roundsTotal,
+        eventComplete: entry.completed,
+        eventRelativeToPar: entry.relativeToPar ?? fresh.relativeToPar,
       } as const;
     }
+    let roundsCompleted = 1;
+    let eventRelativeToPar = round.relativeToPar;
+    let eventComplete = true;
+    if (eventRound) {
+      await tx.careerEventRound.update({
+        where: { id: eventRound.id },
+        data: {
+          completed: true,
+          relativeToPar: round.relativeToPar,
+          submittedAt: new Date(),
+        },
+      });
+      const cards = await tx.careerEventRound.findMany({
+        where: { entryId: entry.id },
+        select: { completed: true, relativeToPar: true },
+      });
+      const completedCards = cards.filter(
+        (card) => card.completed && card.relativeToPar != null,
+      );
+      roundsCompleted = completedCards.length;
+      eventRelativeToPar = completedCards.reduce(
+        (sum, card) => sum + (card.relativeToPar ?? 0),
+        0,
+      );
+      eventComplete = roundsCompleted === roundsTotal;
+    }
     await tx.careerEventEntry.update({
-      where: { id: round.careerEventEntry.id },
+      where: { id: entry.id },
       data: {
-        completed: true,
-        relativeToPar: round.relativeToPar,
-        submittedAt: new Date(),
+        completed: eventComplete,
+        relativeToPar: eventRelativeToPar,
+        submittedAt: eventComplete ? new Date() : null,
       },
     });
     const lockedSlot = await tx.careerFieldSlot.findFirst({
       where: {
-        competitionId: round.careerEventEntry.competitionId,
-        profileId: round.careerEventEntry.profileId,
+        competitionId: entry.competitionId,
+        profileId: entry.profileId,
         competitorType: "HUMAN",
       },
       orderBy: { lockRevision: { revision: "desc" } },
@@ -208,8 +300,8 @@ export async function finishCareerRound(
         },
         data: {
           roundId,
-          completed: true,
-          relativeToPar: round.relativeToPar,
+          completed: eventComplete,
+          relativeToPar: eventComplete ? eventRelativeToPar : null,
         },
       });
     }
@@ -218,6 +310,11 @@ export async function finishCareerRound(
       score: round.score,
       relativeToPar: round.relativeToPar,
       replayed: false,
+      roundNumber: eventRound?.roundNumber ?? 1,
+      roundsCompleted,
+      roundsTotal,
+      eventComplete,
+      eventRelativeToPar,
     } as const;
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,

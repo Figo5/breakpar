@@ -31,6 +31,12 @@ export const POST = route(async (
     include: {
       holeResults: true,
       careerEventEntry: { select: { id: true, competitionId: true } },
+      careerEventRound: {
+        select: {
+          id: true,
+          entry: { select: { competitionId: true } },
+        },
+      },
       careerChampionshipResult: { select: { id: true, championshipId: true } },
     },
   });
@@ -67,10 +73,11 @@ export const POST = route(async (
             prisma,
             round.careerChampionshipResult.championshipId,
           );
-        } else if (round.careerEventEntry) {
+        } else if (round.careerEventEntry || round.careerEventRound) {
           advanced = await advanceCareerAfterFinish(
             prisma,
-            round.careerEventEntry.competitionId,
+            round.careerEventRound?.entry.competitionId
+              ?? round.careerEventEntry!.competitionId,
           );
         }
       } catch (err) {

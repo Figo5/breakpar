@@ -3,6 +3,7 @@ import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@cl
 import { getProfile, type ProfileRound } from "@/lib/profile";
 import { relativeLabel } from "@/lib/scoring";
 import { Avatar } from "@/components/Avatar";
+import { roundModeLabel } from "@/lib/roundMode";
 import { PrivacyToggle } from "./PrivacyToggle";
 
 // Server component — the player's profile: lifetime stats, their personal
@@ -108,7 +109,7 @@ export default async function Profile() {
 }
 
 function RoundRow({ r, showDate = false }: { r: ProfileRound; showDate?: boolean }) {
-  const tag = r.mode === "daily" ? (r.puzzleNo ? `#${r.puzzleNo}` : "Daily") : "Practice";
+  const tag = roundModeLabel(r.mode, r.puzzleNo);
   const meta = showDate
     ? new Date(r.playedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     : r.durationMs

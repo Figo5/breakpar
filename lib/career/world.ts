@@ -15,6 +15,7 @@ import { generateCareerBotRoster } from "./botRoster";
 import {
   CAREER_BASE_FIELD_SIZE,
   CAREER_EVENTS_PER_SEASON,
+  CAREER_ROUNDS_PER_EVENT,
   CAREER_NO_DEADLINE,
   careerJourneyKey,
 } from "./constants";
@@ -23,6 +24,7 @@ import { CAREER_FORMULA_VERSION } from "./formulaBundle";
 export {
   CAREER_BASE_FIELD_SIZE,
   CAREER_EVENTS_PER_SEASON,
+  CAREER_ROUNDS_PER_EVENT,
   CAREER_NO_DEADLINE,
   careerJourneyKey,
 };
@@ -170,6 +172,7 @@ export async function ensureCareerCohort(
         courseId: courseIds[index],
         state: "FORMING",
         targetFieldSize: CAREER_BASE_FIELD_SIZE,
+        roundsPerPlayer: CAREER_ROUNDS_PER_EVENT,
         unlocksAt: now,
         deadlineAt: CAREER_NO_DEADLINE,
       },

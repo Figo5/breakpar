@@ -11,6 +11,8 @@ import {
   careerEventLeaderboard,
   careerProfileOwnsCohort,
   careerProfileOwnsEvent,
+  careerSeasonStandings,
+  careerStateForUser,
 } from "@/lib/career/read";
 import { runCareerTick } from "@/lib/career/scheduler";
 
@@ -45,24 +47,29 @@ async function playEvent(
   competitionId: string,
   relativeToPar: number,
 ): Promise<Awaited<ReturnType<typeof advanceCareerAfterFinish>>> {
-  const started = await startCareerEventRound(db, userId, competitionId);
-  if (!started.ok) throw new Error(`start failed: ${started.error}`);
-  await db.holeResult.createMany({
-    data: Array.from({ length: 18 }, (_, index) => ({
-      roundId: started.roundId,
-      holeNumber: index + 1,
-      decision: "normal",
-      outcome: "par",
-      scoreChange: 0,
-    })),
-  });
-  await db.round.update({
-    where: { id: started.roundId },
-    data: { score: 72 + relativeToPar, relativeToPar },
-  });
-  const finished = await finishCareerRound(db, started.roundId, userId, 120_000);
-  if (!finished.ok) throw new Error(`finish failed: ${finished.error}`);
-  return advanceCareerAfterFinish(db, competitionId, OPTS);
+  let advanced;
+  const roundScores = [relativeToPar, 0, 0, 0];
+  for (const roundScore of roundScores) {
+    const started = await startCareerEventRound(db, userId, competitionId);
+    if (!started.ok) throw new Error(`start failed: ${started.error}`);
+    await db.holeResult.createMany({
+      data: Array.from({ length: 18 }, (_, index) => ({
+        roundId: started.roundId,
+        holeNumber: index + 1,
+        decision: "normal",
+        outcome: "par",
+        scoreChange: 0,
+      })),
+    });
+    await db.round.update({
+      where: { id: started.roundId },
+      data: { score: 72 + roundScore, relativeToPar: roundScore },
+    });
+    const finished = await finishCareerRound(db, started.roundId, userId, 120_000);
+    if (!finished.ok) throw new Error(`finish failed: ${finished.error}`);
+    advanced = await advanceCareerAfterFinish(db, competitionId, OPTS);
+  }
+  return advanced!;
 }
 
 async function eventsOf(cohortId: string) {
@@ -114,6 +121,59 @@ afterAll(async () => {
 });
 
 describe("Completion-driven event settlement", () => {
+  it("requires four numbered cards, resumes each card, and keeps rivals sealed", async () => {
+    const user = await newUser("four-round");
+    const state = await startCareerJourney(db, user.id, OPTS);
+    const first = state.competitions[0];
+
+    const roundOne = await startCareerEventRound(db, user.id, first.id);
+    if (!roundOne.ok) throw new Error("round one failed");
+    expect(roundOne).toMatchObject({ roundNumber: 1, roundsTotal: 4 });
+    await db.holeResult.createMany({
+      data: Array.from({ length: 18 }, (_, index) => ({
+        roundId: roundOne.roundId,
+        holeNumber: index + 1,
+        decision: "normal",
+        outcome: "par",
+        scoreChange: 0,
+      })),
+    });
+    await db.round.update({
+      where: { id: roundOne.roundId },
+      data: { score: 70, relativeToPar: -2 },
+    });
+    const finished = await finishCareerRound(db, roundOne.roundId, user.id, 120_000);
+    expect(finished).toMatchObject({
+      ok: true,
+      roundNumber: 1,
+      roundsCompleted: 1,
+      roundsTotal: 4,
+      eventComplete: false,
+      eventRelativeToPar: -2,
+    });
+    expect((await advanceCareerAfterFinish(db, first.id, OPTS)).eventsSettled).toBe(0);
+
+    const board = await careerEventLeaderboard(db, first.id, state.profile.id);
+    expect(board).toMatchObject({
+      revealed: false,
+      playerProgress: {
+        roundsCompleted: 1,
+        roundsTotal: 4,
+        nextRound: 2,
+        cumulativeRelativeToPar: -2,
+      },
+    });
+
+    const roundTwo = await startCareerEventRound(db, user.id, first.id);
+    const resumed = await startCareerEventRound(db, user.id, first.id);
+    if (!roundTwo.ok || !resumed.ok) throw new Error("round two failed");
+    expect(roundTwo.roundNumber).toBe(2);
+    expect(resumed.roundId).toBe(roundTwo.roundId);
+    expect(await db.careerEventRound.count({
+      where: { entry: { competitionId: first.id, profileId: state.profile.id } },
+    })).toBe(2);
+  });
+
   it("finalizes an event the moment its human finishes", async () => {
     const user = await newUser("event");
     const state = await startCareerJourney(db, user.id, OPTS);
@@ -206,6 +266,23 @@ describe("Fourth completion settles the season", () => {
     expect(profile.settledSeasons).toBe(1);
     expect(profile.legacyTotal).toBeGreaterThan(0);
 
+    // The newly opened season does not hide the immutable final table.
+    const refreshedState = await careerStateForUser(db, user.id);
+    expect(refreshedState?.latestSettledSeason).toMatchObject({
+      cohortId: state.cohort.id,
+      seasonNumber: 1,
+      rank: 1,
+      fieldSize: 20,
+    });
+    const finalTable = await careerSeasonStandings(db, state.cohort.id);
+    expect(finalTable).toHaveLength(20);
+    expect(finalTable[0]).toMatchObject({
+      profileId: state.profile.id,
+      rank: 1,
+      displayName: "Season full",
+    });
+    expect(finalTable.filter((row) => row.profileId == null)).toHaveLength(19);
+
     // Season 2 exists and is immediately playable with a full locked field.
     const next = await db.careerCohort.findUniqueOrThrow({ where: { id: advanced!.nextCohortId! } });
     expect(next.seasonNumber).toBe(2);
@@ -231,19 +308,24 @@ describe("Fourth completion settles the season", () => {
 
     // Finish the fourth, then fire two advances at once.
     const fourth = state.competitions[3];
-    const started = await startCareerEventRound(db, user.id, fourth.id);
-    if (!started.ok) throw new Error("start failed");
-    await db.holeResult.createMany({
-      data: Array.from({ length: 18 }, (_, index) => ({
-        roundId: started.roundId,
-        holeNumber: index + 1,
-        decision: "normal",
-        outcome: "par",
-        scoreChange: 0,
-      })),
-    });
-    await db.round.update({ where: { id: started.roundId }, data: { score: 68, relativeToPar: -4 } });
-    await finishCareerRound(db, started.roundId, user.id, 120_000);
+    for (let roundNumber = 1; roundNumber <= 4; roundNumber++) {
+      const started = await startCareerEventRound(db, user.id, fourth.id);
+      if (!started.ok) throw new Error("start failed");
+      await db.holeResult.createMany({
+        data: Array.from({ length: 18 }, (_, index) => ({
+          roundId: started.roundId,
+          holeNumber: index + 1,
+          decision: "normal",
+          outcome: "par",
+          scoreChange: 0,
+        })),
+      });
+      await db.round.update({
+        where: { id: started.roundId },
+        data: { score: roundNumber === 1 ? 68 : 72, relativeToPar: roundNumber === 1 ? -4 : 0 },
+      });
+      await finishCareerRound(db, started.roundId, user.id, 120_000);
+    }
 
     const outcomes = await Promise.allSettled([
       advanceCareerAfterFinish(db, fourth.id, OPTS),
@@ -370,24 +452,26 @@ describe("Recovery scan", () => {
     const user = await newUser("recovery");
     const state = await startCareerJourney(db, user.id, OPTS);
 
-    // Play all four events WITHOUT advancing — simulating four crashed requests.
+    // Play all sixteen rounds WITHOUT advancing — simulating crashed requests.
     for (const competition of state.competitions) {
-      const started = await startCareerEventRound(db, user.id, competition.id);
-      if (!started.ok) throw new Error("start failed");
-      await db.holeResult.createMany({
-        data: Array.from({ length: 18 }, (_, index) => ({
-          roundId: started.roundId,
-          holeNumber: index + 1,
-          decision: "normal",
-          outcome: "par",
-          scoreChange: 0,
-        })),
-      });
-      await db.round.update({
-        where: { id: started.roundId },
-        data: { score: 66, relativeToPar: -6 },
-      });
-      await finishCareerRound(db, started.roundId, user.id, 120_000);
+      for (let roundNumber = 1; roundNumber <= 4; roundNumber++) {
+        const started = await startCareerEventRound(db, user.id, competition.id);
+        if (!started.ok) throw new Error("start failed");
+        await db.holeResult.createMany({
+          data: Array.from({ length: 18 }, (_, index) => ({
+            roundId: started.roundId,
+            holeNumber: index + 1,
+            decision: "normal",
+            outcome: "par",
+            scoreChange: 0,
+          })),
+        });
+        await db.round.update({
+          where: { id: started.roundId },
+          data: { score: roundNumber === 1 ? 66 : 72, relativeToPar: roundNumber === 1 ? -6 : 0 },
+        });
+        await finishCareerRound(db, started.roundId, user.id, 120_000);
+      }
     }
     expect((await db.careerCohort.findUniqueOrThrow({ where: { id: state.cohort.id } })).state)
       .toBe("ACTIVE");

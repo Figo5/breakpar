@@ -4,6 +4,7 @@ import { coursePar, courseBySlug } from "@/data/courses";
 import { puzzleNumberForKey } from "@/lib/daily";
 import { relativeLabel, brokePar } from "@/lib/scoring";
 import { type Outcome } from "@/lib/engine/probabilities";
+import { roundModeLabel } from "@/lib/roundMode";
 
 // Per-round link-preview card. Runs UNAUTHENTICATED (link unfurlers have no
 // session) and degrades to a branded fallback for a missing/invalid id — never
@@ -127,7 +128,7 @@ export default async function Image({ params }: { params: Promise<{ roundId: str
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Wordmark small />
           <div style={{ display: "flex", fontSize: 28, fontWeight: 600, opacity: 0.85, letterSpacing: 2 }}>
-            {isDaily ? `NO. ${puzzleNo}` : "PRACTICE"}
+            {isDaily ? `NO. ${puzzleNo}` : roundModeLabel(round.mode).toUpperCase()}
           </div>
         </div>
 

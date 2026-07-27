@@ -8,6 +8,7 @@ import { relativeLabel } from "@/lib/scoring";
 import { TIER_META, type TrophyState } from "@/lib/trophies";
 import { xHandleLabel, xHandleUrl } from "@/lib/xHandle";
 import { Avatar } from "@/components/Avatar";
+import { roundModeLabel } from "@/lib/roundMode";
 
 // Public profile at /u/[username] — account-only, read-only for strangers.
 // Guests have no profile (resolution targets accounts). Private profiles show a
@@ -157,7 +158,7 @@ function ProfileBody({ p, follow }: { p: PublicProfile; follow: FollowContext })
                 <span className="rank" />
                 <span className="nm">
                   {r.courseName}
-                  <span className="prow-tag">{r.mode === "daily" ? (r.puzzleNo ? `#${r.puzzleNo}` : "Daily") : "Practice"}</span>
+                  <span className="prow-tag">{roundModeLabel(r.mode, r.puzzleNo)}</span>
                 </span>
                 <span className="tm">{new Date(r.playedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                 <span className="sc">{relativeLabel(r.relativeToPar)}</span>

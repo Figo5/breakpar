@@ -17,7 +17,7 @@ import {
   rankChampionshipField,
   type ChampionshipSettlementCompetitor,
 } from "./championshipSettlement";
-import { CAREER_V2_FORMULA_BUNDLE } from "./formulaBundle";
+import { CAREER_V3_FORMULA_BUNDLE } from "./formulaBundle";
 import {
   blankLegacyAwardCounts,
   legacyPoints,
@@ -44,7 +44,7 @@ import {
   type Tendency,
 } from "./simulator";
 
-const FORMULA = CAREER_V2_FORMULA_BUNDLE;
+const FORMULA = CAREER_V3_FORMULA_BUNDLE;
 const FIELD_SIZE = FORMULA.championship.fieldSize;
 const EVENTS_PER_SEASON = FORMULA.eventPoints.scheduledEvents;
 
@@ -158,11 +158,13 @@ function simulateSeasonEvents(
   for (let eventIndex = 0; eventIndex < EVENTS_PER_SEASON; eventIndex++) {
     const standings = rankEvent(field.map((competitor) => ({
       competitorId: competitor.competitorId,
-      relativeToPar: sampleScore(
-        bank,
-        competitor.archetype,
-        `${seed}:season:${season}:${tier}:event:${eventIndex}:${competitor.competitorId}`,
-      ),
+      relativeToPar: Array.from({ length: 4 }, (_, roundIndex) =>
+        sampleScore(
+          bank,
+          competitor.archetype,
+          `${seed}:season:${season}:${tier}:event:${eventIndex}`
+          + `:round:${roundIndex}:${competitor.competitorId}`,
+        )).reduce((sum, score) => sum + score, 0),
     })));
     for (const standing of standings) {
       eventsByCompetitor.get(standing.competitorId)!.push({

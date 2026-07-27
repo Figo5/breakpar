@@ -14,8 +14,11 @@ export const CAREER_HUMAN_SLOTS = 1;
 /** Bot slots per personal field. */
 export const CAREER_BOT_SLOTS = CAREER_BASE_FIELD_SIZE - CAREER_HUMAN_SLOTS;
 
-/** Four one-round events per season; best three count. */
+/** Four events per season; best three count. */
 export const CAREER_EVENTS_PER_SEASON = 4;
+
+/** Each modern Career event is a four-round cumulative tournament. */
+export const CAREER_ROUNDS_PER_EVENT = 4;
 
 /** Regular seasons per Championship cycle. */
 export const CAREER_SEASONS_PER_CYCLE = 4;
