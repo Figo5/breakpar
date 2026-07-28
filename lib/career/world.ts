@@ -84,8 +84,15 @@ async function advisoryLock(
 export async function ensureCareerJourney(
   tx: Prisma.TransactionClient,
   userId: string,
+  careerNumber = 1,
 ): Promise<CareerWorld> {
-  const worldKey = careerJourneyKey(userId);
+  if (!Number.isSafeInteger(careerNumber) || careerNumber < 1) {
+    throw new TypeError("Career number must be a positive safe integer");
+  }
+  const baseKey = careerJourneyKey(userId);
+  const worldKey = careerNumber === 1
+    ? baseKey
+    : `${baseKey}:career${careerNumber}`;
   await advisoryLock(tx, `career:journey:${worldKey}`);
   const world = await tx.careerWorld.upsert({
     where: { worldKey },
@@ -122,6 +129,7 @@ export async function ensureCareerCohort(
     world: CareerWorld;
     seasonNumber: number;
     tier: PrismaCareerTier;
+    formulaVersion?: string;
     now?: Date;
   },
 ): Promise<{ cohort: CareerCohort; competitions: readonly CareerCompetition[] }> {
@@ -145,6 +153,7 @@ export async function ensureCareerCohort(
       worldId: input.world.id,
       seasonNumber: input.seasonNumber,
       tier: input.tier,
+      formulaVersion: input.formulaVersion ?? CAREER_FORMULA_VERSION,
     },
     update: {},
   });
@@ -267,28 +276,41 @@ export class CareerWorldService {
   async enter(userId: string, now = new Date()): Promise<CareerEnrollmentState> {
     if (userId.trim().length === 0) throw new TypeError("Career enrollment requires a user ID");
     const existing = await this.db.careerProfile.findFirst({
-      where: { userId },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      where: { userId, status: "ACTIVE" },
+      orderBy: [{ careerNumber: "desc" }, { id: "desc" }],
     });
     if (existing) return currentEnrollmentState(this.db, existing);
 
     return this.db.$transaction(async (tx) => {
       await advisoryLock(tx, `career:user:${userId}`);
       const raced = await tx.careerProfile.findFirst({
-        where: { userId },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        where: { userId, status: "ACTIVE" },
+        orderBy: [{ careerNumber: "desc" }, { id: "desc" }],
       });
       if (raced) return currentEnrollmentState(tx, raced);
 
-      const world = await ensureCareerJourney(tx, userId);
+      const latest = await tx.careerProfile.findFirst({
+        where: { userId },
+        orderBy: [{ careerNumber: "desc" }, { id: "desc" }],
+        select: { careerNumber: true },
+      });
+      const careerNumber = (latest?.careerNumber ?? 0) + 1;
+      const world = await ensureCareerJourney(tx, userId, careerNumber);
       const { cohort, competitions } = await ensureCareerCohort(tx, {
         world,
         seasonNumber: 1,
         tier: "LOCAL",
+        formulaVersion: CAREER_FORMULA_VERSION,
         now,
       });
       const profile = await tx.careerProfile.create({
-        data: { userId, worldId: world.id, tier: "LOCAL", currentSeason: 1 },
+        data: {
+          userId,
+          worldId: world.id,
+          careerNumber,
+          tier: "LOCAL",
+          currentSeason: 1,
+        },
       });
       const { memberId, slotId } = await ensureCohortMembership(tx, {
         cohortId: cohort.id,

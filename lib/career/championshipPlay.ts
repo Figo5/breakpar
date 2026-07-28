@@ -25,12 +25,15 @@ import { COURSES, type Course as GameCourse } from "@/data/courses";
 import { canonicalHash } from "./canonical";
 import { careerEffectKey } from "./effectKeys";
 import {
-  CAREER_FORMULA_VERSION,
   CAREER_CURRENT_FORMULA_BUNDLE,
   requireCareerFormulaBundle,
 } from "./formulaBundle";
 import type { GameplayRulesetVersion } from "@/lib/engine/rulesets";
 import { simulateArchetypeRound, type Tendency } from "./simulator";
+import {
+  requireCareerSkillRanks,
+  type CareerSkillRanks,
+} from "./development";
 
 /** Championship bots always play at the frozen ACE ability. */
 export const CAREER_CHAMPIONSHIP_BOT_ABILITY = "ace" as const;
@@ -130,7 +133,7 @@ export async function materializeChampionshipBots(
     });
     if (!championship) return { status: "not-found" } as const;
     const formulaBundle = requireCareerFormulaBundle(
-      championship.world.formulaVersion,
+      championship.formulaVersion,
     );
 
     const competition = await tx.careerCompetition.findFirst({
@@ -186,7 +189,7 @@ export async function materializeChampionshipBots(
         slotNumber: slot.slotNumber,
         seed,
         relativeToPar,
-        formulaVersion: championship.world.formulaVersion,
+        formulaVersion: championship.formulaVersion,
       });
       return {
         championshipId,
@@ -223,7 +226,7 @@ export async function materializeChampionshipBots(
         return {
           aggregateType: "CHAMPIONSHIP" as const,
           aggregateId: championshipId,
-          committedRevisionId: `${championshipId}:${CAREER_FORMULA_VERSION}:bots`,
+          committedRevisionId: `${championshipId}:${championship.formulaVersion}:bots`,
           effectKey: careerEffectKey.championshipResult(championshipId, row.competitorId),
           effectType: "championship-bot-result",
           scope: row.competitorId,
@@ -287,7 +290,18 @@ export async function startCareerChampionshipRound(
 
     const slot = await tx.careerChampionshipSlot.findFirst({
       where: { championshipId, competitorType: "HUMAN", profile: { userId } },
-      select: { slotNumber: true, profileId: true },
+      select: {
+        slotNumber: true,
+        profileId: true,
+        profile: {
+          select: {
+            drivingRank: true,
+            approachRank: true,
+            shortGameRank: true,
+            puttingRank: true,
+          },
+        },
+      },
     });
     if (!slot || !slot.profileId) return { ok: false, error: "not-qualified" } as const;
 
@@ -299,8 +313,14 @@ export async function startCareerChampionshipRound(
     const eligibility = championshipPlayable(competition);
     if (eligibility !== "playable") return { ok: false, error: eligibility } as const;
     const rulesetVersion = requireCareerFormulaBundle(
-      competition.championship.world.formulaVersion,
+      competition.championship.formulaVersion,
     ).gameplayRulesetVersion;
+    const skillSnapshot: CareerSkillRanks = requireCareerSkillRanks({
+      driving: slot.profile?.drivingRank,
+      approach: slot.profile?.approachRank,
+      shortGame: slot.profile?.shortGameRank,
+      putting: slot.profile?.puttingRank,
+    });
 
     const existing = await tx.careerChampionshipResult.findUnique({
       where: { championshipId_slotNumber: { championshipId, slotNumber: slot.slotNumber } },
@@ -327,6 +347,7 @@ export async function startCareerChampionshipRound(
         rulesetVersion,
         dateKey: null,
         seedKey,
+        careerSkillSnapshot: { ...skillSnapshot },
       },
     });
     if (existing) {

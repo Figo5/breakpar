@@ -43,10 +43,18 @@ import { canonicalHash, canonicalStringify } from "./canonical";
 import { careerEffectKey } from "./effectKeys";
 import { championshipUnlock } from "./championship";
 import {
-  CAREER_CURRENT_FORMULA_BUNDLE,
   CAREER_FORMULA_VERSION,
+  CAREER_V3_FORMULA_VERSION,
   requireCareerFormulaBundle,
+  type CareerFormulaBundle,
 } from "./formulaBundle";
+import {
+  careerDevelopmentAward,
+  CAREER_INITIAL_SKILL_RANKS,
+  requireCareerSkillRanks,
+  type CareerDevelopmentAward,
+  type CareerSkillRanks,
+} from "./development";
 import {
   CareerSettlementEngine,
   type ClaimSettlementResult,
@@ -61,12 +69,6 @@ import {
   ensureCohortMembership,
 } from "./world";
 import type { CareerEventStanding } from "./eventSettlement";
-
-/**
- * The pinned player-paced package (v2). Identical to the frozen v1 package for
- * every calibrated value; it differs only in retiring the human movement cap.
- */
-const FROZEN = CAREER_CURRENT_FORMULA_BUNDLE;
 
 /** Reason a competitor did not move by performance, when applicable. */
 export type CareerMovementState = "normal";
@@ -96,6 +98,9 @@ export interface SeasonSettlementProfileState {
   readonly movementEvidence: readonly number[];
   /** Chronological regular-season ratings BEFORE this season (for best-6-of-8). */
   readonly priorRatings: readonly RatingSeason[];
+  readonly skills?: CareerSkillRanks;
+  readonly developmentPoints?: number;
+  readonly foundationPointsEarned?: number;
 }
 
 export interface CareerSeasonSettlementInput {
@@ -103,6 +108,9 @@ export interface CareerSeasonSettlementInput {
   readonly cohortId: string;
   readonly seasonNumber: number;
   readonly tier: CareerTier;
+  /** Immutable package owned by this season. Historical snapshots that predate
+   * cohort-level pins resolve as v3. */
+  readonly formulaVersion?: string;
   /** Event IDs indexed exactly like SeasonEventResult.eventIndex (0..3). */
   readonly eventIds: readonly string[];
   /**
@@ -138,6 +146,7 @@ export interface CareerHumanSeasonOutcome {
   /** Set when this settlement completes a Championship cycle at Challenger+. */
   readonly championshipUnlock: { readonly cycleNumber: number } | null;
   readonly isSeasonChampion: boolean;
+  readonly developmentAward: CareerDevelopmentAward;
 }
 
 export interface CareerLegacyEffect {
@@ -163,14 +172,23 @@ export interface CareerSeasonSettlementOutput {
   /** Present only when this season is a Championship-qualification season. */
 }
 
-function frozenRollingOptions() {
-  const movement = FROZEN.movement;
+function frozenRollingOptions(
+  formula: CareerFormulaBundle,
+  tier: CareerTier,
+) {
+  const movement = formula.movement;
+  const thresholds = movement.tierThresholds?.[tier];
   return {
     window: movement.rollingWindow ?? ROLLING_DEFAULTS.window,
-    promoteThreshold: movement.rollingPromoteThreshold ?? ROLLING_DEFAULTS.promoteThreshold,
-    relegateThreshold: movement.rollingRelegateThreshold ?? ROLLING_DEFAULTS.relegateThreshold,
+    promoteThreshold: thresholds?.promoteThreshold
+      ?? movement.rollingPromoteThreshold
+      ?? ROLLING_DEFAULTS.promoteThreshold,
+    relegateThreshold: thresholds?.relegateThreshold
+      ?? movement.rollingRelegateThreshold
+      ?? ROLLING_DEFAULTS.relegateThreshold,
     minEntries: movement.rollingMinEntries ?? ROLLING_DEFAULTS.minEntries,
-    promotionFloor: movement.rollingPromotionFloor,
+    promotionFloor: thresholds?.promotionFloor
+      ?? movement.rollingPromotionFloor,
     relegationCeiling: undefined as number | undefined,
   };
 }
@@ -204,9 +222,10 @@ function humanLegacyEffects(
   input: CareerSeasonSettlementInput,
   events: readonly SeasonEventResult[],
   awards: LegacyAwardCounts,
+  formula: CareerFormulaBundle,
 ): CareerLegacyEffect[] {
   const effects: CareerLegacyEffect[] = [];
-  const points = FROZEN.legacyPoints;
+  const points = formula.legacyPoints;
   for (const event of events) {
     const sourceId = input.eventIds[event.eventIndex];
     if (!sourceId) {
@@ -264,6 +283,8 @@ export function calculateCareerSeasonSettlement(
   input: CareerSeasonSettlementInput,
 ): CareerSeasonSettlementOutput {
   const { tier, seasonNumber } = input;
+  const formulaVersion = input.formulaVersion ?? CAREER_V3_FORMULA_VERSION;
+  const formula = requireCareerFormulaBundle(formulaVersion);
   if (
     input.eventIds.length !== 4
     || new Set(input.eventIds).size !== input.eventIds.length
@@ -291,7 +312,7 @@ export function calculateCareerSeasonSettlement(
   const humans = input.competitors.filter((competitor) => competitor.competitorType === "HUMAN");
 
   // 2. Proposed movement per human via Candidate H rolling evidence.
-  const rollingOptions = frozenRollingOptions();
+  const rollingOptions = frozenRollingOptions(formula, tier);
   const proposedMovement = new Map<string, MovementAction>();
   const nextRollingHistory = new Map<string, number[]>();
   for (const human of humans) {
@@ -347,11 +368,19 @@ export function calculateCareerSeasonSettlement(
     else if (movement === "relegate") nextTier = relegateTier(tier);
     if (nextTier !== tier) {
       nextEvidence = movement === "promote"
-        ? rollingHistoryAfterPromotion(nextEvidence, FROZEN.movement.rollingPromotionCarryWeight)
+        ? rollingHistoryAfterPromotion(
+          nextEvidence,
+          formula.movement.rollingPromotionCarryWeight,
+        )
         : [];
     }
 
-    const rating = seasonRating(activeStandings.length, activeRank, tier, FROZEN.tourRating.tierMultipliers);
+    const rating = seasonRating(
+      activeStandings.length,
+      activeRank,
+      tier,
+      formula.tourRating.tierMultipliers,
+    );
     const nextRatingHistory: RatingSeason[] = [...state.priorRatings, { rating, active }];
     const isSeasonChampion = seasonChampionId === human.competitorId;
     // Championship cycle: counted on the tier the player HOLDS once this
@@ -361,6 +390,22 @@ export function calculateCareerSeasonSettlement(
     const legacyAwards = humanLegacyAwards(human.events, active, movement, tier, isSeasonChampion);
     if (unlock.unlocked) legacyAwards.championshipQualification += 1;
 
+
+    const developmentAward = formula.development
+      ? careerDevelopmentAward(
+        activeSeasonPercentile(activeStandings.length, activeRank),
+        state.foundationPointsEarned ?? 0,
+      )
+      : { foundation: 0, performance: 0, total: 0, reasons: [] };
+    requireCareerSkillRanks(state.skills ?? CAREER_INITIAL_SKILL_RANKS);
+    if (
+      !Number.isSafeInteger(state.developmentPoints ?? 0)
+      || (state.developmentPoints ?? 0) < 0
+      || !Number.isSafeInteger(state.foundationPointsEarned ?? 0)
+      || (state.foundationPointsEarned ?? 0) < 0
+    ) {
+      throw new Error(`Career profile ${state.profileId} has invalid development state`);
+    }
 
     return {
       competitorId: human.competitorId,
@@ -378,10 +423,11 @@ export function calculateCareerSeasonSettlement(
       seasonRating: rating,
       tourRating: tourRating(nextRatingHistory),
       legacyAwards,
-      legacyBreakdown: legacyPointBreakdown(legacyAwards, FROZEN.legacyPoints),
-      legacyEffects: humanLegacyEffects(input, human.events, legacyAwards),
+      legacyBreakdown: legacyPointBreakdown(legacyAwards, formula.legacyPoints),
+      legacyEffects: humanLegacyEffects(input, human.events, legacyAwards, formula),
       championshipUnlock: unlock.unlocked ? { cycleNumber: unlock.cycleNumber! } : null,
       isSeasonChampion,
+      developmentAward,
     };
   });
 
@@ -390,7 +436,7 @@ export function calculateCareerSeasonSettlement(
     cohortId: input.cohortId,
     seasonNumber,
     tier,
-    formulaVersion: FROZEN.id,
+    formulaVersion,
     fieldSize: standings.length,
     activeFieldSize: activeStandings.length,
     humanMovementLimit: null,
@@ -723,6 +769,14 @@ export class CareerSeasonSettlementService {
           settledSeasons: profile.settledSeasons,
           movementEvidence: movementEvidence as number[],
           priorRatings: priorRatings.map((rating) => ({ rating: rating.rating, active: rating.active })),
+          skills: {
+            driving: profile.drivingRank,
+            approach: profile.approachRank,
+            shortGame: profile.shortGameRank,
+            putting: profile.puttingRank,
+          },
+          developmentPoints: profile.developmentPoints,
+          foundationPointsEarned: profile.foundationPointsEarned,
         };
         humanContext.set(profileId, { profileId, userId: profile.userId });
       }
@@ -744,6 +798,7 @@ export class CareerSeasonSettlementService {
       cohortId: cohort.id,
       seasonNumber: cohort.seasonNumber,
       tier: RULES_TIER[cohort.tier],
+      formulaVersion: cohort.formulaVersion,
       eventIds: cohort.competitions.map((competition) => competition.id),
       eventFormulaVersions: finals.map((final) => final.formulaVersion),
       competitors,
@@ -753,7 +808,8 @@ export class CareerSeasonSettlementService {
     let inputHash: string;
     if (claim.resumedSnapshot) {
       const frozen = await this.engine.frozenInput(claim);
-      if (frozen.formulaVersion !== CAREER_FORMULA_VERSION) {
+      requireCareerFormulaBundle(frozen.formulaVersion);
+      if (frozen.formulaVersion !== cohort.formulaVersion) {
         throw new Error(`Cannot resume unavailable Career formula ${frozen.formulaVersion}`);
       }
       input = frozen.input as unknown as CareerSeasonSettlementInput;
@@ -768,13 +824,13 @@ export class CareerSeasonSettlementService {
     } else {
       const snapshotted = await this.engine.snapshot(claim, {
         input,
-        formulaVersion: CAREER_FORMULA_VERSION,
+        formulaVersion: cohort.formulaVersion,
         runtimeRevision: this.runtimeRevision,
       });
       inputHash = snapshotted.inputHash;
     }
     const output = calculateCareerSeasonSettlement(input);
-    if (output.formulaVersion !== CAREER_FORMULA_VERSION) {
+    if (output.formulaVersion !== cohort.formulaVersion) {
       throw new Error(`Season settlement produced a non-frozen formula version ${output.formulaVersion}`);
     }
 
@@ -788,7 +844,7 @@ export class CareerSeasonSettlementService {
         effectKey: careerEffectKey.seasonSettlement(
           cohort.id,
           cohort.seasonNumber,
-          CAREER_FORMULA_VERSION,
+          output.formulaVersion,
         ),
         effectType: "season-settlement",
         scope: cohort.id,
@@ -832,6 +888,23 @@ export class CareerSeasonSettlementService {
           movement: human.movement,
         },
       });
+      if (human.developmentAward.total > 0) {
+        effects.push({
+          effectKey: careerEffectKey.development(
+            human.profileId,
+            cohort.id,
+            cohort.seasonNumber,
+          ),
+          effectType: "development",
+          scope,
+          payload: {
+            profileId: human.profileId,
+            cohortId: cohort.id,
+            seasonNumber: cohort.seasonNumber,
+            ...human.developmentAward,
+          },
+        });
+      }
       effects.push({
         effectKey: careerEffectKey.movement(human.profileId, cohort.id, cohort.seasonNumber),
         effectType: "movement",
@@ -925,7 +998,7 @@ export class CareerSeasonSettlementService {
             data: {
               cohortId: output.cohortId,
               seasonNumber,
-              formulaVersion: CAREER_FORMULA_VERSION,
+              formulaVersion: output.formulaVersion,
               revision: 1,
               inputHash: snapshot.inputHash,
               outputHash: snapshot.outputHash,
@@ -951,6 +1024,7 @@ export class CareerSeasonSettlementService {
                   movementEvidence: human.nextMovementEvidence,
                   movementState: human.movementState,
                   isSeasonChampion: human.isSeasonChampion,
+                  developmentAward: human.developmentAward,
                 }),
                 revisionId,
               },
@@ -995,6 +1069,23 @@ export class CareerSeasonSettlementService {
                 },
               });
             }
+            if (human.developmentAward.total > 0) {
+              await tx.careerDevelopmentLedger.create({
+                data: {
+                  profileId: human.profileId,
+                  sourceType: "season-award",
+                  sourceId: output.cohortId,
+                  seasonNumber,
+                  points: human.developmentAward.total,
+                  reason: jsonInput({
+                    foundation: human.developmentAward.foundation,
+                    performance: human.developmentAward.performance,
+                    reasons: human.developmentAward.reasons,
+                  }),
+                  revisionId,
+                },
+              });
+            }
 
             const projectedLegacy = await tx.careerLegacyLedger.aggregate({
               where: { profileId: human.profileId },
@@ -1011,6 +1102,12 @@ export class CareerSeasonSettlementService {
                 tier: DB_TIER[human.nextTier],
                 movementEvidence: jsonInput(human.nextMovementEvidence),
                 legacyTotal: projectedLegacy._sum.points ?? legacyPointsTotal,
+                developmentPoints: {
+                  increment: human.developmentAward.total,
+                },
+                foundationPointsEarned: {
+                  increment: human.developmentAward.foundation,
+                },
                 currentSeason: nextSeason,
                 // Drives the Championship cycle (every fourth settled season).
                 settledSeasons: { increment: 1 },
@@ -1026,6 +1123,12 @@ export class CareerSeasonSettlementService {
           const world = await tx.careerWorld.findUniqueOrThrow({
             where: { id: snapshot.worldId },
           });
+          if (world.formulaVersion !== CAREER_FORMULA_VERSION) {
+            await tx.careerWorld.update({
+              where: { id: world.id },
+              data: { formulaVersion: CAREER_FORMULA_VERSION },
+            });
+          }
           const nextTiers = new Set(output.humans.map((human) => DB_TIER[human.nextTier]));
           const nextCohorts = new Map<string, { cohortId: string; competitionIds: string[] }>();
           const tierOrder = ["LOCAL", "CHALLENGER", "PRO"] as const;
@@ -1034,6 +1137,7 @@ export class CareerSeasonSettlementService {
               world,
               seasonNumber: nextSeason,
               tier,
+              formulaVersion: CAREER_FORMULA_VERSION,
             });
             nextCohorts.set(tier, {
               cohortId: nextCohort.id,
@@ -1072,6 +1176,7 @@ export class CareerSeasonSettlementService {
               create: {
                 worldId: snapshot.worldId,
                 cycleNumber: human.championshipUnlock.cycleNumber,
+                formulaVersion: output.formulaVersion,
                 state: "FORMING",
                 deadlineAt: CAREER_NO_DEADLINE,
               },

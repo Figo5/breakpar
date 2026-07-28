@@ -7,6 +7,7 @@ import type { CareerSeasonTableView, CareerStateView } from "@/lib/career/read";
 import {
   cumulativeLabel,
   movementLabel,
+  percentileLabel,
   pointsLabel,
   seasonRevealLabel,
   tierLabel,
@@ -82,6 +83,9 @@ export function CareerSeason({ cohortId }: { cohortId?: string }) {
 
   const mine = table.standings.find((row) => row.isMe);
   const remaining = table.eventsTotal - table.eventsRevealed;
+  const promotionThreshold = state.movement.promotionThreshold;
+  const promotionFloor = state.movement.promotionFloor;
+  const relegationThreshold = state.movement.relegationThreshold;
 
   return (
     <CareerChrome eyebrow="Season">
@@ -192,11 +196,23 @@ export function CareerSeason({ cohortId }: { cohortId?: string }) {
 
       <div className="career-context">
         <b>Exactly how movement works</b>
-        Season 1 establishes form. Promotion requires both stored form results
-        at or above the 58th percentile and their average at or above the 65th.
-        At Challenger or Pro, an average at or below the 32nd percentile causes
-        relegation. A reduced piece of promotion form carries into the new tour;
-        Local cannot relegate and Pro cannot promote.
+        Season 1 establishes form; movement starts after two results.{" "}
+        {promotionThreshold != null && promotionFloor != null
+          ? `Promotion requires both finishes at or above the ${percentileLabel(promotionFloor)} and their average at or above the ${percentileLabel(promotionThreshold)}. `
+          : "Pro is the highest tour, so there is no further promotion. "}
+        {relegationThreshold != null
+          ? `A two-season average at or below the ${percentileLabel(relegationThreshold)} causes relegation. `
+          : "Local cannot relegate. "}
+        A reduced piece of promotion form carries into the new tour.
+        {state.movement.evidence.length > 0 && (
+          <span className="career-movement-inline">
+            Your stored form:{" "}
+            {state.movement.evidence.map((value) => `${Math.round(value * 100)}%`).join(" · ")}
+            {state.movement.average != null
+              ? ` · ${Math.round(state.movement.average * 100)}% average`
+              : ""}
+          </span>
+        )}
       </div>
 
       <div className="career-links">

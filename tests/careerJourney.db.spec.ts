@@ -8,6 +8,10 @@ import { COURSES } from "@/data/courses";
 import { CAREER_NO_DEADLINE, careerJourneyKey } from "@/lib/career/constants";
 import { startCareerJourney } from "@/lib/career/journey";
 import { startCareerEventRound } from "@/lib/career/eventPlay";
+import {
+  retireCareerJourney,
+  upgradeCareerSkill,
+} from "@/lib/career/profileProgression";
 
 /**
  * Player-paced Career — Journey creation and instant field formation
@@ -81,7 +85,18 @@ describe("Personal Journey creation", () => {
     const state = await startCareerJourney(db, user.id, OPTS);
 
     expect(state.world.worldKey).toBe(careerJourneyKey(user.id));
-    expect(state.profile).toMatchObject({ tier: "LOCAL", currentSeason: 1, settledSeasons: 0 });
+    expect(state.profile).toMatchObject({
+      tier: "LOCAL",
+      currentSeason: 1,
+      settledSeasons: 0,
+      careerNumber: 1,
+      drivingRank: 1,
+      approachRank: 1,
+      shortGameRank: 1,
+      puttingRank: 1,
+      developmentPoints: 0,
+    });
+    expect(state.cohort.formulaVersion).toBe("career-v4-progression");
     expect(await db.careerBotIdentity.count({ where: { worldId: state.world.id } })).toBe(30);
     // Exactly one profile per Journey — this is a personal universe.
     expect(await db.careerProfile.count({ where: { worldId: state.world.id } })).toBe(1);
@@ -232,17 +247,111 @@ describe("No calendar gates anything", () => {
     // The seed is bound to the locked field, not to the request.
     const round = await db.round.findUniqueOrThrow({ where: { id: a.roundId } });
     expect(round.seedKey).toContain(careerJourneyKey(user.id));
-    expect(round.rulesetVersion).toBe("standard-v1");
+    expect(round.rulesetVersion).toBe("standard-v2-casual");
+    expect(round.careerSkillSnapshot).toEqual({
+      driving: 1,
+      approach: 1,
+      shortGame: 1,
+      putting: 1,
+    });
 
     // A linked card can never be resumed under rules different from the
     // Journey's immutable formula package.
     await db.round.update({
       where: { id: round.id },
-      data: { rulesetVersion: "standard-v2-casual" },
+      data: { rulesetVersion: "standard-v1" },
     });
     expect(await startCareerEventRound(db, user.id, first.id)).toEqual({
       ok: false,
       error: "event-closed",
     });
+  });
+});
+
+describe("Player development and Career retirement", () => {
+  it("spends one point exactly once under concurrent upgrade taps", async () => {
+    const user = await newUser("upgrade");
+    const state = await startCareerJourney(db, user.id, OPTS);
+    await db.careerProfile.update({
+      where: { id: state.profile.id },
+      data: { developmentPoints: 2 },
+    });
+
+    const [first, second] = await Promise.all([
+      upgradeCareerSkill(db, user.id, "driving", 1),
+      upgradeCareerSkill(db, user.id, "driving", 1),
+    ]);
+    expect(first.ok && second.ok).toBe(true);
+    expect([first, second].filter((result) => result.ok && !result.replayed)).toHaveLength(1);
+    expect([first, second].filter((result) => result.ok && result.replayed)).toHaveLength(1);
+
+    const profile = await db.careerProfile.findUniqueOrThrow({
+      where: { id: state.profile.id },
+    });
+    expect(profile).toMatchObject({ drivingRank: 2, developmentPoints: 1 });
+    expect(await db.careerDevelopmentLedger.count({
+      where: {
+        profileId: profile.id,
+        sourceType: "skill-upgrade",
+        sourceId: "driving:rank2",
+      },
+    })).toBe(1);
+  });
+
+  it("archives an untouched Career and creates one fresh numbered replacement", async () => {
+    const user = await newUser("retire");
+    const original = await startCareerJourney(db, user.id, OPTS);
+    await db.careerProfile.update({
+      where: { id: original.profile.id },
+      data: { legacyTotal: 123 },
+    });
+
+    const retired = await retireCareerJourney(db, user.id, original.profile.id);
+    expect(retired).toMatchObject({
+      ok: true,
+      replayed: false,
+      retiredProfileId: original.profile.id,
+      careerNumber: 1,
+    });
+    const replacement = await startCareerJourney(db, user.id, OPTS);
+    expect(replacement.profile.id).not.toBe(original.profile.id);
+    expect(replacement.profile).toMatchObject({
+      careerNumber: 2,
+      tier: "LOCAL",
+      currentSeason: 1,
+      settledSeasons: 0,
+      legacyTotal: 0,
+    });
+    expect(replacement.world.worldKey).toBe(`${careerJourneyKey(user.id)}:career2`);
+
+    const archived = await db.careerProfile.findUniqueOrThrow({
+      where: { id: original.profile.id },
+    });
+    expect(archived).toMatchObject({ status: "RETIRED", legacyTotal: 123 });
+    expect(archived.retiredAt).not.toBeNull();
+
+    // A network retry references the old profile and cannot retire Career #2.
+    expect(await retireCareerJourney(db, user.id, original.profile.id))
+      .toMatchObject({ ok: true, replayed: true, careerNumber: 1 });
+    expect(await db.careerProfile.count({
+      where: { userId: user.id, status: "ACTIVE" },
+    })).toBe(1);
+  });
+
+  it("cannot retire after any current-season card has started", async () => {
+    const user = await newUser("retire-blocked");
+    const state = await startCareerJourney(db, user.id, OPTS);
+    const started = await startCareerEventRound(
+      db,
+      user.id,
+      state.competitions[0].id,
+    );
+    expect(started.ok).toBe(true);
+
+    expect(await retireCareerJourney(db, user.id, state.profile.id))
+      .toEqual({ ok: false, error: "career-already-started" });
+    expect((await db.careerProfile.findUniqueOrThrow({
+      where: { id: state.profile.id },
+    })).status).toBe("ACTIVE");
   });
 });

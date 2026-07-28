@@ -497,8 +497,10 @@ describe("Legacy ledger", () => {
     const ownView = await careerLegacyForUser(db, mine.id);
     expect(ownView!.entries.length).toBeGreaterThan(0);
 
-    // The other player's read resolves THEIR profile from THEIR session; there
-    // is no parameter that could point it at someone else's ledger.
+    // Even the archived-Career selector is account-scoped.
+    expect(await careerLegacyForUser(db, theirs.id, ownView!.profileId)).toBeNull();
+
+    // The other player's default read still resolves only their active profile.
     const otherView = await careerLegacyForUser(db, theirs.id);
     expect(otherView!.profileId).not.toBe(ownView!.profileId);
     expect(otherView!.entries).toHaveLength(0);

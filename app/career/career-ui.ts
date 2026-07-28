@@ -70,6 +70,21 @@ export function pointsLabel(points: number | null): string {
   return points == null ? "—" : points.toFixed(points % 1 === 0 ? 0 : 1);
 }
 
+export function percentileLabel(value: number): string {
+  const whole = Math.round(value * 100);
+  const remainder100 = whole % 100;
+  const suffix = remainder100 >= 11 && remainder100 <= 13
+    ? "th"
+    : whole % 10 === 1
+      ? "st"
+      : whole % 10 === 2
+        ? "nd"
+        : whole % 10 === 3
+          ? "rd"
+          : "th";
+  return `${whole}${suffix} percentile`;
+}
+
 /** Championship field sources. Qualification is a personal four-season cycle. */
 export function sourceLabel(source: string): string {
   const labels: Record<string, string> = {

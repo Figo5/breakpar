@@ -20,6 +20,10 @@ import {
   isGameplayRulesetVersion,
   type GameplayRulesetVersion,
 } from "@/lib/engine/rulesets";
+import {
+  isCareerSkillRanks,
+  type CareerSkillRanks,
+} from "@/lib/career/development";
 
 const DECISIONS: Decision[] = ["safe", "normal", "aggressive"];
 
@@ -88,6 +92,13 @@ export const PATCH = route(async (
     return NextResponse.json({ error: "ruleset-unavailable" }, { status: 409 });
   }
   const rulesetVersion: GameplayRulesetVersion = round.rulesetVersion;
+  let careerSkills: CareerSkillRanks | undefined;
+  if (round.mode === "career" && round.careerSkillSnapshot != null) {
+    if (!isCareerSkillRanks(round.careerSkillSnapshot)) {
+      return NextResponse.json({ error: "career-skill-snapshot-invalid" }, { status: 409 });
+    }
+    careerSkills = round.careerSkillSnapshot;
+  }
   if (round.mode === "career") {
     const event = round.careerEventRound?.entry.competition
       ?? round.careerEventEntry?.competition;
@@ -190,6 +201,7 @@ export const PATCH = route(async (
     holeYards: holeData.yardage, // display-only: drives yards-to-target + tee distance
     holeContext: { hazard: holeData.hazard, signature: holeData.signature },
     rulesetVersion,
+    careerSkills,
   });
 
   // Hole not finished: report the next stage + reads + play-by-play. Persist

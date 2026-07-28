@@ -22,6 +22,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Par 4s of 350 yards or less can now be driven with an aggressive tee shot, with correct eagle, birdie, and missed-green scoring.",
       "Par-5 second-shot reach now uses the actual yardage and lie, including reachable shots from rough or trouble, without adding a phantom recovery stroke when the green cannot be reached.",
       "Rounds now keep the exact gameplay rules they started with, so a scoring update cannot change an open round or split a competitive field.",
+      "Career players can now develop Driving, Approach, Short Game, and Putting from rank 1 to 5. Skill points improve the real odds for that part of the game without guaranteeing a score.",
+      "Career promotion and relegation now show the exact two-season thresholds and the form results currently counting toward movement.",
+      "Career Legacy breakdowns are collapsed by default and grouped by season, with promotion, Championship, trophy, and point-category details available on demand.",
+      "Players can retire an untouched Career season, preserve its Legacy history, and immediately restart as a new numbered Career with fresh rivals.",
     ],
   },
   {

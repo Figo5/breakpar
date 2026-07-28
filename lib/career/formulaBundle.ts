@@ -6,9 +6,16 @@ import {
 } from "./simulator";
 import { CAREER_CANONICAL_VERSION } from "./canonical";
 import {
+  STANDARD_V2_RULESET,
   STANDARD_V1_RULESET,
   type GameplayRulesetVersion,
 } from "@/lib/engine/rulesets";
+import {
+  CAREER_FOUNDATION_POINT_CAP,
+  CAREER_INITIAL_SKILL_RANK,
+  CAREER_MAX_SKILL_RANK,
+  CAREER_SKILL_STEP,
+} from "./development";
 
 /**
  * The historical synchronized-cadence package. It is FROZEN: never edit its
@@ -26,9 +33,10 @@ export const CAREER_V1_FORMULA_VERSION = CAREER_V1_FREEZE_CANDIDATE.id;
  */
 export const CAREER_V2_FORMULA_VERSION = "career-v2-player-paced";
 export const CAREER_V3_FORMULA_VERSION = "career-v3-four-round-events";
+export const CAREER_V4_FORMULA_VERSION = "career-v4-progression";
 
 /** The version new settlements pin. */
-export const CAREER_FORMULA_VERSION = CAREER_V3_FORMULA_VERSION;
+export const CAREER_FORMULA_VERSION = CAREER_V4_FORMULA_VERSION;
 
 export const CAREER_COMPONENT_VERSIONS = {
   canonicalSerialization: CAREER_CANONICAL_VERSION,
@@ -45,6 +53,7 @@ export const CAREER_COMPONENT_VERSIONS = {
   legacy: "career-legacy-balanced-v1",
   championshipQualification: "career-championship-qualification-v1",
   championshipResult: "career-championship-result-v1",
+  development: "career-development-none-v1",
 } as const;
 
 /** Movement rules. The cap fields are absent once the cap is retired (v2+). */
@@ -60,6 +69,25 @@ export interface CareerMovementRules {
   readonly humanMovementLimitMin?: number;
   readonly humanMovementLimitScale?: number;
   readonly humanMovementLimitMax?: number;
+  readonly tierThresholds?: Readonly<Record<
+    "local" | "challenger" | "pro",
+    {
+      readonly promoteThreshold: number;
+      readonly promotionFloor: number;
+      readonly relegateThreshold: number;
+    }
+  >>;
+}
+
+export interface CareerDevelopmentRules {
+  readonly model: "four-attribute-ranks";
+  readonly initialRank: number;
+  readonly maxRank: number;
+  readonly upgradeCost: "current-rank";
+  readonly completionFoundationCap: number;
+  readonly topHalfPoints: number;
+  readonly topQuarterBonus: number;
+  readonly probabilitySteps: typeof CAREER_SKILL_STEP;
 }
 
 /** v1: shared population, cross-tier pass-down. Retired but preserved. */
@@ -123,6 +151,7 @@ export interface CareerFormulaBundle {
   };
   readonly legacyPoints: typeof CAREER_V1_FREEZE_CANDIDATE.legacyPoints;
   readonly championship: SharedTierChampionshipRules | PersonalCycleChampionshipRules;
+  readonly development?: CareerDevelopmentRules;
 }
 
 export interface PinnedCareerFormulaBundle {
@@ -266,10 +295,58 @@ const careerV3FourRoundEvents: CareerFormulaBundle = deepFreeze({
   },
 });
 
+/**
+ * Career progression package. Historical v1-v3 packages remain byte-identical.
+ * v4 changes only future-season movement thresholds, pins the casual scoring
+ * engine, and introduces bounded player attributes whose exact modifiers are
+ * part of the immutable formula payload.
+ */
+const careerV4Progression: CareerFormulaBundle = deepFreeze({
+  ...careerV3FourRoundEvents,
+  id: CAREER_V4_FORMULA_VERSION,
+  gameplayRulesetVersion: STANDARD_V2_RULESET,
+  componentVersions: {
+    ...careerV3FourRoundEvents.componentVersions,
+    movement: "career-movement-candidate-exact-ranks-v2",
+    development: "career-development-four-attribute-v1",
+  },
+  movement: {
+    ...careerV3FourRoundEvents.movement,
+    tierThresholds: {
+      local: {
+        promoteThreshold: 0.72,
+        promotionFloor: 0.60,
+        relegateThreshold: 0.40,
+      },
+      challenger: {
+        promoteThreshold: 0.75,
+        promotionFloor: 0.62,
+        relegateThreshold: 0.40,
+      },
+      pro: {
+        promoteThreshold: 1,
+        promotionFloor: 1,
+        relegateThreshold: 0.40,
+      },
+    },
+  },
+  development: {
+    model: "four-attribute-ranks",
+    initialRank: CAREER_INITIAL_SKILL_RANK,
+    maxRank: CAREER_MAX_SKILL_RANK,
+    upgradeCost: "current-rank",
+    completionFoundationCap: CAREER_FOUNDATION_POINT_CAP,
+    topHalfPoints: 1,
+    topQuarterBonus: 1,
+    probabilitySteps: CAREER_SKILL_STEP,
+  },
+});
+
 const FORMULA_REGISTRY = new Map<string, CareerFormulaBundle>([
   [careerV1FreezeCandidate.id, careerV1FreezeCandidate],
   [careerV2PlayerPaced.id, careerV2PlayerPaced],
   [careerV3FourRoundEvents.id, careerV3FourRoundEvents],
+  [careerV4Progression.id, careerV4Progression],
 ]);
 
 export function getCareerFormulaBundle(version: string): CareerFormulaBundle | undefined {
@@ -315,5 +392,8 @@ export const CAREER_V2_FORMULA_BUNDLE = careerV2PlayerPaced;
 /** The four-round player-paced package. */
 export const CAREER_V3_FORMULA_BUNDLE = careerV3FourRoundEvents;
 
+/** The bounded player-progression package. */
+export const CAREER_V4_FORMULA_BUNDLE = careerV4Progression;
+
 /** What new settlements should read. */
-export const CAREER_CURRENT_FORMULA_BUNDLE = careerV3FourRoundEvents;
+export const CAREER_CURRENT_FORMULA_BUNDLE = careerV4Progression;

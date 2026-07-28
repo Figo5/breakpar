@@ -21,7 +21,10 @@ import { hashSeed } from "@/lib/engine/rng";
 
 import { canonicalHash, canonicalStringify } from "./canonical";
 import { careerEffectKey } from "./effectKeys";
-import { CAREER_FORMULA_VERSION, CAREER_V1_FORMULA_BUNDLE } from "./formulaBundle";
+import {
+  CAREER_FORMULA_VERSION,
+  requireCareerFormulaBundle,
+} from "./formulaBundle";
 import { materializeChampionshipBots } from "./championshipPlay";
 import { rankEvent, type LegacyPointSchedule } from "./rules";
 import {
@@ -75,6 +78,7 @@ export interface ChampionshipSettlementOutput {
 export function rankChampionshipField(
   championshipId: string,
   competitors: readonly ChampionshipSettlementCompetitor[],
+  formulaVersion = CAREER_FORMULA_VERSION,
 ): ChampionshipSettlementOutput {
   const bySlot = [...competitors].sort((left, right) => left.slotNumber - right.slotNumber);
   if (new Set(bySlot.map((entry) => entry.slotNumber)).size !== bySlot.length) {
@@ -119,7 +123,7 @@ export function rankChampionshipField(
 
   return {
     championshipId,
-    formulaVersion: CAREER_FORMULA_VERSION,
+    formulaVersion,
     fieldSize: standings.length,
     winnerCompetitorId,
     standings,
@@ -330,7 +334,12 @@ export class CareerChampionshipSettlementService {
       };
     });
 
-    const output = rankChampionshipField(championship.id, competitors);
+    const formulaBundle = requireCareerFormulaBundle(championship.formulaVersion);
+    const output = rankChampionshipField(
+      championship.id,
+      competitors,
+      championship.formulaVersion,
+    );
 
     await this.engine.snapshot(claim, {
       input: {
@@ -339,19 +348,25 @@ export class CareerChampionshipSettlementService {
         competitionId: competition.id,
         competitors,
       },
-      formulaVersion: CAREER_FORMULA_VERSION,
+      formulaVersion: championship.formulaVersion,
       runtimeRevision: this.runtimeRevision,
     });
 
     const effects: SettlementEffect[] = [
       {
-        effectKey: careerEffectKey.championshipFinal(championship.id, CAREER_FORMULA_VERSION),
+        effectKey: careerEffectKey.championshipFinal(
+          championship.id,
+          championship.formulaVersion,
+        ),
         effectType: "championship-final",
         scope: championship.id,
         payload: output,
       },
     ];
-    const legacy = deriveChampionshipLegacy(output.standings, CAREER_V1_FORMULA_BUNDLE.legacyPoints);
+    const legacy = deriveChampionshipLegacy(
+      output.standings,
+      formulaBundle.legacyPoints,
+    );
     for (const award of legacy.awards) {
       effects.push({
         effectKey: careerEffectKey.legacy(
@@ -436,7 +451,7 @@ export class CareerChampionshipSettlementService {
           // movement / rating / season-history / enrollment effects are emitted.
           const legacy = deriveChampionshipLegacy(
             output.standings,
-            CAREER_V1_FORMULA_BUNDLE.legacyPoints,
+            requireCareerFormulaBundle(output.formulaVersion).legacyPoints,
           );
           const awardedProfiles = new Set<string>();
           for (const award of legacy.awards) {

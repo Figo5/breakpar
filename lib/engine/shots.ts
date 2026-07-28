@@ -65,6 +65,13 @@ import {
   usesCasualFairness,
   type GameplayRulesetVersion,
 } from "./rulesets";
+import {
+  applyCareerApproachRank,
+  applyCareerDrivingRank,
+  applyCareerPuttingRank,
+  applyCareerShortGameRank,
+  type CareerSkillRanks,
+} from "@/lib/career/development";
 
 /** Hard cap on decisions per hole — keeps a round fast. */
 export const MAX_DECISIONS = 3;
@@ -324,6 +331,11 @@ export interface ChainOpts {
   /** Defaults to the calibrated current engine for pure callers. Production
    * round play always supplies the immutable value stored on Round. */
   rulesetVersion?: GameplayRulesetVersion;
+  /**
+   * Immutable Career-only skill snapshot stored on the Round. Other modes omit
+   * it and remain byte-identical. Rank 1 is neutral.
+   */
+  careerSkills?: CareerSkillRanks;
 }
 
 /**
@@ -367,7 +379,12 @@ export function resolveHoleChain(
     if (decisions.length < 1)
       return { complete: false, used: 0, shots, next: "tee", ballT: ballProgress("tee", null, null, holeYards) };
     const dec = decisions[0];
-    const w = teeWeights(dec, hole, c);
+    const w = opts.careerSkills
+      ? applyCareerDrivingRank(
+        teeWeights(dec, hole, c),
+        opts.careerSkills.driving,
+      )
+      : teeWeights(dec, hole, c);
     const ev = rollEvent("tee", opts.eventSeed(0), { recent, firstShotOfHole: true });
     if (ev) applyEvent(ev.def, "tee", w as Record<string, number>);
     lie = pick(w, mulberry32(opts.shotSeed(0)));
@@ -415,7 +432,7 @@ export function resolveHoleChain(
     : hole.par === 5 && !reachedGreenEarly
       ? 95
       : approachYards;
-  const gw = greenWeights(
+  const baseGreenWeights = greenWeights(
     source,
     aDec,
     hole,
@@ -424,6 +441,12 @@ export function resolveHoleChain(
     reachedGreenEarly,
     rulesetVersion,
   );
+  const gw = opts.careerSkills
+    ? applyCareerApproachRank(
+      baseGreenWeights,
+      opts.careerSkills.approach,
+    )
+    : baseGreenWeights;
   const aEv = drivablePar4Attempt
     ? null
     : rollEvent("approach", opts.eventSeed(aIdx), { recent, firstShotOfHole: isPar3 });
@@ -537,7 +560,19 @@ export function resolveHoleChain(
       });
       return finalize(hole, shots, fIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
     }
-    const sw = scrambleWeights(fDec, hole, c, drivablePar4Attempt, rulesetVersion);
+    const baseScrambleWeights = scrambleWeights(
+      fDec,
+      hole,
+      c,
+      drivablePar4Attempt,
+      rulesetVersion,
+    );
+    const sw = opts.careerSkills
+      ? applyCareerShortGameRank(
+        baseScrambleWeights,
+        opts.careerSkills.shortGame,
+      )
+      : baseScrambleWeights;
     const sEv = rollEvent("scramble", opts.eventSeed(fIdx), { recent });
     if (sEv) applyEvent(sEv.def, "scramble", sw as Record<string, number>);
     const sres = pick(sw, mulberry32(opts.shotSeed(fIdx)));
@@ -569,7 +604,7 @@ export function resolveHoleChain(
     };
 
   const fDec = decisions[fIdx];
-  const pw = puttWeights(
+  const basePuttWeights = puttWeights(
     bucket,
     fDec,
     greens,
@@ -578,6 +613,12 @@ export function resolveHoleChain(
     slope,
     rulesetVersion,
   );
+  const pw = opts.careerSkills
+    ? applyCareerPuttingRank(
+      basePuttWeights,
+      opts.careerSkills.putting,
+    )
+    : basePuttWeights;
   const pEv = rollEvent("putt", opts.eventSeed(fIdx), { recent });
   if (pEv) applyEvent(pEv.def, "putt", pw as Record<string, number>);
   const pres = pick(pw, ctxRng); // continues the stream after distance + break

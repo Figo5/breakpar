@@ -8,6 +8,7 @@ import {
   lifecycleLabel,
   movementLabel,
   pointsLabel,
+  percentileLabel,
   revealLabel,
   roundProgressLabel,
   scoreLabel,
@@ -55,6 +56,9 @@ describe("Career UI presentation", () => {
     expect(movementLabel("PROMOTE", "LOCAL", "CHALLENGER"))
       .toBe("Promoted to Challenger Tour");
     expect(movementLabel("HOLD", "PRO", "PRO")).toBe("Pro Tour retained");
+    expect(percentileLabel(0.72)).toBe("72nd percentile");
+    expect(percentileLabel(0.61)).toBe("61st percentile");
+    expect(percentileLabel(0.13)).toBe("13th percentile");
   });
 
   it("counts down to the next Championship cycle and gates it on tier", () => {

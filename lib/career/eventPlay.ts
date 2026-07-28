@@ -1,5 +1,23 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { requireCareerFormulaBundle } from "./formulaBundle";
+import {
+  requireCareerSkillRanks,
+  type CareerSkillRanks,
+} from "./development";
+
+function profileSkillRanks(profile: {
+  drivingRank: number;
+  approachRank: number;
+  shortGameRank: number;
+  puttingRank: number;
+}): CareerSkillRanks {
+  return requireCareerSkillRanks({
+    driving: profile.drivingRank,
+    approach: profile.approachRank,
+    shortGame: profile.shortGameRank,
+    putting: profile.puttingRank,
+  });
+}
 
 export type StartCareerEventResult =
   | {
@@ -72,6 +90,14 @@ export async function startCareerEventRound(
             cohort: { include: { world: true } },
           },
         },
+        profile: {
+          select: {
+            drivingRank: true,
+            approachRank: true,
+            shortGameRank: true,
+            puttingRank: true,
+          },
+        },
         round: true,
         rounds: {
           orderBy: { roundNumber: "asc" },
@@ -93,8 +119,9 @@ export async function startCareerEventRound(
       return { ok: false, error: "not-found" } as const;
     }
     const rulesetVersion = requireCareerFormulaBundle(
-      cohort.world.formulaVersion,
+      cohort.formulaVersion,
     ).gameplayRulesetVersion;
+    const skillSnapshot = profileSkillRanks(entry.profile);
     const roundsTotal = entry.competition.roundsPerPlayer;
     // Grandfathered events keep their original one-card contract.
     if (roundsTotal === 1 && entry.round) {
@@ -135,6 +162,7 @@ export async function startCareerEventRound(
         rulesetVersion,
         dateKey: null,
         seedKey,
+        careerSkillSnapshot: { ...skillSnapshot },
       },
     });
     await tx.careerEventRound.create({

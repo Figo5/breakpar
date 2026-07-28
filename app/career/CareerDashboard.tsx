@@ -4,12 +4,18 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { careerLegacyTitle } from "@/lib/career/legacy";
+import {
+  CAREER_SKILL_EFFECT_COPY,
+  CAREER_SKILL_LABELS,
+  type CareerSkill,
+} from "@/lib/career/development";
 import type { CareerStateView } from "@/lib/career/read";
 import {
   availabilityLabel,
   canContestChampionship,
   eventAvailability,
   movementLabel,
+  percentileLabel,
   pointsLabel,
   scoreLabel,
   seasonsUntilChampionship,
@@ -116,6 +122,12 @@ function CareerOnboarding({
 }
 
 function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: () => void }) {
+  const [developmentError, setDevelopmentError] = useState("");
+  const [upgrading, setUpgrading] = useState<CareerSkill | null>(null);
+  const [retireOpen, setRetireOpen] = useState(false);
+  const [retireConfirmation, setRetireConfirmation] = useState("");
+  const [retireError, setRetireError] = useState("");
+  const [retiring, setRetiring] = useState(false);
   const rating = state.latestRating?.rating ?? 0;
   const { completed, total } = state.seasonProgress;
   const seasonComplete = total > 0 && completed === total;
@@ -123,6 +135,63 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
   const eligible = canContestChampionship(state.profile.tier);
   const untilCycle = seasonsUntilChampionship(state.profile.settledSeasons);
   const fourRoundSeason = state.schedule.every((event) => event.roundsTotal === 4);
+  const seasonUntouched = state.schedule.every(
+    (event) => event.roundsCompleted === 0 && !event.roundId && !event.completed,
+  );
+
+  async function upgrade(skill: CareerSkill, expectedRank: number) {
+    setUpgrading(skill);
+    setDevelopmentError("");
+    try {
+      const response = await fetch("/api/career/development", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ skill, expectedRank }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          payload.error === "not-enough-points"
+            ? "You need more development points for that upgrade."
+            : "That upgrade could not be applied. Refresh and try again.",
+        );
+      }
+      onRefresh();
+    } catch (cause) {
+      setDevelopmentError(cause instanceof Error ? cause.message : "Please try again.");
+    } finally {
+      setUpgrading(null);
+    }
+  }
+
+  async function retire() {
+    setRetiring(true);
+    setRetireError("");
+    try {
+      const response = await fetch("/api/career/retire", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profileId: state.profile.id,
+          confirmation: retireConfirmation,
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        const message = payload.error === "career-already-started"
+          ? "Finish this season, then retire before starting the next one."
+          : payload.error === "championship-in-progress"
+            ? "Finish the Championship card already in progress before retiring."
+            : "Your career could not be retired.";
+        throw new Error(message);
+      }
+      onRefresh();
+    } catch (cause) {
+      setRetireError(cause instanceof Error ? cause.message : "Please try again.");
+    } finally {
+      setRetiring(false);
+    }
+  }
 
   return (
     <>
@@ -236,12 +305,96 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
       <details className="career-rules">
         <summary>How promotion and relegation work</summary>
         <div>
-          <p><b>Movement uses two form results.</b> Season 1 establishes form, so nobody moves after only one result. When you are promoted, a reduced piece of that form carries into the new tour as your first result.</p>
-          <p><b>Promotion:</b> both form results must be at or above the 58th percentile and average at or above the 65th percentile — roughly sustained top-eight form. Local can reach Challenger; Challenger can reach Pro.</p>
-          <p><b>Relegation:</b> at Challenger or Pro, a two-result average at or below the 32nd percentile moves you down. Local players cannot be relegated.</p>
-          <p>A single result only moves you when it is paired with existing or carried form.</p>
+          <p><b>Movement uses your latest two season finishes.</b> Season 1 establishes form, so nobody moves after one result.</p>
+          {state.movement.promotionThreshold != null && (
+            <p><b>Promotion:</b> both results must be at or above the{" "}
+              {percentileLabel(state.movement.promotionFloor ?? 0)}{" "}
+              and average at or above the{" "}
+              {percentileLabel(state.movement.promotionThreshold)}.
+            </p>
+          )}
+          {state.movement.relegationThreshold != null && (
+            <p><b>Relegation:</b> a two-result average at or below the{" "}
+              {percentileLabel(state.movement.relegationThreshold)}
+              moves you down.
+            </p>
+          )}
+          <div className="career-form-evidence">
+            {state.movement.evidence.length === 0
+              ? <span>No stored form yet</span>
+              : state.movement.evidence.map((value, index) => (
+                <span key={`${index}:${value}`}>
+                  {index === state.movement.evidence.length - 1 ? "Latest" : "Previous"}{" "}
+                  <b>{Math.round(value * 100)}%</b>
+                </span>
+              ))}
+            {state.movement.average != null && (
+              <span>Average <b>{Math.round(state.movement.average * 100)}%</b></span>
+            )}
+          </div>
         </div>
       </details>
+
+      <div className="career-section-head">
+        <div>
+          <span>Player development</span>
+          <b>
+            {state.development.enabled
+              ? `${state.development.points} point${state.development.points === 1 ? "" : "s"} available`
+              : "Unlocks next season"}
+          </b>
+        </div>
+      </div>
+      {!state.development.enabled ? (
+        <div className="career-context">
+          <b>Your current season keeps its original rules</b>
+          Driving, Approach, Short Game and Putting ranks unlock when your next
+          season begins. This card will never change underneath you.
+        </div>
+      ) : state.development.latestAward && (
+        <div className="career-context good">
+          <b>
+            +{state.development.latestAward.points} from Season{" "}
+            {state.development.latestAward.seasonNumber ?? "—"}
+          </b>
+          {state.development.latestAward.reasons.join(" · ")}
+        </div>
+      )}
+      {state.development.enabled && <div className="career-skill-grid">
+        {state.development.skills.map((entry) => {
+          const canUpgrade =
+            entry.nextCost != null && state.development.points >= entry.nextCost;
+          return (
+            <div className="card career-skill-card" key={entry.skill}>
+              <div>
+                <span>{CAREER_SKILL_LABELS[entry.skill]}</span>
+                <b>Rank {entry.rank}/{entry.maxRank}</b>
+              </div>
+              <p>{CAREER_SKILL_EFFECT_COPY[entry.skill]}</p>
+              {entry.nextCost == null ? (
+                <small>Max rank</small>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canUpgrade || upgrading != null}
+                  onClick={() => void upgrade(entry.skill, entry.rank)}
+                >
+                  {upgrading === entry.skill
+                    ? "Upgrading…"
+                    : `Upgrade · ${entry.nextCost} pt${entry.nextCost === 1 ? "" : "s"}`}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>}
+      {state.development.enabled && <div className="career-context">
+        <b>Skill helps; it never guarantees a score</b>
+        Ranks improve the real odds for that part of the game. The first four
+        foundation points come from completing seasons; every point after that
+        requires top-half or top-quarter finishes.
+      </div>}
+      {developmentError && <div className="career-inline-error">{developmentError}</div>}
       {seasonComplete && state.cohort?.state !== "SETTLED" && (
         <div className="career-context">
           <b>All four cards are in</b>
@@ -275,6 +428,66 @@ function CareerHome({ state, onRefresh }: { state: CareerStateView; onRefresh: (
           </Link>
         )}
         <Link href="/" className="cta ghost">Back to today&apos;s game</Link>
+      </div>
+
+      {state.retiredCareers.length > 0 && (
+        <details className="career-rules">
+          <summary>Retired careers ({state.retiredCareers.length})</summary>
+          <div className="career-retired-list">
+            {state.retiredCareers.map((career) => (
+              <Link
+                href={`/career/legacy?profileId=${encodeURIComponent(career.profileId)}`}
+                key={career.profileId}
+              >
+                <span>Career #{career.careerNumber} · {career.settledSeasons} seasons</span>
+                <b>{career.legacyTotal.toLocaleString()} Legacy →</b>
+              </Link>
+            ))}
+          </div>
+        </details>
+      )}
+
+      <div className="career-retire">
+        {!retireOpen ? (
+          <button type="button" onClick={() => setRetireOpen(true)}>
+            Retire this career
+          </button>
+        ) : (
+          <div>
+            <b>Retire Career #{state.profile.careerNumber}?</b>
+            <p>
+              This archives its seasons and Legacy, then lets you start again
+              from Local with fresh rivals and zero active-career progress.
+              Retirement is allowed only before taking a shot in the current season.
+            </p>
+            {!seasonUntouched && (
+              <small>Finish this season first. Retire before starting the next one.</small>
+            )}
+            <label>
+              Type RETIRE to confirm
+              <input
+                value={retireConfirmation}
+                onChange={(event) => setRetireConfirmation(event.target.value)}
+                autoComplete="off"
+              />
+            </label>
+            {retireError && <div className="career-inline-error">{retireError}</div>}
+            <div>
+              <button type="button" onClick={() => setRetireOpen(false)}>Cancel</button>
+              <button
+                type="button"
+                disabled={
+                  retiring
+                  || !seasonUntouched
+                  || retireConfirmation !== "RETIRE"
+                }
+                onClick={() => void retire()}
+              >
+                {retiring ? "Retiring…" : "Archive and restart"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

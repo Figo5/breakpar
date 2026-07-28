@@ -12,6 +12,7 @@ import {
   STANDARD_V2_RULESET,
   type GameplayRulesetVersion,
 } from "@/lib/engine/rulesets";
+import type { CareerSkillRanks } from "./development";
 import { holeDifficulty, type Conditions, type HoleSpec } from "@/lib/engine/resolveHole";
 import { hashSeed, mulberry32 } from "@/lib/engine/rng";
 import { resolveHoleChain, type ChainResult, type Lie } from "@/lib/engine/shots";
@@ -436,6 +437,7 @@ export function simulateArchetypeRound(
   model: AbilityModel = "v5",
   errorRates: CareerErrorRates = CAREER_ERROR_RATE,
   rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+  careerSkills?: CareerSkillRanks,
 ): number {
   const conditions: Conditions = { difficulty: course.difficulty, wind: course.wind };
   const state: PolicyState = { rel: 0, holesLeft: course.holes.length, aggrLeft: AGGRESSIVE_BUDGET };
@@ -463,6 +465,7 @@ export function simulateArchetypeRound(
       narration: false as const,
       holeContext: { hazard: sourceHole.hazard, signature: sourceHole.signature },
       rulesetVersion,
+      careerSkills,
     };
     const decisions: Decision[] = [];
     let result: ChainResult = resolveHoleChain(decisions, hole, conditions, opts);

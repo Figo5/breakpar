@@ -280,6 +280,19 @@ describe("Fourth completion settles the season", () => {
     expect(profile.currentSeason).toBe(2);
     expect(profile.settledSeasons).toBe(1);
     expect(profile.legacyTotal).toBeGreaterThan(0);
+    expect(profile).toMatchObject({
+      developmentPoints: 3,
+      foundationPointsEarned: 1,
+    });
+    const developmentRows = await db.careerDevelopmentLedger.findMany({
+      where: { profileId: state.profile.id, sourceType: "season-award" },
+    });
+    expect(developmentRows).toHaveLength(1);
+    expect(developmentRows[0]).toMatchObject({
+      sourceId: state.cohort.id,
+      seasonNumber: 1,
+      points: 3,
+    });
 
     // The newly opened season does not hide the immutable final table.
     const refreshedState = await careerStateForUser(db, user.id);
@@ -302,6 +315,7 @@ describe("Fourth completion settles the season", () => {
     const next = await db.careerCohort.findUniqueOrThrow({ where: { id: advanced!.nextCohortId! } });
     expect(next.seasonNumber).toBe(2);
     expect(next.state).toBe("ACTIVE");
+    expect(next.formulaVersion).toBe("career-v4-progression");
     const nextEvents = await eventsOf(next.id);
     expect(nextEvents).toHaveLength(4);
     expect(nextEvents.every((event) => event.state === "ACTIVE")).toBe(true);
@@ -357,6 +371,13 @@ describe("Fourth completion settles the season", () => {
       where: { worldId: state.world.id, seasonNumber: 2 },
     })).toBe(1);
     expect(await db.careerSeasonHistory.count({ where: { cohortId: state.cohort.id } })).toBe(1);
+    expect(await db.careerDevelopmentLedger.count({
+      where: {
+        profileId: state.profile.id,
+        sourceType: "season-award",
+        sourceId: state.cohort.id,
+      },
+    })).toBe(1);
     expect((await db.careerProfile.findUniqueOrThrow({ where: { id: state.profile.id } })).settledSeasons)
       .toBe(1);
   });
@@ -441,7 +462,7 @@ describe("Season settlement across a formula-package bump", () => {
       "career-v2-player-paced",
       "career-v2-player-paced",
       "career-v2-player-paced",
-      "career-v3-four-round-events",
+      "career-v4-progression",
     ]);
   }, 120_000);
 

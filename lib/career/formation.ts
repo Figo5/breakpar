@@ -14,7 +14,6 @@ import {
 } from "./canonical";
 import { careerEffectKey } from "./effectKeys";
 import {
-  CAREER_FORMULA_VERSION,
   CAREER_CURRENT_FORMULA_BUNDLE,
   pinCareerFormulaBundle,
   requireCareerFormulaBundle,
@@ -36,6 +35,7 @@ export interface CareerFormationClaim {
   readonly fencingToken: number;
   readonly owner: string;
   readonly leaseExpiresAt: Date;
+  readonly formulaVersion: string;
 }
 
 export type CareerFormationClaimResult =
@@ -169,7 +169,10 @@ export class CareerFormationService {
       await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtextextended(${`career:cohort:${cohortId}:enrollment`}, 0))
       `;
-      const rows = await tx.$queryRaw<Array<{ fencingToken: number }>>(Prisma.sql`
+      const rows = await tx.$queryRaw<Array<{
+        fencingToken: number;
+        formulaVersion: string;
+      }>>(Prisma.sql`
         UPDATE "CareerCohort" AS cohort
         SET "fencingToken" = cohort."fencingToken" + 1,
             "claimToken" = cohort."fencingToken" + 1,
@@ -178,7 +181,7 @@ export class CareerFormationService {
         WHERE cohort."id" = ${cohortId}
           AND cohort."state" = 'FORMING'
           AND (cohort."leaseExpiresAt" IS NULL OR cohort."leaseExpiresAt" <= CURRENT_TIMESTAMP)
-        RETURNING cohort."fencingToken"
+        RETURNING cohort."fencingToken", cohort."formulaVersion"
       `);
       const fencingToken = rows[0]?.fencingToken;
       if (fencingToken == null) {
@@ -227,7 +230,7 @@ export class CareerFormationService {
           trigger: "cron",
           codeRevision: this.runtimeRevision,
           leaseExpiresAt,
-          formulaBundleVersion: CAREER_FORMULA_VERSION,
+          formulaBundleVersion: rows[0].formulaVersion,
         },
       });
       await tx.careerCompetition.updateMany({
@@ -242,6 +245,7 @@ export class CareerFormationService {
           fencingToken,
           owner,
           leaseExpiresAt,
+          formulaVersion: rows[0].formulaVersion,
         },
       } as const;
     });
@@ -270,8 +274,11 @@ export class CareerFormationService {
         },
       },
     });
+    if (cohort.formulaVersion !== claim.formulaVersion) {
+      throw new Error(`Career cohort ${cohort.id} changed formula package during formation`);
+    }
     const gameplayRulesetVersion = requireCareerFormulaBundle(
-      cohort.world.formulaVersion,
+      cohort.formulaVersion,
     ).gameplayRulesetVersion;
     if (cohort.competitions.length !== 4) {
       throw new Error(`Career cohort ${cohort.id} must have four competitions before lock`);
@@ -354,7 +361,7 @@ export class CareerFormationService {
         roundsPerPlayer: event.roundsPerPlayer,
       })),
     };
-    const pin = pinCareerFormulaBundle(CAREER_FORMULA_VERSION, this.runtimeRevision);
+    const pin = pinCareerFormulaBundle(claim.formulaVersion, this.runtimeRevision);
     const inputSnapshot = persistedJson({
       canonicalVersion: CAREER_CANONICAL_VERSION,
       aggregate: { type: "FIELD_LOCK", id: cohort.id },
@@ -425,7 +432,7 @@ export class CareerFormationService {
             slotId: slot.slotId,
             roundsPerPlayer: event.roundsPerPlayer,
             relativeToPar,
-            formulaVersion: CAREER_FORMULA_VERSION,
+            formulaVersion: claim.formulaVersion,
           }),
         };
       });
@@ -488,7 +495,7 @@ export class CareerFormationService {
             event.competitionId,
             1,
             result.slotId,
-            CAREER_FORMULA_VERSION,
+            claim.formulaVersion,
           ),
           effectType: "bot-result",
           scope: event.competitionId,
@@ -591,7 +598,7 @@ export class CareerFormationService {
             revision: 1,
             lockHash: event.lockHash,
             formulaBundle: jsonInput(persistedJson(
-              pinCareerFormulaBundle(CAREER_FORMULA_VERSION, this.runtimeRevision),
+              pinCareerFormulaBundle(claim.formulaVersion, this.runtimeRevision),
             )),
             rosterSnapshot: jsonInput(event.rosterSnapshot),
           },
@@ -629,7 +636,7 @@ export class CareerFormationService {
             roundNumber: card.roundNumber,
             relativeToPar: card.relativeToPar,
             seed: card.seed,
-            formulaVersion: CAREER_FORMULA_VERSION,
+            formulaVersion: claim.formulaVersion,
           })));
         if (botCards.length > 0) await tx.careerBotRoundResult.createMany({ data: botCards });
       }
@@ -670,7 +677,7 @@ export class CareerFormationService {
         where: { id: claim.attemptId },
         data: {
           state: "COMMITTED",
-          formulaBundleVersion: CAREER_FORMULA_VERSION,
+          formulaBundleVersion: claim.formulaVersion,
           inputHash: calculation.inputHash,
           outputHash,
           inputSnapshot: jsonInput(calculation.inputSnapshot),

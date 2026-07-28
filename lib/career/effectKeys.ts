@@ -57,6 +57,13 @@ export const careerEffectKey = {
   rating: (profileId: string, cohortId: string, season: number) =>
     key("rating", [[profileId, "profileId"], [cohortId, "cohortId"], [season, "season"]]),
 
+  development: (profileId: string, cohortId: string, season: number) =>
+    key("development", [
+      [profileId, "profileId"],
+      [cohortId, "cohortId"],
+      [season, "season"],
+    ]),
+
   legacy: (
     profileId: string,
     sourceType: string,
