@@ -60,6 +60,11 @@ import {
   rollScrambleScoringEvent,
   type ScoringEvent,
 } from "./scoringEvents";
+import {
+  STANDARD_V2_RULESET,
+  usesCasualFairness,
+  type GameplayRulesetVersion,
+} from "./rulesets";
 
 /** Hard cap on decisions per hole — keeps a round fast. */
 export const MAX_DECISIONS = 3;
@@ -107,17 +112,33 @@ function pick<T extends string>(w: Record<T, number>, rng: RNG): T {
 
 // --- budget accounting (only tee/approach decisions count) -----------------
 
-/** Number of tee+approach decisions for a hole (par 3 has no separate tee). */
-export function approachDecisionCount(par: number): number {
+/**
+ * Number of tee+approach decisions for a hole. A par 3 has no separate tee,
+ * while an aggressive drive at a short par 4 replaces the normal approach.
+ */
+export function approachDecisionCount(
+  par: number,
+  yardage?: number | null,
+  teeDecision?: Decision,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): number {
+  if (isDrivablePar4(par, yardage, teeDecision ?? "normal", rulesetVersion)) return 1;
   return par === 3 ? 1 : 2;
 }
 
 /** Count aggressive plays that count against the budget within a stored chain
  * ("safe,aggressive,normal"). Putt/short-game decisions (the trailing ones) are
  * excluded — the budget is a tee-to-green resource only. */
-export function countTeeApproachAggressive(decisionCsv: string, par: number): number {
+export function countTeeApproachAggressive(
+  decisionCsv: string,
+  par: number,
+  yardage?: number | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): number {
   const ds = decisionCsv.split(",").filter(Boolean);
-  return ds.slice(0, approachDecisionCount(par)).filter((d) => d === "aggressive").length;
+  return ds
+    .slice(0, approachDecisionCount(par, yardage, ds[0] as Decision | undefined, rulesetVersion))
+    .filter((d) => d === "aggressive").length;
 }
 
 /**
@@ -130,18 +151,52 @@ export function canReachPar5InTwo(
   lie: Lie | undefined,
   decision: Decision,
   yardsToTarget?: number,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): boolean {
-  if (par !== 5 || decision !== "aggressive" || (lie !== "dialed" && lie !== "fairway")) return false;
-  if (yardsToTarget == null) return true;
-  return yardsToTarget <= (lie === "dialed" ? 270 : 250);
+  if (par !== 5 || decision !== "aggressive" || !lie) return false;
+  if (!usesCasualFairness(rulesetVersion)) {
+    if (lie !== "dialed" && lie !== "fairway") return false;
+    if (yardsToTarget == null) return true;
+    return yardsToTarget <= (lie === "dialed" ? 270 : 250);
+  }
+  if (yardsToTarget == null) return lie === "dialed" || lie === "fairway";
+  const reachByLie: Record<Lie, number> = {
+    dialed: 285,
+    fairway: 265,
+    rough: 240,
+    trouble: 210,
+  };
+  return yardsToTarget <= reachByLie[lie];
+}
+
+/** Short par 4s expose a genuine risk/reward drive at the green. */
+export function isDrivablePar4(
+  par: number,
+  yardage: number | null | undefined,
+  decision: Decision,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): boolean {
+  return usesCasualFairness(rulesetVersion)
+    && par === 4
+    && decision === "aggressive"
+    && yardage != null
+    && yardage <= 350;
 }
 
 // --- putt geometry (distance + break), deterministic ----------------------
 
-function distanceFor(bucket: PuttBucket, rng: RNG): number {
+function distanceFor(
+  bucket: PuttBucket,
+  rng: RNG,
+  rulesetVersion: GameplayRulesetVersion,
+): number {
   if (bucket === "tap") return 1 + Math.floor(rng() * 3); // 1–3 ft
-  if (bucket === "short") return 6 + Math.floor(rng() * 13); // 6–18 ft
-  return 25 + Math.floor(rng() * 21); // 25–45 ft
+  if (!usesCasualFairness(rulesetVersion)) {
+    if (bucket === "short") return 6 + Math.floor(rng() * 13); // 6–18 ft
+    return 25 + Math.floor(rng() * 21); // 25–45 ft
+  }
+  if (bucket === "short") return 6 + Math.floor(rng() * 14); // 6–19 ft
+  return 20 + Math.floor(rng() * 31); // 20–50 ft
 }
 
 export type BreakDir = "L" | "R" | "straight";
@@ -266,6 +321,9 @@ export interface ChainOpts {
   scoringEventSeed?: (shotIndex: number) => number;
   scoringEvents?: boolean; // defaults true; false provides a calibration/invariant baseline
   forceScoringEvent?: (stage: "approach" | "scramble", shotIndex: number) => boolean; // tests/simulator only
+  /** Defaults to the calibrated current engine for pure callers. Production
+   * round play always supplies the immutable value stored on Round. */
+  rulesetVersion?: GameplayRulesetVersion;
 }
 
 /**
@@ -280,6 +338,7 @@ export function resolveHoleChain(
   opts: ChainOpts
 ): ChainResult {
   const isPar3 = hole.par === 3;
+  const rulesetVersion = opts.rulesetVersion ?? STANDARD_V2_RULESET;
   const greens = opts.greens ?? "Medium";
   const recent = opts.recent ?? [];
   const narrate = opts.narration !== false;
@@ -300,6 +359,7 @@ export function resolveHoleChain(
   let drive: number | null = null;
 
   let lie: Lie | undefined;
+  let drivablePar4Attempt = false;
 
   // ---- TEE (par 4/5 only) ----
   let aIdx = 0;
@@ -316,6 +376,7 @@ export function resolveHoleChain(
       : rollHazardPenalty("tee", lie === "trouble", dec, opts.holeContext, island, penaltySeed(0));
     penaltyStrokes += penalty?.strokes ?? 0;
     if (holeYards) drive = driveYards(holeYards, lie, noteRng(0, YARD_SALT));
+    drivablePar4Attempt = isDrivablePar4(hole.par, holeYards, dec, rulesetVersion);
     shots.push({
       index: 0, stage: "tee", decision: dec, lie, yards: drive ?? undefined,
       penalty: penalty ?? undefined, event: ev?.instance ?? null,
@@ -325,7 +386,10 @@ export function resolveHoleChain(
           : teeNote(lie, noteRng(0, 0x777), narrativeContext)
         : "",
     });
-    aIdx = 1;
+    // A short-par-4 aggressive drive is itself the green attempt, so the tee
+    // decision flows directly to a putt/scramble instead of asking for a
+    // fictional second approach.
+    aIdx = drivablePar4Attempt ? 0 : 1;
   }
 
   // Yards to the pin facing the approach: total minus the drive (par 4/5), or
@@ -340,25 +404,40 @@ export function resolveHoleChain(
       approachYards, ballT: ballProgress("approach", null, drive, holeYards), penaltyStrokes,
     };
   const aDec = decisions[aIdx];
-  const source: GreenSource = isPar3 ? "tee" : (lie as Lie);
-  const reachedInTwo = canReachPar5InTwo(hole.par, lie, aDec, approachYards);
+  const source: GreenSource = isPar3 || drivablePar4Attempt ? "tee" : (lie as Lie);
+  const reachedGreenEarly = drivablePar4Attempt
+    || canReachPar5InTwo(hole.par, lie, aDec, approachYards, rulesetVersion);
   // A lay-up resolves the automatic third-shot wedge, not a fictional
   // 220-yard lay-up landing on the green. Use a representative wedge distance
   // for scoring; the independently generated display yardage remains 80–110.
-  const scoringYards = hole.par === 5 && !reachedInTwo ? 95 : approachYards;
-  const gw = greenWeights(source, aDec, hole, c, scoringYards, reachedInTwo);
-  const aEv = rollEvent("approach", opts.eventSeed(aIdx), { recent, firstShotOfHole: isPar3 });
+  const scoringYards = drivablePar4Attempt
+    ? holeYards ?? undefined
+    : hole.par === 5 && !reachedGreenEarly
+      ? 95
+      : approachYards;
+  const gw = greenWeights(
+    source,
+    aDec,
+    hole,
+    c,
+    scoringYards,
+    reachedGreenEarly,
+    rulesetVersion,
+  );
+  const aEv = drivablePar4Attempt
+    ? null
+    : rollEvent("approach", opts.eventSeed(aIdx), { recent, firstShotOfHole: isPar3 });
   if (aEv) applyEvent(aEv.def, "approach", gw as Record<string, number>);
   const green = pick(gw, mulberry32(opts.shotSeed(aIdx)));
   // A par 5 that cannot credibly reach gets a visible wedge third. This covers
   // both a chosen layup and an aggressive attempt from rough/trouble.
-  const isPar5Layup = hole.par === 5 && !reachedInTwo;
+  const isPar5Layup = hole.par === 5 && !reachedGreenEarly;
   const failedReach = isPar5Layup && aDec === "aggressive";
-  const scoringEvent = opts.scoringEvents === false ? null : rollApproachScoringEvent(
+  const scoringEvent = opts.scoringEvents === false || drivablePar4Attempt ? null : rollApproachScoringEvent(
     hole.par,
     source,
     aDec,
-    reachedInTwo,
+    reachedGreenEarly,
     isPar5Layup,
     scoreEventSeed(aIdx),
     opts.forceScoringEvent?.("approach", aIdx) ?? false,
@@ -384,25 +463,29 @@ export function resolveHoleChain(
     const scored = outcomeFromScoreDelta(scoringEvent.strokesTaken + penaltyStrokes - hole.par);
     return finalize(hole, shots, aIdx + 1, lie, undefined, scored.outcome, scored.scoreDelta, penaltyStrokes);
   }
-  const approachPenalty = opts.hazardPenalties === false
+  const approachPenalty = opts.hazardPenalties === false || drivablePar4Attempt
     ? null
     : rollHazardPenalty("approach", green === "scramble", aDec, opts.holeContext, island, penaltySeed(aIdx));
   penaltyStrokes += approachPenalty?.strokes ?? 0;
-  shots.push({
-    index: aIdx, stage: "approach", decision: aDec, green: isPar5Layup ? undefined : green,
-    yards: approachYards,
-    penalty: !isPar5Layup && approachPenalty ? approachPenalty : undefined,
-    event: aEv?.instance ?? null,
-    note: narrate
-      ? isPar5Layup
-        ? failedReach
-          ? failedReachNote(noteRng(aIdx, 0x777))
-          : layupApproachNote(noteRng(aIdx, 0x777))
-        : approachPenalty
-          ? hazardPenaltyNote(approachPenalty, noteRng(aIdx, 0x777), narrativeContext)
-          : approachNote(green, isPar3, noteRng(aIdx, 0x777), reachedInTwo ? "eagle" : "birdie", narrativeContext)
-      : "",
-  });
+  if (drivablePar4Attempt) {
+    shots[0] = { ...shots[0], green };
+  } else {
+    shots.push({
+      index: aIdx, stage: "approach", decision: aDec, green: isPar5Layup ? undefined : green,
+      yards: approachYards,
+      penalty: !isPar5Layup && approachPenalty ? approachPenalty : undefined,
+      event: aEv?.instance ?? null,
+      note: narrate
+        ? isPar5Layup
+          ? failedReach
+            ? failedReachNote(noteRng(aIdx, 0x777))
+            : layupApproachNote(noteRng(aIdx, 0x777))
+          : approachPenalty
+            ? hazardPenaltyNote(approachPenalty, noteRng(aIdx, 0x777), narrativeContext)
+            : approachNote(green, isPar3, noteRng(aIdx, 0x777), reachedGreenEarly ? "eagle" : "birdie", narrativeContext)
+        : "",
+    });
+  }
   // VISIBLE LAYUP THIRD: a narration-only wedge record so a laid-up par 5 plainly
   // takes three to the green (two-putt = par now reads correctly). NOT a decision
   // and makes NO outcome pick — scoring/calibration are byte-identical to before.
@@ -424,10 +507,10 @@ export function resolveHoleChain(
 
   // ---- KICK-IN: auto-resolve, no extra decision ----
   if (green === "kickin") {
-    const scored = applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" }), penaltyStrokes);
+    const scored = applyPenaltyStrokes(composeOutcome(reachedGreenEarly, { kind: "putt", result: "oneputt" }), penaltyStrokes);
     shots.push({
       index: -1, stage: "putt", decision: null, puttResult: "oneputt",
-      distanceFt: distanceFor("tap", mulberry32(opts.shotSeed(fIdx))), event: null,
+      distanceFt: distanceFor("tap", mulberry32(opts.shotSeed(fIdx)), rulesetVersion), event: null,
       note: narrate ? puttNote("oneputt", "tap", undefined, noteRng(fIdx, 0x999), undefined, scored.outcome) : "",
     });
     return finalize(hole, shots, aIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
@@ -442,7 +525,7 @@ export function resolveHoleChain(
       hole.par,
       fDec,
       opts.holeContext?.hazard,
-      reachedInTwo,
+      reachedGreenEarly,
       scoreEventSeed(fIdx),
       opts.forceScoringEvent?.("scramble", fIdx) ?? false,
     );
@@ -454,11 +537,11 @@ export function resolveHoleChain(
       });
       return finalize(hole, shots, fIdx + 1, lie, green, scored.outcome, scored.scoreDelta, penaltyStrokes);
     }
-    const sw = scrambleWeights(fDec, hole, c);
+    const sw = scrambleWeights(fDec, hole, c, drivablePar4Attempt, rulesetVersion);
     const sEv = rollEvent("scramble", opts.eventSeed(fIdx), { recent });
     if (sEv) applyEvent(sEv.def, "scramble", sw as Record<string, number>);
     const sres = pick(sw, mulberry32(opts.shotSeed(fIdx)));
-    const scored = applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "scramble", result: sres }), penaltyStrokes);
+    const scored = applyPenaltyStrokes(composeOutcome(reachedGreenEarly, { kind: "scramble", result: sres }), penaltyStrokes);
     shots.push({
       index: fIdx, stage: "scramble", decision: fDec, scrambleResult: sres, event: sEv?.instance ?? null,
       note: narrate ? scrambleNote(sres, noteRng(fIdx, 0x777), fDec, scored.outcome, narrativeContext) : "",
@@ -471,7 +554,7 @@ export function resolveHoleChain(
   // Fixed rng order (distance -> break -> result) so the preview descriptor and
   // the resolution agree on geometry regardless of whether a decision is in yet.
   const ctxRng = mulberry32(opts.shotSeed(fIdx));
-  const distanceFt = distanceFor(bucket, ctxRng);
+  const distanceFt = distanceFor(bucket, ctxRng, rulesetVersion);
   const { breakDir, slope } = readBreak(ctxRng);
 
   if (decisions.length <= fIdx)
@@ -480,17 +563,25 @@ export function resolveHoleChain(
       putt: {
         bucket, distanceFt, breakDir, slope, speed: greens,
         // Display label source: outcome of holing this putt now (a one-putt).
-        puttFor: applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "putt", result: "oneputt" }), penaltyStrokes).outcome,
+        puttFor: applyPenaltyStrokes(composeOutcome(reachedGreenEarly, { kind: "putt", result: "oneputt" }), penaltyStrokes).outcome,
       },
       ballT: ballProgress("putt", green, drive, holeYards), penaltyStrokes,
     };
 
   const fDec = decisions[fIdx];
-  const pw = puttWeights(bucket, fDec, greens, distanceFt, breakDir, slope);
+  const pw = puttWeights(
+    bucket,
+    fDec,
+    greens,
+    distanceFt,
+    breakDir,
+    slope,
+    rulesetVersion,
+  );
   const pEv = rollEvent("putt", opts.eventSeed(fIdx), { recent });
   if (pEv) applyEvent(pEv.def, "putt", pw as Record<string, number>);
   const pres = pick(pw, ctxRng); // continues the stream after distance + break
-  const scored = applyPenaltyStrokes(composeOutcome(reachedInTwo, { kind: "putt", result: pres }), penaltyStrokes);
+  const scored = applyPenaltyStrokes(composeOutcome(reachedGreenEarly, { kind: "putt", result: pres }), penaltyStrokes);
   shots.push({
     index: fIdx, stage: "putt", decision: fDec, puttResult: pres, distanceFt, breakDir, slope,
     event: pEv?.instance ?? null,

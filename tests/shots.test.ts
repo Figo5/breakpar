@@ -6,6 +6,7 @@ import {
   approachDecisionCount,
   countTeeApproachAggressive,
   canReachPar5InTwo,
+  isDrivablePar4,
   stagePrompt,
   type Lie,
   type ChainResult,
@@ -130,6 +131,7 @@ describe("budget counts tee/approach only (putts are free)", () => {
     expect(approachDecisionCount(3)).toBe(1);
     expect(approachDecisionCount(4)).toBe(2);
     expect(approachDecisionCount(5)).toBe(2);
+    expect(approachDecisionCount(4, 315, "aggressive")).toBe(1);
   });
   it("a 'Charge' (aggressive) putt is NOT charged to the budget", () => {
     // par 4: tee=aggressive, approach=normal, putt=aggressive -> only 1 counts
@@ -138,6 +140,11 @@ describe("budget counts tee/approach only (putts are free)", () => {
     expect(countTeeApproachAggressive("aggressive,aggressive", 3)).toBe(1);
     // both tee + approach aggressive -> 2 counts
     expect(countTeeApproachAggressive("aggressive,aggressive,safe", 5)).toBe(2);
+    // short par 4: the first aggressive decision drove the green, so a trailing
+    // aggressive decision is the putt and remains free.
+    expect(countTeeApproachAggressive("aggressive,aggressive", 4, 315)).toBe(1);
+    // A non-aggressive drive still produces a normal approach on the short hole.
+    expect(countTeeApproachAggressive("normal,aggressive,aggressive", 4, 315)).toBe(1);
   });
 });
 
@@ -153,7 +160,7 @@ describe("par-5 visible third shot and reached-in-two eligibility", () => {
       expect(ls[0].note.length).toBeGreaterThan(0); // narrates the wedge
     }
   });
-  it("aggressive par 5 only reaches in two from a credible lie", () => {
+  it("aggressive par 5 only reaches in two from a credible lie and distance", () => {
     for (let base = 1; base <= 200; base++) {
       const result = playToEnd(par5, base, (s) => (s.next === "approach" ? "aggressive" : "normal"));
       const credible = result.lie === "dialed" || result.lie === "fairway";
@@ -162,22 +169,114 @@ describe("par-5 visible third shot and reached-in-two eligibility", () => {
       expect(layups(playToEnd(par3, base, () => "normal"))).toHaveLength(0);
     }
   });
-  it("does not award the reached-in-two offset from rough or trouble", () => {
+  it("allows distance-limited hero attempts from rough or trouble", () => {
     expect(canReachPar5InTwo(5, "dialed", "aggressive")).toBe(true);
     expect(canReachPar5InTwo(5, "fairway", "aggressive")).toBe(true);
     expect(canReachPar5InTwo(5, "rough", "aggressive")).toBe(false);
     expect(canReachPar5InTwo(5, "trouble", "aggressive")).toBe(false);
     expect(canReachPar5InTwo(5, "fairway", "normal")).toBe(false);
     expect(canReachPar5InTwo(4, "fairway", "aggressive")).toBe(false);
-    expect(canReachPar5InTwo(5, "fairway", "aggressive", 245)).toBe(true);
-    expect(canReachPar5InTwo(5, "fairway", "aggressive", 255)).toBe(false);
-    expect(canReachPar5InTwo(5, "dialed", "aggressive", 265)).toBe(true);
+    expect(canReachPar5InTwo(5, "fairway", "aggressive", 260)).toBe(true);
+    expect(canReachPar5InTwo(5, "fairway", "aggressive", 270)).toBe(false);
+    expect(canReachPar5InTwo(5, "dialed", "aggressive", 280)).toBe(true);
+    expect(canReachPar5InTwo(5, "dialed", "aggressive", 290)).toBe(false);
+    expect(canReachPar5InTwo(5, "rough", "aggressive", 235)).toBe(true);
+    expect(canReachPar5InTwo(5, "rough", "aggressive", 245)).toBe(false);
+    expect(canReachPar5InTwo(5, "trouble", "aggressive", 205)).toBe(true);
+    expect(canReachPar5InTwo(5, "trouble", "aggressive", 215)).toBe(false);
   });
   it("the layup consumes no decision: `used` counts only real (index>=0) shots", () => {
     for (let base = 1; base <= 200; base++) {
       const r = playToEnd(par5, base, normalApproach);
       expect(r.used).toBe(r.shots.filter((s) => s.index >= 0).length);
     }
+  });
+});
+
+describe("drivable par 4", () => {
+  const shortPar4: HoleSpec = { number: 10, par: 4, strokeIndex: 7, yardage: 315 };
+
+  it("only exposes the direct green attempt on an aggressive tee shot at 350 yards or less", () => {
+    expect(isDrivablePar4(4, 350, "aggressive")).toBe(true);
+    expect(isDrivablePar4(4, 351, "aggressive")).toBe(false);
+    expect(isDrivablePar4(4, 315, "normal")).toBe(false);
+    expect(isDrivablePar4(5, 315, "aggressive")).toBe(false);
+  });
+
+  it("flows straight from the drive to a putt or scramble with no fictional approach", () => {
+    for (let base = 1; base <= 200; base++) {
+      const afterDrive = resolveHoleChain(["aggressive"], shortPar4, conditions, seeds(base));
+      expect(afterDrive.complete || afterDrive.next === "putt" || afterDrive.next === "scramble").toBe(true);
+      expect(afterDrive.shots.some((shot) => shot.stage === "approach")).toBe(false);
+    }
+  });
+
+  it("scores an up-and-down after a missed drive as birdie", () => {
+    let found: ChainResult | null = null;
+    for (let base = 1; base <= 10_000 && !found; base++) {
+      const result = playToEnd(
+        shortPar4,
+        base,
+        (step) => step.next === "tee" ? "aggressive" : "safe",
+      );
+      if (result.green === "scramble" && result.shots.at(-1)?.scrambleResult === "updown") found = result;
+    }
+
+    expect(found).toBeTruthy();
+    expect(found!.outcome).toBe("birdie");
+    expect(found!.strokes).toBe(3);
+  });
+});
+
+describe("par-5 stroke ledger", () => {
+  const longPar5: HoleSpec = { number: 8, par: 5, strokeIndex: 4, yardage: 599 };
+
+  function find(
+    policy: (step: ChainResult) => Decision,
+    predicate: (result: ChainResult) => boolean,
+  ): ChainResult {
+    for (let base = 1; base <= 30_000; base++) {
+      const result = playToEnd(longPar5, base, policy);
+      if (predicate(result)) return result;
+    }
+    throw new Error("representative par-5 ledger was not found");
+  }
+
+  it.each([
+    ["oneputt", "birdie", 4],
+    ["twoputt", "par", 5],
+  ] as const)("counts trouble → recovery → wedge → %s without a phantom stroke", (putt, outcome, strokes) => {
+    const result = find(
+      (step) => step.next === "putt" ? "safe" : "safe",
+      (candidate) =>
+        candidate.lie === "trouble"
+        && candidate.shots.some((shot) => shot.stage === "layup")
+        && candidate.shots.at(-1)?.puttResult === putt,
+    );
+
+    expect(result.shots.map((shot) => shot.stage)).toEqual(["tee", "approach", "layup", "putt"]);
+    expect(result.shots[0].decision).toBe("safe");
+    expect(result.shots[1].decision).toBe("safe");
+    expect(result.shots[2].decision).toBeNull();
+    expect(result.outcome).toBe(outcome);
+    expect(result.strokes).toBe(strokes);
+  });
+
+  it("scores a greenside miss in two followed by an up-and-down as birdie", () => {
+    const result = find(
+      (step) => step.next === "approach"
+        ? "aggressive"
+        : step.next === "scramble"
+          ? "safe"
+          : "normal",
+      (candidate) =>
+        !candidate.shots.some((shot) => shot.stage === "layup")
+        && candidate.green === "scramble"
+        && candidate.shots.at(-1)?.scrambleResult === "updown",
+    );
+
+    expect(result.outcome).toBe("birdie");
+    expect(result.strokes).toBe(4);
   });
 });
 

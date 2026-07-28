@@ -12,6 +12,13 @@ import { startOrResumeChallengeRound } from "@/lib/challenge";
 import { startTournamentRound } from "@/lib/tournament.server";
 import { startCareerEventRound } from "@/lib/career/eventPlay";
 import { startCareerChampionshipRound } from "@/lib/career/championshipPlay";
+import { officialDailyRuleset } from "@/lib/gameplayRuleset.server";
+import {
+  CURRENT_STANDARD_RULESET,
+  gameplayRulesetLabel,
+  hasClientRulesetOverride,
+  requireGameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 /** Shape a Course for the client (used by the play screen). */
 function coursePayload(course: Course) {
@@ -45,7 +52,14 @@ export const POST = route(async (req: Request) => {
     tournamentRoundNo?: number;
     careerEventId?: string;
     careerChampionshipId?: string;
+    rulesetVersion?: unknown;
   };
+  // Phase 1 has no client-selectable rules. Every mode is pinned by its
+  // authoritative server container; silently ignoring this would make
+  // tampering difficult to detect and unsafe when practice modes arrive.
+  if (hasClientRulesetOverride(body)) {
+    return NextResponse.json({ error: "ruleset-not-selectable" }, { status: 400 });
+  }
 
   const roundInclude = { holeResults: true, course: { select: { slug: true } } } as const;
   let round;
@@ -123,16 +137,29 @@ export const POST = route(async (req: Request) => {
     // Unlimited = fresh card each start; daily = one per day, resumed via upsert.
     if (unlimited) {
       round = await prisma.round.create({
-        data: { userId: user.id, courseId: courseRow.id, mode: "unlimited", dateKey: null },
+        data: {
+          userId: user.id,
+          courseId: courseRow.id,
+          mode: "unlimited",
+          rulesetVersion: CURRENT_STANDARD_RULESET,
+          dateKey: null,
+        },
         include: roundInclude,
       });
     } else {
       const key = dateKey();
+      const rulesetVersion = await officialDailyRuleset(prisma, key);
       try {
         round = await prisma.round.upsert({
           where: { userId_dateKey: { userId: user.id, dateKey: key } },
           update: {},
-          create: { userId: user.id, courseId: courseRow.id, mode: "daily", dateKey: key },
+          create: {
+            userId: user.id,
+            courseId: courseRow.id,
+            mode: "daily",
+            rulesetVersion,
+            dateKey: key,
+          },
           include: roundInclude,
         });
       } catch (e) {
@@ -158,6 +185,7 @@ export const POST = route(async (req: Request) => {
   // keeps start/resume consistent.
   const playedCourse = courseBySlug(round.course.slug);
   if (!playedCourse) return NextResponse.json({ error: "unknown-course" }, { status: 404 });
+  const rulesetVersion = requireGameplayRulesetVersion(round.rulesetVersion);
 
   const res = NextResponse.json({
     roundId: round.id,
@@ -175,7 +203,9 @@ export const POST = route(async (req: Request) => {
         n +
         countTeeApproachAggressive(
           h.decision,
-          playedCourse.holes.find((ch) => ch.number === h.holeNumber)?.par ?? 4
+          playedCourse.holes.find((ch) => ch.number === h.holeNumber)?.par ?? 4,
+          playedCourse.holes.find((ch) => ch.number === h.holeNumber)?.yardage,
+          rulesetVersion,
         ),
       0
     ),
@@ -185,6 +215,8 @@ export const POST = route(async (req: Request) => {
     // Derive the puzzle number from the round's persisted dateKey (not wall
     // clock) so a resume across midnight stays on its original puzzle.
     puzzleNumber: round.dateKey ? puzzleNumberForKey(round.dateKey) : null,
+    rulesetVersion,
+    rulesetLabel: gameplayRulesetLabel(rulesetVersion),
     course: coursePayload(playedCourse),
   });
 

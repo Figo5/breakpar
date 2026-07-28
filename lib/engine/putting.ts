@@ -24,6 +24,11 @@ import { holeDifficulty, type HoleSpec, type Conditions } from "./resolveHole";
 import type { Decision, Outcome } from "./probabilities";
 import type { RNG } from "./rng";
 import type { Lie } from "./shots";
+import {
+  STANDARD_V2_RULESET,
+  usesCasualFairness,
+  type GameplayRulesetVersion,
+} from "./rulesets";
 
 /** Where the approach left you. The on-green three (kickin/makeable/lag) lead
  * to a putt; scramble means you missed and must get up & down. */
@@ -156,6 +161,16 @@ export const PAR5_GO_FOR_GREEN_LEAN = {
   scramble: 1.4,
 };
 
+/** A 280-350 yard drive is nothing like a par-3 iron despite sharing the
+ * tee-to-green stage. Most attempts finish around the green, while a minority
+ * hold the putting surface and true eagle looks remain rare. */
+export const DRIVABLE_PAR4_LEAN = {
+  kickin: 0.01,
+  makeable: 0.08,
+  lag: 0.6,
+  scramble: 2.4,
+};
+
 /** Restrained proximity adjustment. Yardage should make a wedge feel different
  * from a long iron, but lie, decision, SI, course and wind remain the dominant
  * inputs. Undefined yardage deliberately preserves the legacy baseline. */
@@ -176,7 +191,9 @@ export function greenWeights(
   c: Conditions,
   yardsToTarget?: number,
   reachedInTwo?: boolean,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): Record<GreenResult, number> {
+  const casual = usesCasualFairness(rulesetVersion);
   const d = holeDifficulty(hole, c);
   const aggressive = decision === "aggressive" ? 1 : 0;
   const w = fillGreen(GREEN_BASE[source][decision]);
@@ -185,6 +202,13 @@ export function greenWeights(
   w.makeable *= 1 - G.makeableDecay * d;
   w.lag *= 1 + G.lagGrowth * d;
   w.scramble *= 1 + (G.scrambleGrowth + G.aggressiveScrambleGrowth * aggressive) * d;
+  if (casual && hole.par === 4 && reachedInTwo) {
+    const L = DRIVABLE_PAR4_LEAN;
+    w.kickin *= L.kickin;
+    w.makeable *= L.makeable;
+    w.lag *= L.lag;
+    w.scramble *= L.scramble;
+  }
   // Par-5 wedge-third lean: laid-up / normally-played par 5s set up better
   // birdie looks than a par-4 approach. Non-aggressive par-5 path only; the
   // aggressive go-for-it (reached-in-two -> eagle) route is left untouched.
@@ -194,7 +218,15 @@ export function greenWeights(
     w.makeable *= L.makeable;
     w.lag *= L.lag;
     w.scramble *= L.scramble;
-  } else if (hole.par === 5 && decision === "aggressive" && (source === "dialed" || source === "fairway")) {
+  } else if (
+    hole.par === 5
+    && decision === "aggressive"
+    && (
+      source === "dialed"
+      || source === "fairway"
+      || (casual && (source === "rough" || source === "trouble"))
+    )
+  ) {
     const L = PAR5_GO_FOR_GREEN_LEAN;
     w.kickin *= L.kickin;
     w.makeable *= L.makeable;
@@ -226,21 +258,33 @@ export const PUTT_DECISION_LABEL: Record<Decision, string> = {
  * Neutral putt odds by distance bucket and decision. Charge raises BOTH the
  * make rate and the three-putt rate; Lag protects against the three-jack.
  */
-const PUTT_BASE: Record<Exclude<PuttBucket, "tap">, Record<Decision, Partial<Record<PuttResult, number>>>> = {
+const PUTT_BASE_V1: Record<Exclude<PuttBucket, "tap">, Record<Decision, Partial<Record<PuttResult, number>>>> = {
   short: {
     safe: { oneputt: 16, twoputt: 82, threeputt: 2 },
     normal: { oneputt: 27, twoputt: 70, threeputt: 3 },
     aggressive: { oneputt: 37, twoputt: 55, threeputt: 8 },
   },
   long: {
-    // Lag/Roll three-putt weights tightened so conservative actually protects
-    // against the three-jack: Lag ~11.6% course-weighted (~13% Fast, which
-    // should still punish), Roll eased a touch (16->13) to keep the Lag<Roll<
-    // Charge ordering smooth. safe=9 keeps calibration off the band ceiling.
-    // Charge unchanged — that's the risk you opt into.
     safe: { oneputt: 4, twoputt: 83, threeputt: 9 },
     normal: { oneputt: 7, twoputt: 77, threeputt: 13 },
     aggressive: { oneputt: 12, twoputt: 60, threeputt: 28 },
+  },
+};
+
+const PUTT_BASE_V2: typeof PUTT_BASE_V1 = {
+  short: {
+    safe: { oneputt: 16, twoputt: 82, threeputt: 2 },
+    normal: { oneputt: 27, twoputt: 70, threeputt: 3 },
+    aggressive: { oneputt: 37, twoputt: 55, threeputt: 8 },
+  },
+  long: {
+    // A lag from 20-30 feet is a card-protection choice, not a one-in-five
+    // three-jack. These weights pair with the continuous 20-50 ft curve below:
+    // neutral Lag is ~2% at 20 ft, ~5% at 30 ft and ~10% at 50 ft. Roll and
+    // Charge retain progressively more make upside and three-putt risk.
+    safe: { oneputt: 4, twoputt: 90, threeputt: 6 },
+    normal: { oneputt: 7, twoputt: 84, threeputt: 9 },
+    aggressive: { oneputt: 12, twoputt: 66, threeputt: 22 },
   },
 };
 
@@ -262,9 +306,14 @@ const fillPutt = (w: Partial<Record<PuttResult, number>>): Record<PuttResult, nu
   return out;
 };
 
-const PUTT_DISTANCE_MODEL = {
+const PUTT_DISTANCE_MODEL_V1 = {
   short: { min: 6, max: 18, midpoint: 12, makeSlope: 0.07, threeSlope: 0.04 },
   long: { min: 25, max: 45, midpoint: 35, makeSlope: 0.045, threeSlope: 0.035 },
+} as const;
+
+const PUTT_DISTANCE_MODEL_V2 = {
+  short: { min: 6, max: 19, midpoint: 12.5, makeSlope: 0.07, threeSlope: 0.04 },
+  long: { min: 20, max: 50, midpoint: 35, makeSlope: 0.045, threeSlope: 0.045 },
 } as const;
 
 /** Exact-distance adjustment around each bucket's midpoint. Because generated
@@ -272,9 +321,12 @@ const PUTT_DISTANCE_MODEL = {
  * average raw make/three-putt weights stay at the calibrated bucket baseline. */
 export function puttDistanceModifiers(
   bucket: Exclude<PuttBucket, "tap">,
-  distanceFt: number
+  distanceFt: number,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): { make: number; three: number } {
-  const model = PUTT_DISTANCE_MODEL[bucket];
+  const model = usesCasualFairness(rulesetVersion)
+    ? PUTT_DISTANCE_MODEL_V2[bucket]
+    : PUTT_DISTANCE_MODEL_V1[bucket];
   const ft = Math.max(model.min, Math.min(model.max, distanceFt));
   const delta = ft - model.midpoint;
   return {
@@ -291,12 +343,39 @@ export function puttWeights(
   distanceFt: number,
   breakDir: "L" | "R" | "straight" = "straight",
   slope: "uphill" | "downhill" | "flat" = "flat",
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): Record<PuttResult, number> {
-  const w = fillPutt(PUTT_BASE[bucket][decision]);
+  const casual = usesCasualFairness(rulesetVersion);
+  const base = casual ? PUTT_BASE_V2 : PUTT_BASE_V1;
+  const w = fillPutt(base[bucket][decision]);
+  const distanceMod = puttDistanceModifiers(bucket, distanceFt, rulesetVersion);
+  w.oneputt *= distanceMod.make;
+  w.threeputt *= distanceMod.three;
+
+  // Green-result buckets are useful for narration, but a displayed 19-footer
+  // must not suddenly become a different game at 20 feet. Blend the opening
+  // six feet of the long bucket from the 19-foot short endpoint to the normal
+  // 25-foot long curve. At 25+ the calibrated long model is unchanged.
+  if (casual && bucket === "long" && distanceFt < 25) {
+    const short = fillPutt(PUTT_BASE_V2.short[decision]);
+    const shortMod = puttDistanceModifiers("short", 19, rulesetVersion);
+    short.oneputt *= shortMod.make;
+    short.threeputt *= shortMod.three;
+
+    const long25 = fillPutt(PUTT_BASE_V2.long[decision]);
+    const long25Mod = puttDistanceModifiers("long", 25, rulesetVersion);
+    long25.oneputt *= long25Mod.make;
+    long25.threeputt *= long25Mod.three;
+
+    const t = clamp((distanceFt - 19) / 6, 0, 1);
+    for (const result of PUTT_RESULTS) {
+      w[result] = short[result] + (long25[result] - short[result]) * t;
+    }
+  }
+
   const speedMod = GREEN_SPEED_MOD[speed];
-  const distanceMod = puttDistanceModifiers(bucket, distanceFt);
-  w.oneputt *= speedMod.make * distanceMod.make;
-  w.threeputt *= speedMod.three * distanceMod.three;
+  w.oneputt *= speedMod.make;
+  w.threeputt *= speedMod.three;
   // The read shown to the player is real information. Break has a small make
   // tax; downhill putts trade a touch of make upside for poorer distance
   // control, while uphill putts are easier to cozy close.
@@ -336,11 +415,17 @@ export const SHORT_DECISION_LABEL: Record<Decision, string> = {
  * preserving the choice: Punch has the smallest blow-up share, Chip is balanced,
  * and Flop still makes the most par-saves but carries the most double+ risk.
  */
-const SCRAMBLE_BASE: Record<Decision, Partial<Record<ScrambleResult, number>>> = {
-  // Punch is the explicit card-protection choice. It may still make bogey or
-  // double, and real hazard penalties still count, but the recovery shot itself
-  // can never manufacture a triple-bogey "disaster" from otherwise safe play.
+const SCRAMBLE_BASE_V1: Record<Decision, Partial<Record<ScrambleResult, number>>> = {
   safe: { updown: 34, twochip: 62, blowup: 4, disaster: 0 },
+  normal: { updown: 40, twochip: 48, blowup: 10, disaster: 2 },
+  aggressive: { updown: 48, twochip: 35, blowup: 14, disaster: 3 },
+};
+
+const SCRAMBLE_BASE_V2: typeof SCRAMBLE_BASE_V1 = {
+  // Punch is the explicit card-protection choice. It may still make bogey or
+  // bogey, and real hazard penalties still count, but the recovery shot itself
+  // cannot manufacture a double/triple blow-up from otherwise safe play.
+  safe: { updown: 34, twochip: 66, blowup: 0, disaster: 0 },
   normal: { updown: 40, twochip: 48, blowup: 10, disaster: 2 },
   aggressive: { updown: 48, twochip: 35, blowup: 14, disaster: 3 },
 };
@@ -363,16 +448,29 @@ const fillScramble = (w: Partial<Record<ScrambleResult, number>>): Record<Scramb
 export function scrambleWeights(
   decision: Decision,
   hole: HoleSpec,
-  c: Conditions
+  c: Conditions,
+  drivablePar4Miss = false,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): Record<ScrambleResult, number> {
+  const casual = usesCasualFairness(rulesetVersion);
   const d = holeDifficulty(hole, c);
   const aggressive = decision === "aggressive" ? 1 : 0;
-  const w = fillScramble(SCRAMBLE_BASE[decision]);
+  const w = fillScramble((casual ? SCRAMBLE_BASE_V2 : SCRAMBLE_BASE_V1)[decision]);
   const S = SCRAMBLE_DIFFICULTY;
   w.updown *= 1 - S.updownDecay * d;
   w.twochip *= 1 + S.twochipGrowth * d;
   w.blowup *= 1 + (S.blowupGrowth + S.aggressiveBlowupGrowth * aggressive) * d;
   w.disaster *= 1 + S.disasterGrowth * d;
+  // A drive that misses a drivable par 4 commonly leaves a bunker, rough, or
+  // awkward partial shot rather than a stock greenside chip. The stroke chain
+  // still rewards a successful up-and-down with birdie, but earning it is
+  // harder than after a routine approach miss.
+  if (casual && drivablePar4Miss) {
+    w.updown *= 0.72;
+    w.twochip *= 1.12;
+    w.blowup *= 1.15;
+    w.disaster *= 1.15;
+  }
   return w;
 }
 

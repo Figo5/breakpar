@@ -37,6 +37,10 @@ import {
   scrambleScoringEventRate,
 } from "@/lib/engine/scoringEvents";
 import { applyEventById } from "@/lib/engine/events";
+import {
+  STANDARD_V2_RULESET,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 export interface OddsRow {
   decision: Decision;
@@ -171,8 +175,17 @@ function puttRowFor(
   breakDir: "L" | "R" | "straight",
   slope: "uphill" | "downhill" | "flat",
   eventId?: string | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): PuttOddsRow {
-  const weights = puttWeights(bucket, decision, speed, distanceFt, breakDir, slope);
+  const weights = puttWeights(
+    bucket,
+    decision,
+    speed,
+    distanceFt,
+    breakDir,
+    slope,
+    rulesetVersion,
+  );
   applyEventById(eventId, "putt", weights);
   const p = puttToPct(weights);
   return { decision, label: PUTT_DECISION_LABEL[decision], onePct: p.one, twoPct: p.two, threePct: p.three };
@@ -187,11 +200,12 @@ export function puttOddsReveal(
   breakDir: "L" | "R" | "straight" = "straight",
   slope: "uphill" | "downhill" | "flat" = "flat",
   eventId?: string | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): { safe: PuttOddsRow; normal: PuttOddsRow; aggressive: PuttOddsRow } {
   return {
-    safe: puttRowFor("safe", bucket, speed, distanceFt, breakDir, slope, eventId),
-    normal: puttRowFor("normal", bucket, speed, distanceFt, breakDir, slope, eventId),
-    aggressive: puttRowFor("aggressive", bucket, speed, distanceFt, breakDir, slope, eventId),
+    safe: puttRowFor("safe", bucket, speed, distanceFt, breakDir, slope, eventId, rulesetVersion),
+    normal: puttRowFor("normal", bucket, speed, distanceFt, breakDir, slope, eventId, rulesetVersion),
+    aggressive: puttRowFor("aggressive", bucket, speed, distanceFt, breakDir, slope, eventId, rulesetVersion),
   };
 }
 
@@ -205,8 +219,17 @@ export function puttOddsTakeaway(
   breakDir: "L" | "R" | "straight" = "straight",
   slope: "uphill" | "downhill" | "flat" = "flat",
   eventId?: string | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): string {
-  const rows = puttOddsReveal(bucket, speed, distanceFt, breakDir, slope, eventId);
+  const rows = puttOddsReveal(
+    bucket,
+    speed,
+    distanceFt,
+    breakDir,
+    slope,
+    eventId,
+    rulesetVersion,
+  );
   const mine = rows[chosen];
   const lag = rows.safe;
   const dist = `${distanceFt}-foot`;
@@ -253,12 +276,21 @@ function approachRowFor(
   c: Conditions,
   yardsToTarget?: number,
   eventId?: string | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): ApproachOddsRow {
   const reachedInTwo = source !== "tee"
-    && canReachPar5InTwo(hole.par, source, decision, yardsToTarget);
+    && canReachPar5InTwo(hole.par, source, decision, yardsToTarget, rulesetVersion);
   const layupWedge = hole.par === 5 && !reachedInTwo;
   const scoringYards = layupWedge ? 95 : yardsToTarget;
-  const weights = greenWeights(source, decision, hole, c, scoringYards, reachedInTwo);
+  const weights = greenWeights(
+    source,
+    decision,
+    hole,
+    c,
+    scoringYards,
+    reachedInTwo,
+    rulesetVersion,
+  );
   applyEventById(eventId, "approach", weights);
   const p = greenToPct(weights);
   return {
@@ -281,11 +313,42 @@ export function approachOddsReveal(
   c: Conditions,
   yardsToTarget?: number,
   eventId?: string | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): { safe: ApproachOddsRow; normal: ApproachOddsRow; aggressive: ApproachOddsRow } {
   return {
-    safe: approachRowFor("safe", source, hole, c, yardsToTarget, eventId),
-    normal: approachRowFor("normal", source, hole, c, yardsToTarget, eventId),
-    aggressive: approachRowFor("aggressive", source, hole, c, yardsToTarget, eventId),
+    safe: approachRowFor("safe", source, hole, c, yardsToTarget, eventId, rulesetVersion),
+    normal: approachRowFor("normal", source, hole, c, yardsToTarget, eventId, rulesetVersion),
+    aggressive: approachRowFor("aggressive", source, hole, c, yardsToTarget, eventId, rulesetVersion),
+  };
+}
+
+/** The second, server-resolved part of an aggressive short-par-4 tee shot:
+ * whether the drive holds the green or leaves a greenside recovery. */
+export function drivablePar4OddsReveal(
+  hole: HoleSpec,
+  c: Conditions,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): ApproachOddsRow {
+  const weights = greenWeights(
+    "tee",
+    "aggressive",
+    hole,
+    c,
+    hole.yardage,
+    true,
+    rulesetVersion,
+  );
+  const p = greenToPct(weights);
+  return {
+    decision: "aggressive",
+    label: "Drive green",
+    kickinPct: p.kickin,
+    makeablePct: p.makeable,
+    lagPct: p.lag,
+    scramblePct: p.scramble,
+    greenPct: p.kickin + p.makeable + p.lag,
+    // A tee-shot hole-out is intentionally not part of this first version.
+    holeOutPct: 0,
   };
 }
 
@@ -296,12 +359,20 @@ export function approachOddsTakeaway(
   c: Conditions,
   yardsToTarget?: number,
   eventId?: string | null,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): string {
-  const rows = approachOddsReveal(source, hole, c, yardsToTarget, eventId);
+  const rows = approachOddsReveal(
+    source,
+    hole,
+    c,
+    yardsToTarget,
+    eventId,
+    rulesetVersion,
+  );
   const mine = rows[chosen];
   const safe = rows.safe;
   const reachedInTwo = source !== "tee"
-    && canReachPar5InTwo(hole.par, source, chosen, yardsToTarget);
+    && canReachPar5InTwo(hole.par, source, chosen, yardsToTarget, rulesetVersion);
   if (hole.par === 5 && !reachedInTwo) {
     const play = chosen === "safe" ? "The safe play" : "The normal play";
     if (chosen === "aggressive") {
@@ -353,8 +424,16 @@ function scrambleRowFor(
   hole: HoleSpec,
   c: Conditions,
   eventId?: string | null,
+  drivablePar4Miss = false,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): ScrambleOddsRow {
-  const weights = scrambleWeights(decision, hole, c);
+  const weights = scrambleWeights(
+    decision,
+    hole,
+    c,
+    drivablePar4Miss,
+    rulesetVersion,
+  );
   applyEventById(eventId, "scramble", weights);
   const p = scrambleToPct(weights);
   return {
@@ -373,11 +452,13 @@ export function scrambleOddsReveal(
   hole: HoleSpec,
   c: Conditions,
   eventId?: string | null,
+  drivablePar4Miss = false,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): { safe: ScrambleOddsRow; normal: ScrambleOddsRow; aggressive: ScrambleOddsRow } {
   return {
-    safe: scrambleRowFor("safe", hole, c, eventId),
-    normal: scrambleRowFor("normal", hole, c, eventId),
-    aggressive: scrambleRowFor("aggressive", hole, c, eventId),
+    safe: scrambleRowFor("safe", hole, c, eventId, drivablePar4Miss, rulesetVersion),
+    normal: scrambleRowFor("normal", hole, c, eventId, drivablePar4Miss, rulesetVersion),
+    aggressive: scrambleRowFor("aggressive", hole, c, eventId, drivablePar4Miss, rulesetVersion),
   };
 }
 
@@ -386,13 +467,22 @@ export function scrambleOddsTakeaway(
   hole: HoleSpec,
   c: Conditions,
   eventId?: string | null,
+  drivablePar4Miss = false,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): string {
-  const rows = scrambleOddsReveal(hole, c, eventId);
+  const rows = scrambleOddsReveal(
+    hole,
+    c,
+    eventId,
+    drivablePar4Miss,
+    rulesetVersion,
+  );
   const mine = rows[chosen];
   const punch = rows.safe;
   const doublePlus = (r: ScrambleOddsRow) => r.blowupPct + r.disasterPct;
   if (chosen === "safe") {
-    return `The punch was the card-protector: ${mine.holeOutPct.toFixed(1)}% hole-out chance, lowest blow-up risk (${doublePlus(mine)}% double or worse), and a ${mine.savePct}% up-and-down.`;
+    const context = drivablePar4Miss ? " after the missed drive" : "";
+    return `The punch${context} was the card-protector: ${mine.holeOutPct.toFixed(1)}% hole-out chance, lowest blow-up risk (${doublePlus(mine)}% double or worse), and a ${mine.savePct}% up-and-down.`;
   }
   return `${SHORT_DECISION_LABEL[chosen]} raised the hole-out chance to ${mine.holeOutPct.toFixed(1)}% (vs ${punch.holeOutPct.toFixed(1)}% punch) and the save to ${mine.savePct}%, but raised double-or-worse risk to ${doublePlus(mine)}% (vs ${doublePlus(punch)}% punch).`;
 }

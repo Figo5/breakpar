@@ -86,10 +86,41 @@ describe("puttWeights", () => {
     expect(twentyFive.threeputt).toBeLessThan(fortyFive.threeputt);
   });
   it("distance modifiers average to the calibrated midpoint baseline", () => {
-    for (const [bucket, min, max] of [["short", 6, 18], ["long", 25, 45]] as const) {
+    for (const [bucket, min, max] of [["short", 6, 19], ["long", 20, 50]] as const) {
       const mods = Array.from({ length: max - min + 1 }, (_, i) => puttDistanceModifiers(bucket, min + i));
       expect(mods.reduce((sum, m) => sum + m.make, 0) / mods.length).toBeCloseTo(1);
       expect(mods.reduce((sum, m) => sum + m.three, 0) / mods.length).toBeCloseTo(1);
+    }
+  });
+  it("keeps a neutral lag near real-world three-putt anchors", () => {
+    const rate = (distance: number) => {
+      const weights = puttWeights("long", "safe", "Medium", distance);
+      return weights.threeputt / (weights.oneputt + weights.twoputt + weights.threeputt);
+    };
+
+    expect(rate(20)).toBeLessThanOrEqual(0.035);
+    expect(rate(25)).toBeLessThanOrEqual(0.04);
+    expect(rate(30)).toBeLessThanOrEqual(0.06);
+    expect(rate(30)).toBeGreaterThan(rate(25));
+    expect(rate(50)).toBeGreaterThan(rate(30));
+  });
+  it("has no probability cliff at the 19-to-20-foot bucket boundary", () => {
+    const rates = (decision: "safe" | "normal" | "aggressive", distance: number) => {
+      const bucket = distance <= 19 ? "short" : "long";
+      const weights = puttWeights(bucket, decision, "Medium", distance);
+      const total = weights.oneputt + weights.twoputt + weights.threeputt;
+      return {
+        one: weights.oneputt / total,
+        three: weights.threeputt / total,
+      };
+    };
+
+    for (const decision of ["safe", "normal", "aggressive"] as const) {
+      const nineteen = rates(decision, 19);
+      const twenty = rates(decision, 20);
+      expect(Math.abs(twenty.one - nineteen.one)).toBeLessThan(0.02);
+      expect(Math.abs(twenty.three - nineteen.three)).toBeLessThan(0.02);
+      expect(twenty.three).toBeGreaterThanOrEqual(nineteen.three);
     }
   });
   it("uses the displayed slope and break without overpowering distance", () => {
@@ -120,10 +151,16 @@ describe("scrambleWeights", () => {
     expect(doublePlus("normal")).toBeLessThan(doublePlus("aggressive"));
     expect(doublePlus("normal")).toBeLessThan(0.2);
   });
-  it("the safe recovery cannot create an unpenalized triple-bogey disaster", () => {
+  it("the safe recovery cannot create an intrinsic blow-up or disaster", () => {
     const safe = scrambleWeights("safe", hole, c);
     expect(safe.disaster).toBe(0);
-    expect(safe.blowup).toBeGreaterThan(0);
+    expect(safe.blowup).toBe(0);
+  });
+  it("makes a missed drivable-par-4 tee shot harder to save than a stock miss", () => {
+    const routine = scrambleWeights("normal", hole, c);
+    const driveMiss = scrambleWeights("normal", hole, c, true);
+    expect(driveMiss.updown).toBeLessThan(routine.updown);
+    expect(driveMiss.twochip).toBeGreaterThan(routine.twochip);
   });
 });
 

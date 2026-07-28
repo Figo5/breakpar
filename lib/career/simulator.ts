@@ -8,6 +8,10 @@
  */
 import { COURSES, coursePar, type Course } from "@/data/courses";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
+import {
+  STANDARD_V2_RULESET,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 import { holeDifficulty, type Conditions, type HoleSpec } from "@/lib/engine/resolveHole";
 import { hashSeed, mulberry32 } from "@/lib/engine/rng";
 import { resolveHoleChain, type ChainResult, type Lie } from "@/lib/engine/shots";
@@ -431,6 +435,7 @@ export function simulateArchetypeRound(
   archetype: CareerArchetype,
   model: AbilityModel = "v5",
   errorRates: CareerErrorRates = CAREER_ERROR_RATE,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
 ): number {
   const conditions: Conditions = { difficulty: course.difficulty, wind: course.wind };
   const state: PolicyState = { rel: 0, holesLeft: course.holes.length, aggrLeft: AGGRESSIVE_BUDGET };
@@ -457,6 +462,7 @@ export function simulateArchetypeRound(
       recent,
       narration: false as const,
       holeContext: { hazard: sourceHole.hazard, signature: sourceHole.signature },
+      rulesetVersion,
     };
     const decisions: Decision[] = [];
     let result: ChainResult = resolveHoleChain(decisions, hole, conditions, opts);

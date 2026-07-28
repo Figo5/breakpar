@@ -35,6 +35,10 @@ import {
   type CutCandidate,
 } from "@/lib/tournament";
 import { neutralTournamentSeedKey } from "@/lib/tournamentSeed";
+import {
+  CURRENT_STANDARD_RULESET,
+  requirePinnedGameplayRuleset,
+} from "@/lib/engine/rulesets";
 
 /** Exclude tournament rounds from lifetime stats (mirrors NON_CHALLENGE). */
 export const NON_TOURNAMENT = { mode: { not: "tournament" } } as const;
@@ -81,6 +85,7 @@ type TournamentRow = {
   weekKey: string;
   courseId: string;
   name: string;
+  rulesetVersion: string;
   startsAt: Date;
   cutAt: Date;
   endsAt: Date;
@@ -227,6 +232,7 @@ async function createTournamentFor(sched: {
       weekKey: sched.weekKey,
       courseId: want.courseId,
       name: want.name,
+      rulesetVersion: CURRENT_STANDARD_RULESET,
       startsAt: sched.startsAt,
       cutAt: sched.cutAt,
       endsAt: sched.endsAt,
@@ -363,6 +369,11 @@ export type JoinResult =
 export async function joinTournament(userId: string, now = new Date()): Promise<JoinResult> {
   const t = await ensureCurrentTournament(now);
   if (!t) return { ok: false, error: "not-found" };
+  try {
+    requirePinnedGameplayRuleset(t.rulesetVersion);
+  } catch {
+    return { ok: false, error: "closed" };
+  }
   if (phaseFor(t, now) === "complete") return { ok: false, error: "closed" };
 
   const entry = await prisma.tournamentEntry.upsert({
@@ -397,6 +408,12 @@ export async function startTournamentRound(
 ): Promise<StartRoundResult> {
   const t = await ensureCurrentTournament(now);
   if (!t) return { ok: false, error: "not-found" };
+  let rulesetVersion;
+  try {
+    rulesetVersion = requirePinnedGameplayRuleset(t.rulesetVersion);
+  } catch {
+    return { ok: false, error: "closed" };
+  }
   const realPhase = phaseFor(t, now);
   const preview = isPreviewUser(viewerUsername);
   const phase = viewerPhase(realPhase, preview);
@@ -421,9 +438,14 @@ export async function startTournamentRound(
   // Resume if this round already exists for the entry.
   const existing = await prisma.round.findFirst({
     where: { tournamentEntryId: entry.id, tournamentRoundNo: roundNo },
-    select: { id: true, completed: true },
+    select: { id: true, completed: true, rulesetVersion: true },
   });
   if (existing) {
+    try {
+      requirePinnedGameplayRuleset(rulesetVersion, existing.rulesetVersion);
+    } catch {
+      return { ok: false, error: "closed" };
+    }
     if (existing.completed) return { ok: false, error: "already-complete" };
     return { ok: true, roundId: existing.id };
   }
@@ -436,6 +458,7 @@ export async function startTournamentRound(
     where: {
       tournamentRoundNo: roundNo,
       seedKey: { not: null },
+      rulesetVersion,
       tournamentEntry: { tournamentId: t.id },
     },
     orderBy: { playedAt: "asc" },
@@ -450,7 +473,7 @@ export async function startTournamentRound(
     const course = courseRow ? courseBySlug(courseRow.slug) : null;
     const baseSeedKey = tournamentSeedKey(t.id, roundNo);
     sharedSeedKey = course
-      ? neutralTournamentSeedKey(baseSeedKey, course)
+      ? neutralTournamentSeedKey(baseSeedKey, course, rulesetVersion)
       : baseSeedKey;
   }
 
@@ -462,6 +485,7 @@ export async function startTournamentRound(
         userId,
         courseId: t.courseId,
         mode: "tournament",
+        rulesetVersion,
         dateKey: null,
         seedKey: sharedSeedKey,
         tournamentEntryId: entry.id,
@@ -474,8 +498,15 @@ export async function startTournamentRound(
     // Lost the create race — resume the winner.
     const winner = await prisma.round.findFirst({
       where: { tournamentEntryId: entry.id, tournamentRoundNo: roundNo },
-      select: { id: true, completed: true },
+      select: { id: true, completed: true, rulesetVersion: true },
     });
+    if (winner) {
+      try {
+        requirePinnedGameplayRuleset(rulesetVersion, winner.rulesetVersion);
+      } catch {
+        return { ok: false, error: "closed" };
+      }
+    }
     if (winner && !winner.completed) return { ok: true, roundId: winner.id };
     if (winner?.completed) return { ok: false, error: "already-complete" };
     return { ok: false, error: "not-found" };

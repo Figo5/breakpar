@@ -10,7 +10,7 @@
  * strong state-aware player and a mindless one, and the new FEEL metrics
  * (decisions/hole, GIR%, 1-putt%, 3-putt%, up&down%).
  *
- * Targets: smart play breaks par ~28-32%; skill gap stays positive.
+ * Casual target: smart play breaks par 30-37%; skill gap stays positive.
  * Principle: variance is the enemy of skill expression — putting/scramble add
  * texture, not slot-machine noise.
  */
@@ -507,10 +507,11 @@ console.log(
 console.log("(bigger gaps = decisions matter more = more skill-based)");
 
 // --- CI gate -----------------------------------------------------------------
-// Smart play (good/skilled) must break par within this band. Outside it means
-// an engine change wrecked difficulty -> exit non-zero so CI fails loudly
-// instead of printing red numbers nobody reads. Tunable: widen/narrow here.
-const BREAK_PAR_BAND = { min: 26, max: 34 } as const;
+// Smart play (good/skilled) must break par within this band. The Jul 28 fairness
+// pass deliberately moved the prior 26-34 band upward: realistic lag putting,
+// true drivable par 4s, and card-protecting recovery should make the casual game
+// friendlier without erasing the strategy gap.
+const BREAK_PAR_BAND = { min: 30, max: 37 } as const;
 const offenders = (["good", "skilled"] as const)
   .map((name) => [name, results[name]] as const)
   .filter(([, pct]) => pct < BREAK_PAR_BAND.min || pct > BREAK_PAR_BAND.max);

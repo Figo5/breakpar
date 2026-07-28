@@ -8,6 +8,8 @@ import {
   greenRead,
   puttRead,
   puttForLabel,
+  shortGameRiskRead,
+  recoveryIsForBirdie,
   AGGRESSIVE_BUDGET,
 } from "@/lib/holeRead";
 import type { CourseHole } from "@/data/courses";
@@ -32,6 +34,37 @@ describe("putt labels reflect what the putt is FOR (not the distance bucket)", (
     expect(greenRead("makeable", "birdie").text).toBe("Birdie look");
     // back-compat: no puttFor supplied -> old birdie default
     expect(greenRead("makeable").text).toBe("Birdie look");
+  });
+
+  it("labels an early greenside miss as an up-and-down for birdie", () => {
+    expect(greenRead("scramble", "birdie").text).toBe("Missed green — up & down for birdie");
+    expect(shortGameRiskRead("normal", true).text).toBe("Get up & down for birdie");
+    expect(shortGameRiskRead("normal").text).toBe("Get it close");
+  });
+
+  it("does not promise a birdie save after a water penalty consumed the advantage", () => {
+    const earlyMiss = [
+      {
+        stage: "tee" as const,
+        green: "scramble" as const,
+        penalty: {
+          kind: "ocean" as const,
+          stage: "tee" as const,
+          strokes: 1 as const,
+        },
+      },
+    ];
+    expect(recoveryIsForBirdie(4, earlyMiss)).toBe(false);
+    expect(
+      shortGameRiskRead("normal", recoveryIsForBirdie(4, earlyMiss)).text,
+    ).toBe("Get it close");
+  });
+
+  it("keeps an unpenalized drivable-par-4 miss as a birdie recovery", () => {
+    const earlyMiss = [
+      { stage: "tee" as const, green: "scramble" as const, penalty: undefined },
+    ];
+    expect(recoveryIsForBirdie(4, earlyMiss)).toBe(true);
   });
 
   it("puttRead short cue names the putt by what it's FOR", () => {

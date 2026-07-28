@@ -14,6 +14,7 @@ import {
   puttForLabel,
   puttRiskRead,
   shortGameRiskRead,
+  recoveryIsForBirdie,
   greenRead,
   AGGRESSIVE_BUDGET,
 } from "@/lib/holeRead";
@@ -29,9 +30,15 @@ import {
   puttOddsReveal, puttOddsTakeaway,
   approachOddsReveal, approachOddsTakeaway,
   scrambleOddsReveal, scrambleOddsTakeaway,
+  drivablePar4OddsReveal,
 } from "@/lib/oddsReveal";
 import { track, identifyUser, type RoundMeta } from "@/lib/analytics";
 import type { Course } from "@/data/courses";
+import {
+  isGameplayRulesetVersion,
+  usesCasualFairness,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 type PlayCourse = Course & { par: number };
 type SwingStage = "tee" | "approach" | "putt" | "scramble";
@@ -79,6 +86,7 @@ function PlayInner() {
   const [course, setCourse] = useState<PlayCourse | null>(null);
   const [puzzleNo, setPuzzleNo] = useState<number | null>(null); // daily puzzle number (label only)
   const [roundId, setRoundId] = useState<string | null>(null);
+  const [rulesetVersion, setRulesetVersion] = useState<GameplayRulesetVersion | null>(null);
   const [holeIdx, setHoleIdx] = useState(0); // 0..17
   const [outcomes, setOutcomes] = useState<(Outcome | null)[]>(Array(18).fill(null));
   const [pending, setPending] = useState<Outcome | null>(null);
@@ -135,7 +143,11 @@ function PlayInner() {
         if (cancelled) return;
 
         const c = r.course as PlayCourse;
+        if (!isGameplayRulesetVersion(r.rulesetVersion)) {
+          throw new Error("This round uses rules that are not available.");
+        }
         setCourse(c);
+        setRulesetVersion(r.rulesetVersion);
         setPuzzleNo(r.puzzleNumber ?? null);
         setRoundId(r.roundId);
         setAggressiveLeft((r.aggressiveBudget ?? AGGRESSIVE_BUDGET) - (r.aggressiveUsed ?? 0));
@@ -201,7 +213,7 @@ function PlayInner() {
     );
   }
 
-  if (!course || !roundId) return <Loading />;
+  if (!course || !roundId || !rulesetVersion) return <Loading />;
 
   const hole = course.holes[holeIdx];
   const conditions = { difficulty: course.difficulty, wind: course.wind };
@@ -341,6 +353,7 @@ function PlayInner() {
               ? "Dogleg right"
               : null;
   const pendingFinish = pending ? finishSummary(shotLog, pending, hole.par) : null;
+  const earlyGreenAttempt = recoveryIsForBirdie(hole.par, shotLog);
 
   // Course + play-mode labels for the card header (practice / daily / tournament
   // / challenge), plus the hole's signature note when it's a "special" hole.
@@ -407,14 +420,39 @@ function PlayInner() {
               )}
 
               <div className="pm-reads">
-                {positionBanner(stage, hole.par, lie, green, puttCtx, course.greens, cues, shotLog[shotLog.length - 1]?.penalty)}
+                {positionBanner(
+                  stage,
+                  hole.par,
+                  lie,
+                  green,
+                  puttCtx,
+                  course.greens,
+                  cues,
+                  earlyGreenAttempt,
+                  shotLog[shotLog.length - 1]?.penalty,
+                )}
               </div>
 
               <div className="pm-prompt">{openingRead ? "Tee shot" : compactStageLabel(stage)}</div>
               <div className="pm-choices">
                 {choices.map((d) => {
-                  const risk = riskFor(stage, d.id, hole, conditions, lie, puttCtx);
-                  const blurb = decisionBlurb(stage, d.id, hole.par, d.blurb);
+                  const risk = riskFor(
+                    stage,
+                    d.id,
+                    hole,
+                    conditions,
+                    lie,
+                    puttCtx,
+                    earlyGreenAttempt,
+                    rulesetVersion,
+                  );
+                  const blurb = decisionBlurb(
+                    stage,
+                    d.id,
+                    hole,
+                    d.blurb,
+                    rulesetVersion,
+                  );
                   const isAggro = d.id === "aggressive";
                   const outOfBudget = budgeted && isAggro && aggressiveLeft <= 0;
                   return (
@@ -460,6 +498,7 @@ function PlayInner() {
                   hole={{ number: hole.number, par: hole.par, strokeIndex: hole.strokeIndex, yardage: hole.yardage }}
                   conditions={conditions}
                   greens={course.greens}
+                  rulesetVersion={rulesetVersion}
                 />
               )}
 
@@ -485,10 +524,22 @@ function compactStageLabel(stage: SwingStage): string {
   return "Short game";
 }
 
-function decisionBlurb(stage: SwingStage, decision: Decision, par: number, fallback: string): string {
+function decisionBlurb(
+  stage: SwingStage,
+  decision: Decision,
+  hole: PlayCourse["holes"][number],
+  fallback: string,
+  rulesetVersion: GameplayRulesetVersion,
+): string {
+  const par = hole.par;
   if (stage === "tee") {
     if (decision === "safe") return "Find the fairway";
     if (decision === "normal") return "Play your line";
+    if (
+      usesCasualFairness(rulesetVersion)
+      && par === 4
+      && hole.yardage <= 350
+    ) return "Drive the green";
     return "Challenge the trouble";
   }
   // A par-3 "approach" is its tee shot; retain the original concept language.
@@ -518,6 +569,7 @@ function positionBanner(
   puttCtx: PuttContext | null,
   greens: Course["greens"],
   cues: { icon: string; text: string }[],
+  earlyGreenAttempt: boolean,
   penalty?: HazardPenalty,
 ) {
   if (penalty) {
@@ -576,7 +628,7 @@ function positionBanner(
   }
   // Scramble -> green banner.
   if (stage === "scramble" && green) {
-    const gr = greenRead(green);
+    const gr = greenRead(green, earlyGreenAttempt ? "birdie" : undefined);
     return (
       <div className={`lie-banner l-bad`}>
         <span className="le"><span className="lie-dot tone-bad" /></span>
@@ -599,12 +651,14 @@ function OddsReveal({
   hole,
   conditions,
   greens,
+  rulesetVersion,
 }: {
   shots: ShotRecord[];
   decisions: Decision[];
   hole: { number: number; par: number; strokeIndex: number; yardage: number };
   conditions: { difficulty: number; wind: number };
   greens: GreenSpeed;
+  rulesetVersion: GameplayRulesetVersion;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -621,6 +675,10 @@ function OddsReveal({
   const order: Decision[] = ["safe", "normal", "aggressive"];
   const isPar3 = hole.par === 3;
   let teeLie: Lie | null = null;
+  const drivablePar4Attempt = usesCasualFairness(rulesetVersion)
+    && hole.par === 4
+    && hole.yardage <= 350
+    && shots.some((shot) => shot.stage === "tee" && shot.decision === "aggressive" && shot.green);
   const blocks: ReactNode[] = [];
 
   for (const s of shots) {
@@ -635,10 +693,36 @@ function OddsReveal({
           legend={[["ideal", "ideal position"], ["good", "fairway"], ["rough", "rough"], ["trouble", "trouble"]]}
           takeaway={teeOddsTakeaway(s.decision, hole, conditions, s.event?.id)} />
       );
+      if (s.green && hole.par === 4 && hole.yardage <= 350 && s.decision === "aggressive") {
+        const drive = drivablePar4OddsReveal(hole, conditions, rulesetVersion);
+        blocks.push(
+          <StageOdds key="drive-green" title={`Drive at green · ${hole.yardage} yd`}
+            chosen="aggressive" order={["aggressive"]}
+            rows={[{
+              label: drive.label,
+              decision: "aggressive",
+              segs: [
+                { cls: "good", w: drive.kickinPct + drive.makeablePct },
+                { cls: "rough", w: drive.lagPct },
+                { cls: "trouble", w: drive.scramblePct },
+              ],
+              right: `${drive.greenPct}% green`,
+            }]}
+            legend={[["good", "scoring look"], ["rough", "long putt"], ["trouble", "greenside miss"]]}
+            takeaway={`The drive had a ${drive.greenPct}% chance to hold the green. A miss still left an up-and-down for birdie, but from a tougher greenside lie.`} />
+        );
+      }
     } else if (s.stage === "approach" && s.decision) {
       const source: GreenSource = isPar3 ? "tee" : (teeLie ?? "fairway");
       const yardsToTarget = s.yards ?? (isPar3 ? hole.yardage : undefined);
-      const rows = approachOddsReveal(source, hole, conditions, yardsToTarget, s.event?.id);
+      const rows = approachOddsReveal(
+        source,
+        hole,
+        conditions,
+        yardsToTarget,
+        s.event?.id,
+        rulesetVersion,
+      );
       blocks.push(
         <StageOdds key="approach"
           title={`${hole.par === 5 ? "Second shot" : "Approach"}${yardsToTarget ? ` · ${yardsToTarget} yd` : ""}${s.event ? ` · ${s.event.label}` : ""}`}
@@ -647,31 +731,69 @@ function OddsReveal({
             segs: [{ cls: "good", w: rows[d].kickinPct + rows[d].makeablePct }, { cls: "rough", w: rows[d].lagPct }, { cls: "trouble", w: rows[d].scramblePct }],
             right: `${rows[d].holeOutPct.toFixed(2)}% in` }))}
           legend={[["good", "birdie look"], ["rough", "long putt"], ["trouble", "missed green"]]}
-          takeaway={approachOddsTakeaway(s.decision, source, hole, conditions, yardsToTarget, s.event?.id)} />
+          takeaway={approachOddsTakeaway(
+            s.decision,
+            source,
+            hole,
+            conditions,
+            yardsToTarget,
+            s.event?.id,
+            rulesetVersion,
+          )} />
       );
     } else if (s.stage === "putt" && s.decision) {
       const bucket = s.green === "makeable" ? "short" : "long";
       const distanceFt = s.distanceFt ?? (bucket === "short" ? 12 : 35);
       const breakDir = s.breakDir ?? "straight";
       const slope = s.slope ?? "flat";
-      const rows = puttOddsReveal(bucket, greens, distanceFt, breakDir, slope, s.event?.id);
+      const rows = puttOddsReveal(
+        bucket,
+        greens,
+        distanceFt,
+        breakDir,
+        slope,
+        s.event?.id,
+        rulesetVersion,
+      );
       blocks.push(
         <StageOdds key="putt" title={`Putt · ${distanceFt} ft · ${slope}${s.event ? ` · ${s.event.label}` : ""}`} chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].onePct }, { cls: "rough", w: rows[d].twoPct }, { cls: "trouble", w: rows[d].threePct }],
             right: `${rows[d].onePct}%` }))}
           legend={[["good", "one-putt"], ["rough", "two-putt"], ["trouble", "three-putt"]]}
-          takeaway={puttOddsTakeaway(s.decision, bucket, greens, distanceFt, breakDir, slope, s.event?.id)} />
+          takeaway={puttOddsTakeaway(
+            s.decision,
+            bucket,
+            greens,
+            distanceFt,
+            breakDir,
+            slope,
+            s.event?.id,
+            rulesetVersion,
+          )} />
       );
     } else if (s.stage === "scramble" && s.decision) {
-      const rows = scrambleOddsReveal(hole, conditions, s.event?.id);
+      const rows = scrambleOddsReveal(
+        hole,
+        conditions,
+        s.event?.id,
+        drivablePar4Attempt,
+        rulesetVersion,
+      );
       blocks.push(
         <StageOdds key="scramble" title={`Short game${s.event ? ` · ${s.event.label}` : ""}`} chosen={s.decision} order={order}
           rows={order.map((d) => ({ label: rows[d].label, decision: d,
             segs: [{ cls: "good", w: rows[d].updownPct }, { cls: "rough", w: rows[d].twochipPct }, { cls: "trouble", w: rows[d].blowupPct + rows[d].disasterPct }],
             right: `${rows[d].holeOutPct.toFixed(1)}% in` }))}
           legend={[["good", "up & down"], ["rough", "chip & two-putt"], ["trouble", "blow-up"]]}
-          takeaway={scrambleOddsTakeaway(s.decision, hole, conditions, s.event?.id)} />
+          takeaway={scrambleOddsTakeaway(
+            s.decision,
+            hole,
+            conditions,
+            s.event?.id,
+            drivablePar4Attempt,
+            rulesetVersion,
+          )} />
       );
     }
   }
@@ -730,10 +852,27 @@ function riskFor(
   hole: PlayCourse["holes"][number],
   conditions: { difficulty: number; wind: number },
   lie: Lie | null,
-  puttCtx: PuttContext | null
+  puttCtx: PuttContext | null,
+  earlyGreenAttempt: boolean,
+  rulesetVersion: GameplayRulesetVersion,
 ): { tone: "good" | "warn" | "bad"; text: string } {
-  if (stage === "tee") return riskRead(d, hole, conditions);
+  if (stage === "tee") {
+    if (
+      usesCasualFairness(rulesetVersion)
+      && d === "aggressive"
+      && hole.par === 4
+      && hole.yardage <= 350
+    ) {
+      return {
+        tone: hole.hazard === "water" || hole.hazard === "ocean" ? "bad" : "warn",
+        text: hole.hazard === "water" || hole.hazard === "ocean"
+          ? "Eagle chance · water in play"
+          : "Eagle chance · tough miss",
+      };
+    }
+    return riskRead(d, hole, conditions);
+  }
   if (stage === "approach") return lie ? lieRiskRead(lie, d) : riskRead(d, hole, conditions);
   if (stage === "putt" && puttCtx) return puttRiskRead(d, puttCtx.bucket, puttCtx.speed, puttCtx.distanceFt);
-  return shortGameRiskRead(d);
+  return shortGameRiskRead(d, earlyGreenAttempt);
 }

@@ -16,9 +16,14 @@
  */
 
 import { prisma } from "@/lib/db";
+import type { PrismaClient } from "@prisma/client";
 import { resolveAccountByUsername } from "@/lib/friends";
 import { courseBySlug, coursePar } from "@/data/courses";
 import { dailyCourse } from "@/lib/daily";
+import {
+  CURRENT_STANDARD_RULESET,
+  isGameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 /**
  * Prisma where-guard that EXCLUDES non-ranked rounds (challenge AND tournament)
@@ -189,7 +194,13 @@ export async function createChallenge(
   if (!courseRow) return { ok: false, error: "course-not-seeded" };
 
   const ch = await prisma.challenge.create({
-    data: { challengerId: meId, opponentId: opponent.id, courseId: courseRow.id, seedKey: "pending" },
+    data: {
+      challengerId: meId,
+      opponentId: opponent.id,
+      courseId: courseRow.id,
+      seedKey: "pending",
+      rulesetVersion: CURRENT_STANDARD_RULESET,
+    },
     select: { id: true },
   });
   // seedKey = the challenge id (the shared RNG namespace both rounds use).
@@ -217,30 +228,61 @@ export type StartResult =
  * and link it with a conditional update (the per-side @unique + null-guard makes
  * a double-start safe — the loser drops its orphan and resumes the winner).
  */
-export async function startOrResumeChallengeRound(meId: string, challengeId: string): Promise<StartResult> {
-  const ch = await prisma.challenge.findUnique({ where: { id: challengeId } });
+export async function startOrResumeChallengeRound(
+  meId: string,
+  challengeId: string,
+  db: PrismaClient = prisma,
+): Promise<StartResult> {
+  const ch = await db.challenge.findUnique({ where: { id: challengeId } });
   if (!ch) return { ok: false, error: "not-found" };
   const iAmChallenger = ch.challengerId === meId;
   if (!iAmChallenger && ch.opponentId !== meId) return { ok: false, error: "forbidden" };
   if (ch.status === "declined" || ch.status === "expired") return { ok: false, error: "unavailable" };
+  if (!isGameplayRulesetVersion(ch.rulesetVersion)) {
+    return { ok: false, error: "unavailable" };
+  }
 
   const existing = iAmChallenger ? ch.challengerRoundId : ch.opponentRoundId;
-  if (existing) return { ok: true, roundId: existing };
+  if (existing) {
+    const stored = await db.round.findUnique({
+      where: { id: existing },
+      select: { rulesetVersion: true },
+    });
+    if (!stored || stored.rulesetVersion !== ch.rulesetVersion) {
+      return { ok: false, error: "unavailable" };
+    }
+    return { ok: true, roundId: existing };
+  }
 
-  const round = await prisma.round.create({
-    data: { userId: meId, courseId: ch.courseId, mode: "challenge", dateKey: null, seedKey: ch.seedKey },
+  const round = await db.round.create({
+    data: {
+      userId: meId,
+      courseId: ch.courseId,
+      mode: "challenge",
+      rulesetVersion: ch.rulesetVersion,
+      dateKey: null,
+      seedKey: ch.seedKey,
+    },
     select: { id: true },
   });
-  const linked = await prisma.challenge.updateMany({
+  const linked = await db.challenge.updateMany({
     where: { id: challengeId, ...(iAmChallenger ? { challengerRoundId: null } : { opponentRoundId: null }) },
     data: { status: "active", ...(iAmChallenger ? { challengerRoundId: round.id } : { opponentRoundId: round.id }) },
   });
   if (linked.count === 0) {
     // Lost a concurrent first-start race: drop the orphan, resume the winner.
-    await prisma.round.delete({ where: { id: round.id } });
-    const fresh = await prisma.challenge.findUnique({ where: { id: challengeId } });
+    await db.round.delete({ where: { id: round.id } });
+    const fresh = await db.challenge.findUnique({ where: { id: challengeId } });
     const winner = iAmChallenger ? fresh?.challengerRoundId : fresh?.opponentRoundId;
-    if (winner) return { ok: true, roundId: winner };
+    if (winner) {
+      const stored = await db.round.findUnique({
+        where: { id: winner },
+        select: { rulesetVersion: true },
+      });
+      if (stored?.rulesetVersion === ch.rulesetVersion) {
+        return { ok: true, roundId: winner };
+      }
+    }
     return { ok: false, error: "unavailable" };
   }
   return { ok: true, roundId: round.id };

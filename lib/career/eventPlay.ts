@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { requireCareerFormulaBundle } from "./formulaBundle";
 
 export type StartCareerEventResult =
   | {
@@ -91,9 +92,15 @@ export async function startCareerEventRound(
     if (!cohort || entry.competition.eventNumber == null) {
       return { ok: false, error: "not-found" } as const;
     }
+    const rulesetVersion = requireCareerFormulaBundle(
+      cohort.world.formulaVersion,
+    ).gameplayRulesetVersion;
     const roundsTotal = entry.competition.roundsPerPlayer;
     // Grandfathered events keep their original one-card contract.
     if (roundsTotal === 1 && entry.round) {
+      if (entry.round.rulesetVersion !== rulesetVersion) {
+        return { ok: false, error: "event-closed" } as const;
+      }
       return {
         ok: true,
         roundId: entry.round.id,
@@ -103,6 +110,9 @@ export async function startCareerEventRound(
     }
     const inProgress = entry.rounds.find((eventRound) => !eventRound.completed);
     if (inProgress) {
+      if (inProgress.round.rulesetVersion !== rulesetVersion) {
+        return { ok: false, error: "event-closed" } as const;
+      }
       return {
         ok: true,
         roundId: inProgress.roundId,
@@ -122,6 +132,7 @@ export async function startCareerEventRound(
         userId,
         courseId: entry.competition.courseId,
         mode: "career",
+        rulesetVersion,
         dateKey: null,
         seedKey,
       },

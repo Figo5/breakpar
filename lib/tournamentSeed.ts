@@ -22,6 +22,10 @@ import {
   scoringEventSeed,
 } from "@/lib/engine/rng";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
+import {
+  STANDARD_V2_RULESET,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 export const TOURNAMENT_SEED_CANDIDATES = 31;
 const TOURNAMENT_SEED_PANEL_SIZE = 12;
@@ -141,7 +145,12 @@ function panelDecision(
   return state.rel >= 1 && state.holesLeft <= 6 ? "aggressive" : "normal";
 }
 
-function policyScore(seedKey: string, course: Course, player: SeedPanelPlayer): number {
+function policyScore(
+  seedKey: string,
+  course: Course,
+  player: SeedPanelPlayer,
+  rulesetVersion: GameplayRulesetVersion,
+): number {
   const conditions: Conditions = { difficulty: course.difficulty, wind: course.wind };
   const state: SeedState = {
     rel: 0,
@@ -170,6 +179,7 @@ function policyScore(seedKey: string, course: Course, player: SeedPanelPlayer): 
       recent,
       narration: false as const,
       holeContext: { hazard: hole.hazard, signature: hole.signature },
+      rulesetVersion,
     };
 
     const decisions: Decision[] = [];
@@ -231,11 +241,20 @@ function policyScore(seedKey: string, course: Course, player: SeedPanelPlayer): 
 }
 
 /** Score the deterministic candidate set. Exported for regression/calibration. */
-export function assessTournamentSeeds(baseSeedKey: string, course: Course): TournamentSeedAssessment[] {
+export function assessTournamentSeeds(
+  baseSeedKey: string,
+  course: Course,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): TournamentSeedAssessment[] {
   const panel = seedPanel();
   return Array.from({ length: TOURNAMENT_SEED_CANDIDATES }, (_, index) => {
     const seedKey = `${baseSeedKey}:neutral:${index}`;
-    const scores = panel.map((player) => policyScore(seedKey, course, player));
+    const scores = panel.map((player) => policyScore(
+      seedKey,
+      course,
+      player,
+      rulesetVersion,
+    ));
     return {
       seedKey,
       fieldMean: scores.reduce((sum, score) => sum + score, 0) / scores.length,
@@ -257,6 +276,12 @@ export function selectNeutralTournamentSeed(
   return assessed[Math.floor(assessed.length / 2)].seedKey;
 }
 
-export function neutralTournamentSeedKey(baseSeedKey: string, course: Course): string {
-  return selectNeutralTournamentSeed(assessTournamentSeeds(baseSeedKey, course));
+export function neutralTournamentSeedKey(
+  baseSeedKey: string,
+  course: Course,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): string {
+  return selectNeutralTournamentSeed(
+    assessTournamentSeeds(baseSeedKey, course, rulesetVersion),
+  );
 }

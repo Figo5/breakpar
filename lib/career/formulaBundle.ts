@@ -5,6 +5,10 @@ import {
   type Tendency,
 } from "./simulator";
 import { CAREER_CANONICAL_VERSION } from "./canonical";
+import {
+  STANDARD_V1_RULESET,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 /**
  * The historical synchronized-cadence package. It is FROZEN: never edit its
@@ -84,6 +88,8 @@ export interface PersonalCycleChampionshipRules {
 
 export interface CareerFormulaBundle {
   readonly id: string;
+  /** Gameplay engine pinned for every human and bot card in this package. */
+  readonly gameplayRulesetVersion: GameplayRulesetVersion;
   readonly componentVersions: Readonly<Record<keyof typeof CAREER_COMPONENT_VERSIONS, string>>;
   readonly ability: {
     readonly model: "error";
@@ -135,6 +141,7 @@ function deepFreeze<T>(value: T): T {
 
 const careerV1FreezeCandidate: CareerFormulaBundle = deepFreeze({
   id: CAREER_V1_FORMULA_VERSION,
+  gameplayRulesetVersion: STANDARD_V1_RULESET,
   componentVersions: { ...CAREER_COMPONENT_VERSIONS },
   ability: {
     model: CAREER_V1_FREEZE_CANDIDATE.abilityModel,
@@ -186,6 +193,7 @@ const careerV1FreezeCandidate: CareerFormulaBundle = deepFreeze({
  */
 const careerV2PlayerPaced: CareerFormulaBundle = deepFreeze({
   id: CAREER_V2_FORMULA_VERSION,
+  gameplayRulesetVersion: STANDARD_V1_RULESET,
   componentVersions: {
     ...CAREER_COMPONENT_VERSIONS,
     // The human movement cap is retired; qualification is a personal cycle.
@@ -251,6 +259,7 @@ const careerV2PlayerPaced: CareerFormulaBundle = deepFreeze({
 const careerV3FourRoundEvents: CareerFormulaBundle = deepFreeze({
   ...careerV2PlayerPaced,
   id: CAREER_V3_FORMULA_VERSION,
+  gameplayRulesetVersion: STANDARD_V1_RULESET,
   componentVersions: {
     ...careerV2PlayerPaced.componentVersions,
     eventFormat: "career-event-format-v2-four-round-cumulative",

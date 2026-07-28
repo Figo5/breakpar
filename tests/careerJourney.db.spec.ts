@@ -232,5 +232,17 @@ describe("No calendar gates anything", () => {
     // The seed is bound to the locked field, not to the request.
     const round = await db.round.findUniqueOrThrow({ where: { id: a.roundId } });
     expect(round.seedKey).toContain(careerJourneyKey(user.id));
+    expect(round.rulesetVersion).toBe("standard-v1");
+
+    // A linked card can never be resumed under rules different from the
+    // Journey's immutable formula package.
+    await db.round.update({
+      where: { id: round.id },
+      data: { rulesetVersion: "standard-v2-casual" },
+    });
+    expect(await startCareerEventRound(db, user.id, first.id)).toEqual({
+      ok: false,
+      error: "event-closed",
+    });
   });
 });

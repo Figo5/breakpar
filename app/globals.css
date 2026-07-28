@@ -206,6 +206,7 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
 
 .final-course{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--pm-ink-soft);font-size:13px;text-align:center}
+.final-ruleset{margin-top:4px;color:var(--muted);font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-align:center;text-transform:uppercase}
 .final-score{font-family:'Anton',sans-serif;font-size:96px;line-height:.85;color:var(--pm-ink);margin:6px 0 0;text-align:center}
 .final-rel{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;text-align:center}
 .made-it{color:var(--pm-safe)} .missed{color:var(--pm-flag)}

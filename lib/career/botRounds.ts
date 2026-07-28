@@ -49,6 +49,7 @@ export function careerBotRoundCards(input: {
   readonly course: GameCourse;
   readonly archetype: CareerArchetype;
   readonly errorRates: CareerFormulaBundle["ability"]["errorRates"];
+  readonly gameplayRulesetVersion: CareerFormulaBundle["gameplayRulesetVersion"];
 }): readonly CareerBotRoundCard[] {
   if (!Number.isSafeInteger(input.roundsPerPlayer) || input.roundsPerPlayer < 1) {
     throw new TypeError("Career bot round cards require a positive round count");
@@ -64,6 +65,7 @@ export function careerBotRoundCards(input: {
         input.archetype,
         "error",
         input.errorRates,
+        input.gameplayRulesetVersion,
       ),
       seed,
     };
@@ -144,7 +146,8 @@ export async function rebuildCareerBotRounds(
   if (!formulaVersion) {
     throw new Error(`Career event ${competitionId} has no pinned formula package version`);
   }
-  const errorRates = requireCareerFormulaBundle(formulaVersion).ability.errorRates;
+  const formulaBundle = requireCareerFormulaBundle(formulaVersion);
+  const errorRates = formulaBundle.ability.errorRates;
 
   const totalBySlot = new Map(lock.results.map((result) => [result.slotId, result.relativeToPar]));
   const slots = lock.slots
@@ -163,6 +166,7 @@ export async function rebuildCareerBotRounds(
           tendency: slot.tendency.toLowerCase() as CareerArchetype["tendency"],
         },
         errorRates,
+        gameplayRulesetVersion: formulaBundle.gameplayRulesetVersion,
       });
       const total = sumBotRoundCards(cards);
       const storedTotal = totalBySlot.get(slot.slotId) ?? null;
