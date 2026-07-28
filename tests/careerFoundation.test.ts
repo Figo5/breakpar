@@ -26,6 +26,7 @@ import {
   CAREER_V1_FORMULA_VERSION,
   CAREER_V2_FORMULA_BUNDLE,
   CAREER_V3_FORMULA_BUNDLE,
+  CAREER_V4_FORMULA_BUNDLE,
   getCareerFormulaBundle,
   listCareerFormulaVersions,
   pinCareerFormulaBundle,
@@ -210,7 +211,7 @@ describe("Career formula bundle", () => {
       challengerTop: 2,
       duplicatePolicy: "pro-standings-passdown",
     });
-    expect(Object.keys(CAREER_COMPONENT_VERSIONS)).toHaveLength(14);
+    expect(Object.keys(CAREER_COMPONENT_VERSIONS)).toHaveLength(15);
   });
 
   it("player-paced v2 retires the movement cap and personalises qualification, and changes nothing else", () => {
@@ -253,25 +254,44 @@ describe("Career formula bundle", () => {
     // v1 stays registered and byte-identical so historical snapshots resolve.
     expect(CAREER_V1_FORMULA_VERSION).toBe("career-v1-freeze-candidate");
     expect(getCareerFormulaBundle(CAREER_V1_FORMULA_VERSION)).toBe(CAREER_V1_FORMULA_BUNDLE);
-    // New settlements pin the player-paced package.
-    expect(CAREER_FORMULA_VERSION).toBe("career-v3-four-round-events");
-    expect(getCareerFormulaBundle(CAREER_FORMULA_VERSION)).toBe(CAREER_V3_FORMULA_BUNDLE);
+    // New seasons pin the exact-rank progression package.
+    expect(CAREER_FORMULA_VERSION).toBe("career-v4-progression");
+    expect(getCareerFormulaBundle(CAREER_FORMULA_VERSION)).toBe(CAREER_V4_FORMULA_BUNDLE);
     expect(listCareerFormulaVersions()).toEqual([
       "career-v1-freeze-candidate",
       "career-v2-player-paced",
       "career-v3-four-round-events",
+      "career-v4-progression",
     ]);
     expect(Object.isFrozen(CAREER_V1_FORMULA_BUNDLE)).toBe(true);
     expect(Object.isFrozen(CAREER_V1_FORMULA_BUNDLE.movement)).toBe(true);
     expect(Object.isFrozen(CAREER_V1_FORMULA_BUNDLE.bots.tierMix.pro)).toBe(true);
     expect(Object.isFrozen(CAREER_V2_FORMULA_BUNDLE)).toBe(true);
     expect(Object.isFrozen(CAREER_V3_FORMULA_BUNDLE)).toBe(true);
+    expect(Object.isFrozen(CAREER_V4_FORMULA_BUNDLE)).toBe(true);
+    expect(CAREER_V4_FORMULA_BUNDLE.movement.tierThresholds).toEqual({
+      local: {
+        promoteThreshold: 0.72,
+        promotionFloor: 0.60,
+        relegateThreshold: 0.40,
+      },
+      challenger: {
+        promoteThreshold: 0.75,
+        promotionFloor: 0.62,
+        relegateThreshold: 0.40,
+      },
+      pro: {
+        promoteThreshold: 1,
+        promotionFloor: 1,
+        relegateThreshold: 0.40,
+      },
+    });
     expect(getCareerFormulaBundle("future-version")).toBeUndefined();
     expect(() => requireCareerFormulaBundle("future-version")).toThrow(/manual review/);
     expect(pinCareerFormulaBundle(CAREER_FORMULA_VERSION, "build-abc")).toEqual({
       formulaPackageVersion: CAREER_FORMULA_VERSION,
       runtimeRevision: "build-abc",
-      bundle: CAREER_V3_FORMULA_BUNDLE,
+      bundle: CAREER_V4_FORMULA_BUNDLE,
     });
     expect(Object.isFrozen(pinCareerFormulaBundle(CAREER_FORMULA_VERSION, "build-abc"))).toBe(true);
     expect(() => pinCareerFormulaBundle(CAREER_FORMULA_VERSION, " ")).toThrow(/must not be empty/);

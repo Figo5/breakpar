@@ -4,14 +4,17 @@
  * `CareerLegacyLedger` is the source of truth. Nothing here recalculates a
  * historical award from today's formulas: a row published years of play ago is
  * displayed exactly as it was written, which is the whole point of an immutable
- * ledger. There is no profile or journey parameter — the caller can only ever
- * read their own ledger.
+ * ledger. An optional profile selector can open one of the caller's archived
+ * Careers, but the user ID is always part of the query so another account's
+ * ledger can never be read.
  *
  * Legacy is permanent and never decreases. This module does not enforce that by
  * hiding anything: if a negative row ever existed it is displayed honestly and
  * reported through `invariantViolations` so a test or diagnostic can catch it.
  */
-import type { PrismaClient } from "@prisma/client";
+import type { CareerTier, PrismaClient } from "@prisma/client";
+
+import { CAREER_SEASONS_PER_CYCLE } from "./constants";
 
 /** Display-only prestige ladder. Frozen in docs/career-player-paced-design.md §13. */
 export const CAREER_LEGACY_MILESTONES = [
@@ -140,7 +143,36 @@ export interface CareerLegacyEntry {
   readonly sourceId: string;
   /** Where it was earned, when it can be resolved — e.g. "Season 3 · Event 2". */
   readonly context: string | null;
+  /** Immutable season ownership derived from the source relation, never dates. */
+  readonly seasonNumber: number | null;
+  readonly tier: CareerTier | null;
   readonly earnedAt: string;
+}
+
+export type CareerLegacyIndicator = "promotion" | "championship" | "trophy";
+
+export interface CareerLegacyCategory {
+  readonly awardType: string;
+  readonly label: string;
+  readonly reason: string;
+  readonly count: number;
+  readonly points: number;
+}
+
+export interface CareerLegacySeason {
+  readonly seasonNumber: number;
+  readonly tier: CareerTier;
+  readonly points: number;
+  readonly entryCount: number;
+  readonly indicators: readonly CareerLegacyIndicator[];
+  readonly categories: readonly CareerLegacyCategory[];
+}
+
+export interface CareerLegacyTrophySource {
+  readonly sourceType: string;
+  readonly sourceId: string;
+  readonly seasonNumber: number | null;
+  readonly tier: CareerTier | null;
 }
 
 export interface CareerLegacyView {
@@ -150,13 +182,127 @@ export interface CareerLegacyView {
   /** The sum of every ledger row. Equal to `legacyTotal` when consistent. */
   readonly ledgerTotal: number;
   readonly reconciles: boolean;
+  /** Sum of the season summaries. Equal to the ledger when every source resolves. */
+  readonly groupedTotal: number;
+  readonly groupingReconciles: boolean;
   readonly title: CareerLegacyTitle;
+  /** Primary presentation: one summary per immutable Career season. */
+  readonly seasons: readonly CareerLegacySeason[];
+  /** Retained for reconciliation/backward compatibility, not the primary UI. */
   readonly entries: readonly CareerLegacyEntry[];
   /**
    * Non-empty only when stored data breaks a locked Career rule — today, a
    * negative award, which cannot happen by design. Surfaced, never hidden.
    */
   readonly invariantViolations: readonly string[];
+}
+
+const LEGACY_INDICATOR_ORDER: readonly CareerLegacyIndicator[] = [
+  "promotion",
+  "championship",
+  "trophy",
+];
+
+const LEGACY_CATEGORY_ORDER = [
+  "eventCompletion",
+  "eventTopFive",
+  "eventWin",
+  "activeSeasonCompletion",
+  "promotion",
+  "proSurvival",
+  "seasonChampionship",
+  "championshipQualification",
+  "championshipWin",
+] as const;
+
+/**
+ * Fold immutable ledger rows into season summaries. Every entry is counted
+ * exactly once. Source-to-season resolution happens before this pure step, so
+ * rows that cannot be assigned are deliberately excluded rather than blended
+ * into an ambiguous "Career" bucket.
+ */
+export function groupCareerLegacyBySeason(
+  entries: readonly CareerLegacyEntry[],
+  trophies: readonly CareerLegacyTrophySource[] = [],
+): CareerLegacySeason[] {
+  interface MutableSeason {
+    seasonNumber: number;
+    tier: CareerTier;
+    points: number;
+    entryCount: number;
+    indicators: Set<CareerLegacyIndicator>;
+    categories: Map<string, CareerLegacyCategory>;
+  }
+
+  const seasons = new Map<number, MutableSeason>();
+  const ensureSeason = (
+    seasonNumber: number,
+    tier: CareerTier,
+  ): MutableSeason => {
+    const existing = seasons.get(seasonNumber);
+    if (existing) return existing;
+    const created: MutableSeason = {
+      seasonNumber,
+      tier,
+      points: 0,
+      entryCount: 0,
+      indicators: new Set(),
+      categories: new Map(),
+    };
+    seasons.set(seasonNumber, created);
+    return created;
+  };
+
+  for (const entry of entries) {
+    if (entry.seasonNumber == null || entry.tier == null) continue;
+    const season = ensureSeason(entry.seasonNumber, entry.tier);
+    season.points += entry.points;
+    season.entryCount++;
+    const category = season.categories.get(entry.awardType);
+    season.categories.set(entry.awardType, {
+      awardType: entry.awardType,
+      label: entry.label,
+      reason: entry.reason,
+      count: (category?.count ?? 0) + 1,
+      points: (category?.points ?? 0) + entry.points,
+    });
+    if (entry.awardType === "promotion") season.indicators.add("promotion");
+    if (
+      entry.sourceType === "championship"
+      || entry.awardType === "championshipQualification"
+      || entry.awardType === "championshipWin"
+    ) {
+      season.indicators.add("championship");
+    }
+  }
+
+  for (const trophy of trophies) {
+    if (trophy.seasonNumber == null || trophy.tier == null) continue;
+    ensureSeason(trophy.seasonNumber, trophy.tier).indicators.add("trophy");
+  }
+
+  const orderOf = (awardType: string): number => {
+    const index = LEGACY_CATEGORY_ORDER.indexOf(
+      awardType as typeof LEGACY_CATEGORY_ORDER[number],
+    );
+    return index < 0 ? LEGACY_CATEGORY_ORDER.length : index;
+  };
+
+  return [...seasons.values()]
+    .sort((left, right) => right.seasonNumber - left.seasonNumber)
+    .map((season) => ({
+      seasonNumber: season.seasonNumber,
+      tier: season.tier,
+      points: season.points,
+      entryCount: season.entryCount,
+      indicators: LEGACY_INDICATOR_ORDER.filter((indicator) =>
+        season.indicators.has(indicator)),
+      categories: [...season.categories.values()].sort(
+        (left, right) =>
+          orderOf(left.awardType) - orderOf(right.awardType)
+          || left.label.localeCompare(right.label),
+      ),
+    }));
 }
 
 /**
@@ -166,10 +312,13 @@ export interface CareerLegacyView {
 export async function careerLegacyForUser(
   db: PrismaClient,
   userId: string,
+  profileId?: string | null,
 ): Promise<CareerLegacyView | null> {
   const profile = await db.careerProfile.findFirst({
-    where: { userId },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    where: profileId
+      ? { id: profileId, userId }
+      : { userId, status: "ACTIVE" },
+    orderBy: [{ careerNumber: "desc" }, { id: "desc" }],
     select: { id: true, legacyTotal: true },
   });
   if (!profile) return null;
@@ -189,11 +338,23 @@ export async function careerLegacyForUser(
     },
   });
 
-  const context = await resolveLegacyContexts(db, rows);
+  const trophyRows = await db.careerTrophy.findMany({
+    where: { profileId: profile.id },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      sourceType: true,
+      sourceId: true,
+    },
+  });
+  const context = await resolveLegacyContexts(db, profile.id, [
+    ...rows,
+    ...trophyRows,
+  ]);
   let runningTotal = 0;
   const entries = rows.map((row) => {
     runningTotal += row.points;
     const copy = careerLegacyAwardCopy(row.awardType);
+    const resolved = context.get(`${row.sourceType}:${row.sourceId}`);
     return {
       id: row.id,
       awardType: row.awardType,
@@ -203,7 +364,9 @@ export async function careerLegacyForUser(
       runningTotal,
       sourceType: row.sourceType,
       sourceId: row.sourceId,
-      context: context.get(`${row.sourceType}:${row.sourceId}`) ?? null,
+      context: resolved?.label ?? null,
+      seasonNumber: resolved?.seasonNumber ?? null,
+      tier: resolved?.tier ?? null,
       earnedAt: row.createdAt.toISOString(),
     };
   });
@@ -211,13 +374,35 @@ export async function careerLegacyForUser(
   const invariantViolations = rows
     .filter((row) => row.points < 0)
     .map((row) => `Legacy row ${row.id} (${row.awardType}) stores ${row.points} points; Legacy never decreases.`);
+  for (const entry of entries) {
+    if (entry.seasonNumber == null || entry.tier == null) {
+      invariantViolations.push(
+        `Legacy row ${entry.id} (${entry.awardType}) cannot be assigned to one Career season.`,
+      );
+    }
+  }
+
+  const trophySources: CareerLegacyTrophySource[] = trophyRows.map((trophy) => {
+    const resolved = context.get(`${trophy.sourceType}:${trophy.sourceId}`);
+    return {
+      sourceType: trophy.sourceType,
+      sourceId: trophy.sourceId,
+      seasonNumber: resolved?.seasonNumber ?? null,
+      tier: resolved?.tier ?? null,
+    };
+  });
+  const seasons = groupCareerLegacyBySeason(entries, trophySources);
+  const groupedTotal = seasons.reduce((sum, season) => sum + season.points, 0);
 
   return {
     profileId: profile.id,
     legacyTotal: profile.legacyTotal,
     ledgerTotal: runningTotal,
     reconciles: runningTotal === profile.legacyTotal,
+    groupedTotal,
+    groupingReconciles: groupedTotal === runningTotal,
     title: careerLegacyTitle(profile.legacyTotal),
+    seasons,
     entries,
     invariantViolations,
   };
@@ -226,15 +411,24 @@ export async function careerLegacyForUser(
 /** Resolve "where did this happen" labels for the ledger's source references. */
 async function resolveLegacyContexts(
   db: PrismaClient,
+  profileId: string,
   rows: readonly { sourceType: string; sourceId: string }[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, {
+  label: string;
+  seasonNumber: number;
+  tier: CareerTier;
+}>> {
   const byType = new Map<string, Set<string>>();
   for (const row of rows) {
     const ids = byType.get(row.sourceType) ?? new Set<string>();
     ids.add(row.sourceId);
     byType.set(row.sourceType, ids);
   }
-  const context = new Map<string, string>();
+  const context = new Map<string, {
+    label: string;
+    seasonNumber: number;
+    tier: CareerTier;
+  }>();
 
   const eventIds = [...(byType.get("event") ?? [])];
   if (eventIds.length > 0) {
@@ -244,16 +438,21 @@ async function resolveLegacyContexts(
         id: true,
         eventNumber: true,
         course: { select: { name: true } },
-        cohort: { select: { seasonNumber: true } },
+        cohort: { select: { seasonNumber: true, tier: true } },
       },
     });
     for (const event of events) {
+      if (!event.cohort) continue;
       const parts = [
-        event.cohort ? `Season ${event.cohort.seasonNumber}` : null,
+        `Season ${event.cohort.seasonNumber}`,
         event.eventNumber ? `Event ${event.eventNumber}` : null,
         event.course.name,
       ].filter(Boolean);
-      context.set(`event:${event.id}`, parts.join(" · "));
+      context.set(`event:${event.id}`, {
+        label: parts.join(" · "),
+        seasonNumber: event.cohort.seasonNumber,
+        tier: event.cohort.tier,
+      });
     }
   }
 
@@ -264,10 +463,11 @@ async function resolveLegacyContexts(
       select: { id: true, seasonNumber: true, tier: true },
     });
     for (const cohort of cohorts) {
-      context.set(
-        `season:${cohort.id}`,
-        `Season ${cohort.seasonNumber} · ${cohort.tier.charAt(0)}${cohort.tier.slice(1).toLowerCase()} Tour`,
-      );
+      context.set(`season:${cohort.id}`, {
+        label: `Season ${cohort.seasonNumber} · ${cohort.tier.charAt(0)}${cohort.tier.slice(1).toLowerCase()} Tour`,
+        seasonNumber: cohort.seasonNumber,
+        tier: cohort.tier,
+      });
     }
   }
 
@@ -277,8 +477,31 @@ async function resolveLegacyContexts(
       where: { id: { in: championshipIds } },
       select: { id: true, cycleNumber: true },
     });
+    const championshipSeasons = [...new Set(championships.map(
+      (championship) =>
+        championship.cycleNumber * CAREER_SEASONS_PER_CYCLE,
+    ))];
+    const histories = await db.careerSeasonHistory.findMany({
+      where: {
+        profileId,
+        seasonNumber: { in: championshipSeasons },
+      },
+      select: { seasonNumber: true, tier: true },
+    });
+    const tierBySeason = new Map(histories.map((history) => [
+      history.seasonNumber,
+      history.tier,
+    ]));
     for (const championship of championships) {
-      context.set(`championship:${championship.id}`, `Championship · Cycle ${championship.cycleNumber}`);
+      const seasonNumber =
+        championship.cycleNumber * CAREER_SEASONS_PER_CYCLE;
+      const tier = tierBySeason.get(seasonNumber);
+      if (!tier) continue;
+      context.set(`championship:${championship.id}`, {
+        label: `Season ${seasonNumber} · Championship Cycle ${championship.cycleNumber}`,
+        seasonNumber,
+        tier,
+      });
     }
   }
 

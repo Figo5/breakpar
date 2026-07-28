@@ -32,7 +32,6 @@ import {
 } from "./canonical";
 import { CAREER_NO_DEADLINE } from "./constants";
 import { careerEffectKey } from "./effectKeys";
-import { CAREER_FORMULA_VERSION } from "./formulaBundle";
 import type { ChampionshipSource } from "./rules";
 
 export const CAREER_CHAMPIONSHIP_FIELD_SIZE = 20;
@@ -385,7 +384,7 @@ export class CareerChampionshipCoordinator {
         aggregate: { type: "CHAMPIONSHIP", id: championshipId },
         cycleNumber,
         qualifyingSeasons: requiredSeasons,
-        formulaVersion: CAREER_FORMULA_VERSION,
+        formulaVersion: championship.formulaVersion,
         sources: {
           humanCompetitorId: `human:${profile.id}`,
           eliteBotCompetitorIds,
@@ -458,7 +457,10 @@ export class CareerChampionshipCoordinator {
         fieldSize: CAREER_CHAMPIONSHIP_FIELD_SIZE,
       });
       const fieldEffect = {
-        effectKey: careerEffectKey.championshipSettlement(championshipId, CAREER_FORMULA_VERSION),
+        effectKey: careerEffectKey.championshipSettlement(
+          championshipId,
+          championship.formulaVersion,
+        ),
         effectType: "championship-field",
         scope: championshipId,
         payload: fieldPayload,

@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { canonicalHash, canonicalStringify } from "./canonical";
 import { careerEffectKey } from "./effectKeys";
-import { CAREER_FORMULA_VERSION } from "./formulaBundle";
+import { requireCareerFormulaBundle } from "./formulaBundle";
 import { rankEvent } from "./rules";
 import {
   CareerSettlementEngine,
@@ -194,6 +194,13 @@ export class CareerEventSettlementService {
       );
     }
     const lock = competition.lockRevisions[0];
+    const formulaVersion = (
+      lock.formulaBundle as { formulaPackageVersion?: unknown } | null
+    )?.formulaPackageVersion;
+    if (typeof formulaVersion !== "string") {
+      throw new Error(`Career event ${competition.id} lock has no formula package`);
+    }
+    requireCareerFormulaBundle(formulaVersion);
     if (
       lock.slots.length !== competition.targetFieldSize
       || lock.results.length !== competition.targetFieldSize
@@ -235,7 +242,7 @@ export class CareerEventSettlementService {
         },
         results: inputResults,
       },
-      formulaVersion: CAREER_FORMULA_VERSION,
+      formulaVersion,
       runtimeRevision: this.runtimeRevision,
     });
 
@@ -244,18 +251,18 @@ export class CareerEventSettlementService {
       competitionId: competition.id,
       lockRevisionId: lock.id,
       lockRevision: lock.revision,
-      formulaVersion: CAREER_FORMULA_VERSION,
+      formulaVersion,
       fieldSize: standings.length,
       standings,
     };
     const finalIdentity =
-      `${competition.id}:lock${lock.revision}:${CAREER_FORMULA_VERSION}`;
+      `${competition.id}:lock${lock.revision}:${formulaVersion}`;
     const effects: SettlementEffect[] = [
       {
         effectKey: careerEffectKey.eventFinal(
           competition.id,
           lock.revision,
-          CAREER_FORMULA_VERSION,
+          formulaVersion,
         ),
         effectType: "event-final",
         scope: competition.id,
@@ -321,7 +328,7 @@ export class CareerEventSettlementService {
             data: {
               competitionId,
               lockRevisionId: output.lockRevisionId,
-              formulaVersion: CAREER_FORMULA_VERSION,
+              formulaVersion: output.formulaVersion,
               standings: jsonInput(persistedJson(output.standings)),
               outputHash: canonicalHash(output.standings),
             },

@@ -26,6 +26,14 @@ import {
   summarizeSeason,
   type SeasonEventResult,
 } from "./rules";
+import {
+  CAREER_SKILLS,
+  careerSkillUpgradeCost,
+  requireCareerSkillRanks,
+  type CareerSkill,
+  type CareerSkillRanks,
+} from "./development";
+import { requireCareerFormulaBundle } from "./formulaBundle";
 
 /**
  * Order a partially played field by cumulative score. Points are deliberately
@@ -96,7 +104,40 @@ export interface CareerStateView {
     readonly currentSeason: number;
     readonly settledSeasons: number;
     readonly legacyTotal: number;
+    readonly careerNumber: number;
+    readonly developmentPoints: number;
+    readonly skills: CareerSkillRanks;
   };
+  readonly development: {
+    readonly enabled: boolean;
+    readonly points: number;
+    readonly skills: readonly {
+      readonly skill: CareerSkill;
+      readonly rank: number;
+      readonly maxRank: number;
+      readonly nextCost: number | null;
+    }[];
+    readonly latestAward: {
+      readonly seasonNumber: number | null;
+      readonly points: number;
+      readonly reasons: readonly string[];
+    } | null;
+  };
+  readonly movement: {
+    readonly evidence: readonly number[];
+    readonly average: number | null;
+    readonly promotionThreshold: number | null;
+    readonly promotionFloor: number | null;
+    readonly relegationThreshold: number | null;
+  };
+  readonly retiredCareers: readonly {
+    readonly profileId: string;
+    readonly careerNumber: number;
+    readonly settledSeasons: number;
+    readonly legacyTotal: number;
+    readonly highestTier: "LOCAL" | "CHALLENGER" | "PRO";
+    readonly retiredAt: string | null;
+  }[];
   /** How far through the current season the player is, out of four. */
   readonly seasonProgress: { readonly completed: number; readonly total: number };
   /** An unlocked Championship awaiting play, if any. */
@@ -280,14 +321,14 @@ export async function careerStateForUser(
   userId: string,
 ): Promise<CareerStateView | null> {
   const profile = await db.careerProfile.findFirst({
-    where: { userId },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    where: { userId, status: "ACTIVE" },
+    orderBy: [{ careerNumber: "desc" }, { id: "desc" }],
   });
   if (!profile) return null;
 
   const world = await db.careerWorld.findUniqueOrThrow({
     where: { id: profile.worldId },
-    select: { id: true, worldKey: true },
+    select: { id: true, worldKey: true, formulaVersion: true },
   });
   const cohort = await db.careerCohort.findUnique({
     where: {
@@ -350,7 +391,7 @@ export async function careerStateForUser(
     };
   });
 
-  const [latestRating, latestHistory] = await Promise.all([
+  const [latestRating, latestHistory, latestDevelopment, retiredProfiles] = await Promise.all([
     db.careerRatingHistory.findFirst({
       where: { profileId: profile.id },
       orderBy: { seasonNumber: "desc" },
@@ -370,6 +411,26 @@ export async function careerStateForUser(
         movement: true,
       },
     }),
+    db.careerDevelopmentLedger.findFirst({
+      where: { profileId: profile.id, sourceType: "season-award" },
+      orderBy: [{ seasonNumber: "desc" }, { createdAt: "desc" }],
+      select: { seasonNumber: true, points: true, reason: true },
+    }),
+    db.careerProfile.findMany({
+      where: { userId, status: "RETIRED" },
+      orderBy: [{ careerNumber: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        careerNumber: true,
+        settledSeasons: true,
+        legacyTotal: true,
+        tier: true,
+        retiredAt: true,
+        histories: {
+          select: { tier: true, nextTier: true },
+        },
+      },
+    }),
   ]);
 
   // An unplayed Championship never expires, so surface the oldest outstanding
@@ -380,6 +441,27 @@ export async function careerStateForUser(
     select: { id: true, cycleNumber: true, state: true },
   });
 
+  const skills = requireCareerSkillRanks({
+    driving: profile.drivingRank,
+    approach: profile.approachRank,
+    shortGame: profile.shortGameRank,
+    putting: profile.puttingRank,
+  });
+  const movementEvidence = Array.isArray(profile.movementEvidence)
+    ? profile.movementEvidence.filter(
+      (value): value is number => typeof value === "number" && Number.isFinite(value),
+    )
+    : [];
+  const formula = requireCareerFormulaBundle(
+    cohort?.formulaVersion ?? world.formulaVersion,
+  );
+  const tierKey = profile.tier.toLowerCase() as "local" | "challenger" | "pro";
+  const tierThresholds = formula.movement.tierThresholds?.[tierKey];
+  const reason = latestDevelopment?.reason as { reasons?: unknown } | null;
+  const latestReasons = Array.isArray(reason?.reasons)
+    ? reason.reasons.filter((value): value is string => typeof value === "string")
+    : [];
+
   return {
     world,
     profile: {
@@ -389,7 +471,63 @@ export async function careerStateForUser(
       currentSeason: profile.currentSeason,
       settledSeasons: profile.settledSeasons,
       legacyTotal: profile.legacyTotal,
+      careerNumber: profile.careerNumber,
+      developmentPoints: profile.developmentPoints,
+      skills,
     },
+    development: {
+      enabled: formula.development != null,
+      points: profile.developmentPoints,
+      skills: CAREER_SKILLS.map((skill) => ({
+        skill,
+        rank: skills[skill],
+        maxRank: formula.development?.maxRank ?? skills[skill],
+        nextCost: formula.development
+          ? careerSkillUpgradeCost(skills[skill])
+          : null,
+      })),
+      latestAward: latestDevelopment
+        ? {
+          seasonNumber: latestDevelopment.seasonNumber,
+          points: latestDevelopment.points,
+          reasons: latestReasons,
+        }
+        : null,
+    },
+    movement: {
+      evidence: movementEvidence,
+      average: movementEvidence.length
+        ? movementEvidence.reduce((sum, value) => sum + value, 0) / movementEvidence.length
+        : null,
+      promotionThreshold: profile.tier === "PRO"
+        ? null
+        : tierThresholds?.promoteThreshold
+          ?? formula.movement.rollingPromoteThreshold,
+      promotionFloor: profile.tier === "PRO"
+        ? null
+        : tierThresholds?.promotionFloor
+          ?? formula.movement.rollingPromotionFloor,
+      relegationThreshold: profile.tier === "LOCAL"
+        ? null
+        : tierThresholds?.relegateThreshold
+          ?? formula.movement.rollingRelegateThreshold,
+    },
+    retiredCareers: retiredProfiles.map((retired) => {
+      const tierRank = { LOCAL: 0, CHALLENGER: 1, PRO: 2 } as const;
+      const highestTier = [
+        retired.tier,
+        ...retired.histories.flatMap((history) => [history.tier, history.nextTier]),
+      ].reduce((highest, candidate) =>
+        tierRank[candidate] > tierRank[highest] ? candidate : highest, "LOCAL");
+      return {
+        profileId: retired.id,
+        careerNumber: retired.careerNumber,
+        settledSeasons: retired.settledSeasons,
+        legacyTotal: retired.legacyTotal,
+        highestTier,
+        retiredAt: retired.retiredAt?.toISOString() ?? null,
+      };
+    }),
     seasonProgress: {
       completed: schedule.filter((entry) => entry.completed).length,
       total: schedule.length,

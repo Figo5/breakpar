@@ -14,10 +14,11 @@ import { getCurrentUser } from "@/lib/user";
  */
 export const dynamic = "force-dynamic";
 
-export const GET = route(async () => {
+export const GET = route(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "not-found" }, { status: 404 });
-  const legacy = await careerLegacyForUser(prisma, user.id);
+  const profileId = new URL(request.url).searchParams.get("profileId");
+  const legacy = await careerLegacyForUser(prisma, user.id, profileId);
   if (!legacy) return NextResponse.json({ error: "not-found" }, { status: 404 });
   return NextResponse.json(legacy);
 });

@@ -5,6 +5,8 @@ import {
   CAREER_LEGACY_STARTING_TITLE,
   careerLegacyAwardCopy,
   careerLegacyTitle,
+  groupCareerLegacyBySeason,
+  type CareerLegacyEntry,
 } from "@/lib/career/legacy";
 
 describe("Legacy titles", () => {
@@ -78,5 +80,65 @@ describe("Legacy award copy", () => {
     expect(careerLegacyAwardCopy("major_win").label).toBe("Major win");
     expect(careerLegacyAwardCopy("").label).toBe("Legacy award");
     expect(careerLegacyAwardCopy("someFutureAward").reason.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Legacy season breakdown", () => {
+  const entry = (
+    id: string,
+    seasonNumber: number,
+    awardType: string,
+    points: number,
+    tier: "LOCAL" | "CHALLENGER" | "PRO" = "LOCAL",
+  ): CareerLegacyEntry => ({
+    id,
+    awardType,
+    ...careerLegacyAwardCopy(awardType),
+    points,
+    runningTotal: 0,
+    sourceType: awardType.startsWith("championship") ? "championship" : "season",
+    sourceId: `${seasonNumber}:${id}`,
+    context: `Season ${seasonNumber}`,
+    seasonNumber,
+    tier,
+    earnedAt: "2026-07-28T00:00:00.000Z",
+  });
+
+  it("groups every immutable row into exactly one season total", () => {
+    const entries = [
+      entry("a", 1, "activeSeasonCompletion", 3),
+      entry("b", 1, "promotion", 20),
+      entry("c", 2, "eventCompletion", 4, "CHALLENGER"),
+      entry("d", 2, "eventWin", 15, "CHALLENGER"),
+    ];
+    const seasons = groupCareerLegacyBySeason(entries);
+
+    expect(seasons.map((season) => ({
+      season: season.seasonNumber,
+      points: season.points,
+      indicators: season.indicators,
+    }))).toEqual([
+      { season: 2, points: 19, indicators: [] },
+      { season: 1, points: 23, indicators: ["promotion"] },
+    ]);
+    expect(seasons.reduce((sum, season) => sum + season.points, 0))
+      .toBe(entries.reduce((sum, row) => sum + row.points, 0));
+    expect(seasons[0].categories).toHaveLength(2);
+  });
+
+  it("shows Championship and trophy indicators without duplicating points", () => {
+    const entries = [
+      entry("q", 4, "championshipQualification", 35, "CHALLENGER"),
+      entry("w", 4, "championshipWin", 100, "CHALLENGER"),
+    ];
+    const seasons = groupCareerLegacyBySeason(entries, [{
+      sourceType: "championship",
+      sourceId: "cycle-1",
+      seasonNumber: 4,
+      tier: "CHALLENGER",
+    }]);
+    expect(seasons).toHaveLength(1);
+    expect(seasons[0].points).toBe(135);
+    expect(seasons[0].indicators).toEqual(["championship", "trophy"]);
   });
 });

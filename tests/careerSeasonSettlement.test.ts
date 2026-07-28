@@ -141,6 +141,68 @@ describe("Career season settlement — Candidate H movement", () => {
   });
 });
 
+describe("Career season settlement — v4 progression package", () => {
+  it("uses the pinned tier-specific movement gates without rewriting v3", () => {
+    const local = ladder("local", 5, [1], {
+      1: { state: { movementEvidence: [0.75] } },
+    });
+    const promoted = calculateCareerSeasonSettlement({
+      ...local,
+      formulaVersion: "career-v4-progression",
+    }).humans[0];
+    expect(promoted.movement).toBe("promote");
+    expect(promoted.nextTier).toBe("challenger");
+
+    const belowFloor = ladder("local", 5, [0], {
+      0: { state: { movementEvidence: [0.5] } },
+    });
+    expect(calculateCareerSeasonSettlement({
+      ...belowFloor,
+      formulaVersion: "career-v4-progression",
+    }).humans[0].movement).toBe("hold");
+
+    const challenger = ladder("challenger", 5, [3], {
+      3: { state: { movementEvidence: [0.5] } },
+    });
+    expect(calculateCareerSeasonSettlement({
+      ...challenger,
+      formulaVersion: "career-v4-progression",
+    }).humans[0].movement).toBe("relegate");
+
+    // Historical v3 input still resolves its original 65/58/32 package.
+    expect(calculateCareerSeasonSettlement(local).formulaVersion)
+      .toBe("career-v3-four-round-events");
+  });
+
+  it("awards a bounded foundation and performance points only in v4", () => {
+    const topQuarter = ladder("local", 5, [0], {
+      0: {
+        state: {
+          movementEvidence: [],
+          foundationPointsEarned: 0,
+          developmentPoints: 0,
+        },
+      },
+    });
+    expect(calculateCareerSeasonSettlement({
+      ...topQuarter,
+      formulaVersion: "career-v4-progression",
+    }).humans[0].developmentAward).toEqual({
+      foundation: 1,
+      performance: 2,
+      total: 3,
+      reasons: [
+        "Season completion foundation",
+        "Top-half season",
+        "Top-quarter season",
+      ],
+    });
+
+    expect(calculateCareerSeasonSettlement(topQuarter).humans[0].developmentAward.total)
+      .toBe(0);
+  });
+});
+
 describe("Career season settlement — rating, Legacy, continuation", () => {
   it("never relegates for absence: elapsed time cannot change a tier", () => {
     // Inactivity is deleted. A Pro who completes their season holds Pro

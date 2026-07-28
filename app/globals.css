@@ -995,6 +995,87 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .career-ledger-meta span{font-family:'Oswald',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em;
   text-transform:uppercase;color:var(--pm-ink-soft);overflow-wrap:anywhere}
 
+.career-form-evidence{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.career-form-evidence span,.career-movement-inline{font-family:'Oswald',sans-serif;font-size:10px;
+  letter-spacing:.04em;color:var(--pm-ink-soft)}
+.career-form-evidence span{background:var(--pm-paper);border:1px solid var(--pm-line);
+  border-radius:999px;padding:5px 8px}
+.career-form-evidence b{display:inline;color:var(--pm-ink);font-size:inherit;letter-spacing:0;
+  text-transform:none;margin:0}
+.career-movement-inline{display:block;margin-top:7px;color:var(--pm-safe)}
+
+.career-skill-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.career-skill-card{padding:13px;min-width:0}
+.career-skill-card>div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.career-skill-card span{font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--pm-flag)}
+.career-skill-card b{font-family:'Oswald',sans-serif;font-size:14px;white-space:nowrap}
+.career-skill-card p{min-height:46px;font-size:10.5px;line-height:1.42;color:var(--pm-ink-soft);margin:7px 0 10px}
+.career-skill-card button{width:100%;border:1px solid var(--pm-safe);border-radius:9px;background:var(--pm-safe);
+  color:#fff;padding:8px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;cursor:pointer}
+.career-skill-card button:disabled{border-color:var(--pm-line);background:var(--pm-paper-2);
+  color:var(--pm-ink-soft);cursor:not-allowed}
+.career-skill-card small{display:block;text-align:center;font-family:'Oswald',sans-serif;font-size:10px;
+  font-weight:700;text-transform:uppercase;color:var(--pm-safe);padding:8px}
+
+.career-retired-list{display:flex;flex-direction:column;gap:7px;padding-top:12px}
+.career-retired-list a{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:1px solid var(--pm-line);border-radius:10px;padding:9px 10px;text-decoration:none;color:var(--pm-ink)}
+.career-retired-list span{font-size:10px;color:var(--pm-ink-soft)}
+.career-retired-list b{font-family:'Oswald',sans-serif;font-size:11px}
+.career-retire{margin-top:18px;padding-top:14px;border-top:1px solid var(--pm-line)}
+.career-retire>button{border:0;background:none;color:var(--pm-ink-soft);padding:4px 0;
+  font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  text-decoration:underline;cursor:pointer}
+.career-retire>div{border:1px solid rgba(200,73,58,.42);border-radius:13px;background:rgba(200,73,58,.06);
+  padding:14px}
+.career-retire>div>b{font-family:'Oswald',sans-serif;font-size:15px;color:var(--pm-flag)}
+.career-retire p{font-size:11px;line-height:1.5;color:var(--pm-ink-soft);margin:6px 0}
+.career-retire small{display:block;color:var(--pm-flag);font-size:10px;margin:7px 0}
+.career-retire label{display:flex;flex-direction:column;gap:5px;font-family:'Oswald',sans-serif;font-size:10px;
+  font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-top:11px}
+.career-retire input{width:100%;border:1px solid var(--pm-line-strong);border-radius:9px;background:#fff;
+  color:var(--pm-ink);padding:9px 10px;font:inherit;letter-spacing:.06em}
+.career-retire>div>div:last-child{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:10px}
+.career-retire>div>div:last-child button{border:1px solid var(--pm-line-strong);border-radius:9px;
+  background:var(--pm-paper);color:var(--pm-ink);padding:9px;font-family:'Oswald',sans-serif;font-size:10px;
+  font-weight:700;text-transform:uppercase;cursor:pointer}
+.career-retire>div>div:last-child button:last-child{background:var(--pm-flag);border-color:var(--pm-flag);color:#fff}
+.career-retire>div>div:last-child button:disabled{opacity:.45;cursor:not-allowed}
+
+.career-legacy-breakdown{border:1px solid var(--pm-line-strong);border-radius:14px;background:var(--pm-paper-2);
+  overflow:hidden}
+.career-legacy-breakdown>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  cursor:pointer;padding:14px 15px;list-style:none}
+.career-legacy-breakdown>summary::-webkit-details-marker{display:none}
+.career-legacy-breakdown>summary span{min-width:0}
+.career-legacy-breakdown>summary b,.career-legacy-breakdown>summary small{display:block}
+.career-legacy-breakdown>summary b{font-family:'Oswald',sans-serif;font-size:15px}
+.career-legacy-breakdown>summary small{font-size:9.5px;color:var(--pm-ink-soft);margin-top:2px}
+.career-legacy-breakdown>summary strong{font-family:'Oswald',sans-serif;font-size:10px;text-transform:uppercase;
+  color:var(--pm-safe);white-space:nowrap}
+.career-legacy-breakdown[open]>summary strong{font-size:0}
+.career-legacy-breakdown[open]>summary strong::after{content:"Hide breakdown";font-size:10px}
+.career-legacy-breakdown-body{border-top:1px solid var(--pm-line);padding:14px}
+.career-legacy-seasons{display:flex;flex-direction:column;gap:7px}
+.career-legacy-seasons>details{border:1px solid var(--pm-line);border-radius:11px;background:var(--pm-paper);overflow:hidden}
+.career-legacy-seasons>details>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 52px;align-items:center;
+  gap:8px;padding:10px 11px;cursor:pointer;list-style:none}
+.career-legacy-seasons>details>summary::-webkit-details-marker{display:none}
+.career-legacy-seasons>details>summary span:first-child b,.career-legacy-seasons>details>summary span:first-child small{display:block}
+.career-legacy-seasons>details>summary span:first-child b{font-family:'Oswald',sans-serif;font-size:13px}
+.career-legacy-seasons>details>summary span:first-child small{font-size:9px;color:var(--pm-ink-soft)}
+.career-legacy-seasons>details>summary>strong{text-align:right;font-family:'Anton',sans-serif;font-size:18px;
+  font-weight:400;color:var(--pm-safe)}
+.career-legacy-indicators{display:flex;gap:4px}
+.career-legacy-indicators i{display:grid;place-items:center;width:19px;height:19px;border-radius:50%;
+  background:rgba(242,193,78,.2);color:var(--pm-flag);font-style:normal;font-size:10px}
+.career-legacy-seasons>details>div{padding:3px 11px 9px;border-top:1px solid var(--pm-line)}
+.career-legacy-seasons p{display:flex;justify-content:space-between;gap:10px;font-size:10.5px;
+  color:var(--pm-ink-soft);margin:7px 0}
+.career-legacy-seasons p b{color:var(--pm-ink)}
+
 @media (min-width:680px){
   .career-events{display:grid;grid-template-columns:1fr 1fr}
   .career-ladder>div{padding:15px 13px}
@@ -1009,6 +1090,8 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   .career-source{font-size:9px!important}
   .career-your-event b{font-size:17px}
   .career-your-event small{font-size:8.5px}
+  .career-skill-grid{grid-template-columns:1fr}
+  .career-skill-card p{min-height:0}
 }
 
 @media (max-width:430px){
