@@ -16,6 +16,10 @@ import type { GreenSpeed } from "@/lib/engine/putting";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
 import { route } from "@/lib/api";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  isGameplayRulesetVersion,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 const DECISIONS: Decision[] = ["safe", "normal", "aggressive"];
 
@@ -80,6 +84,10 @@ export const PATCH = route(async (
     return NextResponse.json({ error: "not-found" }, { status: 404 });
   if (round.completed)
     return NextResponse.json({ error: "round-complete" }, { status: 409 });
+  if (!isGameplayRulesetVersion(round.rulesetVersion)) {
+    return NextResponse.json({ error: "ruleset-unavailable" }, { status: 409 });
+  }
+  const rulesetVersion: GameplayRulesetVersion = round.rulesetVersion;
   if (round.mode === "career") {
     const event = round.careerEventRound?.entry.competition
       ?? round.careerEventEntry?.competition;
@@ -133,14 +141,27 @@ export const PATCH = route(async (
 
   // Aggression budget — counted across the round on TEE/APPROACH decisions only
   // (putt/short-game decisions reuse the vocab but are never charged). Recount
-  // from stored chains, each interpreted with its own hole's par.
-  const parOf = (n: number) => course.holes.find((h) => h.number === n)?.par ?? 4;
+  // from stored chains, each interpreted with its own hole's par and yardage.
+  const holeOf = (n: number) => course.holes.find((h) => h.number === n);
   const priorAggr = round.holeResults.reduce(
-    (sum, h) => sum + countTeeApproachAggressive(h.decision, parOf(h.holeNumber)),
+    (sum, h) => {
+      const playedHole = holeOf(h.holeNumber);
+      return sum + countTeeApproachAggressive(
+        h.decision,
+        playedHole?.par ?? 4,
+        playedHole?.yardage,
+        rulesetVersion,
+      );
+    },
     0
   );
   const thisAggr = decisions
-    .slice(0, approachDecisionCount(holeData.par))
+    .slice(0, approachDecisionCount(
+      holeData.par,
+      holeData.yardage,
+      decisions[0],
+      rulesetVersion,
+    ))
     .filter((d) => d === "aggressive").length;
   if (priorAggr + thisAggr > AGGRESSIVE_BUDGET)
     return NextResponse.json(
@@ -168,6 +189,7 @@ export const PATCH = route(async (
     recent,
     holeYards: holeData.yardage, // display-only: drives yards-to-target + tee distance
     holeContext: { hazard: holeData.hazard, signature: holeData.signature },
+    rulesetVersion,
   });
 
   // Hole not finished: report the next stage + reads + play-by-play. Persist

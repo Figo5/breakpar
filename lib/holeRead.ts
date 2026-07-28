@@ -8,7 +8,7 @@
  */
 
 import { holeDifficulty, type HoleSpec } from "@/lib/engine/resolveHole";
-import type { Lie, BreakDir, Slope } from "@/lib/engine/shots";
+import type { Lie, BreakDir, Slope, ShotRecord } from "@/lib/engine/shots";
 import type { Decision, Outcome } from "@/lib/engine/probabilities";
 import type { GreenResult, GreenSpeed, PuttBucket } from "@/lib/engine/putting";
 import type { CourseHole } from "@/data/courses";
@@ -184,14 +184,43 @@ export function puttRiskRead(
   return { tone: "bad", text: "Three-jack risk" };
 }
 
-/** Risk read for a SHORT-GAME decision (Punch / Chip / Flop) from off the green. */
-export function shortGameRiskRead(decision: Decision): { tone: Tone; text: string } {
+/** Risk read for a SHORT-GAME decision (Punch / Chip / Flop) from off the green.
+ * An early green attempt (a drivable par 4 or par 5 in two) is one stroke ahead
+ * of the stock miss, so the same recovery is for birdie rather than par. */
+export function shortGameRiskRead(
+  decision: Decision,
+  birdieSave = false,
+): { tone: Tone; text: string } {
+  if (birdieSave) {
+    if (decision === "safe") return { tone: "good", text: "Play for par · birdie chance" };
+    if (decision === "normal") return { tone: "good", text: "Get up & down for birdie" };
+    return { tone: "warn", text: "Chase birdie · blow-up risk" };
+  }
   // Make the trade explicit: Punch usually takes bogey but almost never blows up;
   // Flop chases par at the cost of big numbers. So the safe choice is a knowing
   // card-protection call, not a promise of a save.
   if (decision === "safe") return { tone: "good", text: "Punch — take bogey, kill the blow-up" };
   if (decision === "normal") return { tone: "good", text: "Get it close" };
   return { tone: "warn", text: "Go for the save — blow-up risk" };
+}
+
+/** Whether the current greenside recovery can still save birdie. A drivable
+ * par-4 miss or par-5 attack in two is one stroke ahead, but any real hazard
+ * penalty consumes that advantage. */
+export function recoveryIsForBirdie(
+  par: number,
+  shots: Pick<ShotRecord, "stage" | "green" | "penalty">[],
+): boolean {
+  const hasPenalty = shots.some((shot) => (shot.penalty?.strokes ?? 0) > 0);
+  if (hasPenalty) return false;
+  if (par === 4) {
+    return shots.some((shot) => shot.stage === "tee" && shot.green != null);
+  }
+  if (par === 5) {
+    return shots.some((shot) => shot.stage === "approach" && shot.green != null)
+      && !shots.some((shot) => shot.stage === "layup");
+  }
+  return false;
 }
 
 /** Headline for the green position (used in the putt/scramble banner). */
@@ -207,6 +236,9 @@ export function greenRead(green: GreenResult, puttFor?: Outcome): { tone: Tone; 
       // Don't promise a two-putt the green can't guarantee — frame the intent.
       return { tone: "warn", text: "Long putt — lag it close" };
     case "scramble":
+      if (puttFor === "birdie") {
+        return { tone: "bad", text: "Missed green — up & down for birdie" };
+      }
       // Set expectation going in: a greenside miss is bogey-heavy (up-and-down is
       // the SAVE, not the default), so a routine bogey doesn't read as unfair.
       return { tone: "bad", text: "Missed green — bogey likely, up & down to save" };

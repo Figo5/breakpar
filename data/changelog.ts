@@ -15,12 +15,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-28",
+    items: [
+      "Reduced ordinary-distance three-putts, especially when lagging from 20 to 30 feet.",
+      "The safest short-game play can no longer create a double- or triple-bogey blow-up unless a real penalty stroke is involved.",
+      "Par 4s of 350 yards or less can now be driven with an aggressive tee shot, with correct eagle, birdie, and missed-green scoring.",
+      "Par-5 second-shot reach now uses the actual yardage and lie, including reachable shots from rough or trouble, without adding a phantom recovery stroke when the green cannot be reached.",
+      "Rounds now keep the exact gameplay rules they started with, so a scoring update cannot change an open round or split a competitive field.",
+    ],
+  },
+  {
     date: "2026-07-27",
     items: [
       "Scoring now plays more like casual golf: real approach yardage changes proximity, and the displayed putt slope and break affect the roll.",
       "Previous-hole momentum is now flavor only, so a bad hole cannot secretly make the next hole harder.",
       "Post-hole reviews now include seeded weather and course events in the exact odds shown, with permanent safeguards against unfair safe-shot blow-ups.",
-      "The safest short-game play can no longer create a triple-bogey disaster unless a real penalty stroke is involved.",
       "Tee-shot odds now separate ideal attacking position from an ordinary fairway, making each decision's reward and trouble risk clearer.",
       "Weekly tournaments now reject extreme shared round seeds while preserving identical conditions for the entire field.",
       "Added Career Mode, an unlimited personal tour with four events per season, 19 recurring rivals, promotion and relegation, Tour Rating, and permanent Legacy progress.",

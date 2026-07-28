@@ -97,7 +97,7 @@ export function rollScrambleScoringEvent(
   par: number,
   decision: Decision,
   hazard: NarrativeHazard | undefined,
-  reachedInTwo: boolean,
+  reachedGreenEarly: boolean,
   seed: number,
   force = false,
 ): ScoringEvent | null {
@@ -109,8 +109,9 @@ export function rollScrambleScoringEvent(
     stage: "scramble",
     label: bunker ? "Bunker hole-out" : "Chip-in",
     narration: bunker ? "Holed it straight from the bunker!" : "Chipped it straight into the cup!",
-    // Reached-in-two par 5: this is stroke three. Every other scramble chip-in
-    // is one stroke under regulation (2 on a par 3, 3 on a par 4, 4 on a par 5).
-    strokesTaken: reachedInTwo ? 3 : par - 1,
+    // An early green attempt leaves the chip one stroke earlier than the normal
+    // regulation path: stroke 2 on a drivable par 4, stroke 3 after reaching a
+    // par 5 in two. Every other chip-in is one under regulation.
+    strokesTaken: reachedGreenEarly ? par - 2 : par - 1,
   };
 }

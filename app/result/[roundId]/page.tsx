@@ -25,6 +25,10 @@ import { ShareButton } from "./ShareButton";
 import { ResultTracker } from "./ResultTracker";
 import { ConvertPrompt } from "./ConvertPrompt";
 import { TrophyToast } from "./TrophyToast";
+import {
+  gameplayRulesetLabel,
+  isGameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 // Per-round share metadata. The link-preview IMAGE is wired automatically by
 // the opengraph-image.tsx file in this segment; here we just give it a title +
@@ -122,6 +126,9 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
 
   const courseName = course.name.split("—")[0].trim();
   const modeLabel = roundModeLabel(round.mode, puzzleNo);
+  const rulesetLabel = isGameplayRulesetVersion(round.rulesetVersion)
+    ? gameplayRulesetLabel(round.rulesetVersion)
+    : "Unavailable rules";
   // The share text snapshots the standing at render (share) time; the page may
   // show a slightly different number later as more people finish today.
   const standingLine = standing ? `\n${standingLabel(standing)}` : "";
@@ -146,6 +153,7 @@ export default async function Result({ params }: { params: Promise<{ roundId: st
           : `${modeLabel} · `}
         {course.name}
       </div>
+      <div className="final-ruleset">{rulesetLabel}</div>
       <div className="final-score">{round.score}</div>
       <div className={`final-rel ${made ? "made-it" : "missed"}`}>
         {relativeLabel(round.relativeToPar)} · {parResultLabel(round.relativeToPar)}

@@ -106,6 +106,10 @@ model Round {
   userId            String
   courseId          String
   mode              String   @default("daily") // daily | unlimited | challenge | tournament | career
+  // Immutable gameplay math used by this card. The legacy default is
+  // intentionally v1 so an overlooked historical/manual creator cannot
+  // silently reinterpret an already-started round under newer rules.
+  rulesetVersion    String   @default("standard-v1")
   dateKey           String? // "2026-06-25" for daily rounds; null for unlimited/challenge play
   // Shared RNG namespace for challenge rounds (= Challenge.seedKey) so both
   // players face identical hole conditions. null for daily/unlimited -> the hole
@@ -157,6 +161,8 @@ model Challenge {
   opponentId        String
   courseId          String
   seedKey           String // shared RNG namespace (set = id on create)
+  // Official rules copied into both players' rounds.
+  rulesetVersion    String    @default("standard-v1")
   status            String    @default("pending") // pending|active|complete|declined|expired
   challengerRoundId String?   @unique // one attempt per side (DB-enforced)
   opponentRoundId   String?   @unique
@@ -184,6 +190,8 @@ model Tournament {
   weekKey       String    @unique // e.g. "2026-W28" — one tournament per week
   courseId      String
   name          String    @default("Weekly Tournament")
+  // Official rules copied into every competitor round in this tournament.
+  rulesetVersion String   @default("standard-v1")
   startsAt      DateTime // Mon 00:00 ET — rounds 1-2 open
   cutAt         DateTime // Thu 00:00 ET (end of Thu) — cut computed, rounds 1-2 close
   endsAt        DateTime // Sun end — rounds 3-4 close, final settled
@@ -200,6 +208,15 @@ model Tournament {
   entries TournamentEntry[]
 
   @@index([status])
+}
+
+/// One immutable official ruleset per Daily puzzle day. This prevents a
+/// deployment during the day from placing early and late players on different
+/// gameplay math.
+model DailyRulesetPin {
+  dateKey        String   @id
+  rulesetVersion String   @default("standard-v1")
+  createdAt      DateTime @default(now())
 }
 
 // A player's participation in a tournament. Holds up to 4 rounds (linked via

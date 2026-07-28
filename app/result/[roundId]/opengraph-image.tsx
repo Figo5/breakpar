@@ -5,6 +5,10 @@ import { puzzleNumberForKey } from "@/lib/daily";
 import { relativeLabel, brokePar } from "@/lib/scoring";
 import { type Outcome } from "@/lib/engine/probabilities";
 import { roundModeLabel } from "@/lib/roundMode";
+import {
+  gameplayRulesetLabel,
+  isGameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 // Per-round link-preview card. Runs UNAUTHENTICATED (link unfurlers have no
 // session) and degrades to a branded fallback for a missing/invalid id — never
@@ -84,6 +88,7 @@ export default async function Image({ params }: { params: Promise<{ roundId: str
         score: true,
         relativeToPar: true,
         mode: true,
+        rulesetVersion: true,
         dateKey: true,
         holeResults: { orderBy: { holeNumber: "asc" }, select: { outcome: true } },
         course: { select: { slug: true } },
@@ -103,6 +108,9 @@ export default async function Image({ params }: { params: Promise<{ roundId: str
   const puzzleNo = round.dateKey ? puzzleNumberForKey(round.dateKey) : null;
   const made = brokePar(round.score, par);
   const outcomes = round.holeResults.map((h) => h.outcome as Outcome);
+  const rulesetLabel = isGameplayRulesetVersion(round.rulesetVersion)
+    ? gameplayRulesetLabel(round.rulesetVersion)
+    : "Unavailable rules";
 
   // 18 cells in hole order; pad faint cells if the round is unfinished.
   const cells: (Outcome | null)[] = Array.from({ length: 18 }, (_, i) => outcomes[i] ?? null);
@@ -129,6 +137,7 @@ export default async function Image({ params }: { params: Promise<{ roundId: str
           <Wordmark small />
           <div style={{ display: "flex", fontSize: 28, fontWeight: 600, opacity: 0.85, letterSpacing: 2 }}>
             {isDaily ? `NO. ${puzzleNo}` : roundModeLabel(round.mode).toUpperCase()}
+            {` · ${rulesetLabel.toUpperCase()}`}
           </div>
         </div>
 

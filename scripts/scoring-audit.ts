@@ -12,6 +12,11 @@
 import { COURSES, coursePar } from "../data/courses";
 import { holeDifficulty, type HoleSpec } from "../lib/engine/resolveHole";
 import { resolveHoleChain, type ChainResult } from "../lib/engine/shots";
+import {
+  puttWeights,
+  type GreenSpeed,
+  type PuttResult,
+} from "../lib/engine/putting";
 import { type Decision, type Outcome } from "../lib/engine/probabilities";
 import { AGGRESSIVE_BUDGET } from "../lib/holeRead";
 
@@ -83,6 +88,8 @@ const cell = (): Cell => ({ count: 0, sum: 0, penalties: 0, scores: new Map() })
 const byPar = new Map<number, Cell>([[3, cell()], [4, cell()], [5, cell()]]);
 const byFinish = new Map<string, Cell>();
 const par5Route = new Map<string, Cell>([["reached in two", cell()], ["laid up", cell()]]);
+const par5LieDecision = new Map<string, Cell>();
+const shortPar4TeeDecision = new Map<string, Cell>();
 const roundScores: number[] = [];
 
 function add(target: Cell, delta: number, penalties: number): void {
@@ -161,6 +168,20 @@ for (const [playerIndex, player] of Object.values(players).entries()) {
       if (hole.par === 5) {
         const route = result.shots.some((shot) => shot.stage === "layup") ? "laid up" : "reached in two";
         add(par5Route.get(route)!, delta, penalties);
+        const tee = result.shots.find((shot) => shot.stage === "tee");
+        const approach = result.shots.find((shot) => shot.stage === "approach");
+        const key = `${tee?.lie ?? "unknown"} / ${approach?.decision ?? "unknown"}`;
+        const value = par5LieDecision.get(key) ?? cell();
+        add(value, delta, penalties);
+        par5LieDecision.set(key, value);
+      }
+
+      if (hole.par === 4 && hole.yardage <= 350) {
+        const tee = result.shots.find((shot) => shot.stage === "tee");
+        const key = tee?.decision ?? "unknown";
+        const value = shortPar4TeeDecision.get(key) ?? cell();
+        add(value, delta, penalties);
+        shortPar4TeeDecision.set(key, value);
       }
 
       total += hole.par + delta;
@@ -195,6 +216,60 @@ console.log("\nBY FINISH");
 for (const [finish, value] of byFinish) printCell(finish, value);
 console.log("\nPAR 5 ROUTE");
 for (const [route, value] of par5Route) printCell(route, value);
+console.log("\nPAR 5 BY FIRST LIE / SECOND-SHOT DECISION");
+for (const [key, value] of [...par5LieDecision].sort(([a], [b]) => a.localeCompare(b))) {
+  printCell(key, value);
+}
+console.log("\nSHORT PAR 4 (<=350 YARDS) BY TEE DECISION");
+for (const [decision, value] of [...shortPar4TeeDecision].sort(([a], [b]) => a.localeCompare(b))) {
+  printCell(decision, value);
+}
+
+const normalizePutt = (weights: Record<PuttResult, number>): Record<PuttResult, number> => {
+  const total = weights.oneputt + weights.twoputt + weights.threeputt;
+  return {
+    oneputt: weights.oneputt / total,
+    twoputt: weights.twoputt / total,
+    threeputt: weights.threeputt / total,
+  };
+};
+const puttBucketForDistance = (distance: number): "short" | "long" => distance <= 18 ? "short" : "long";
+const puttDistances = [10, 15, 20, 25, 30, 40, 50];
+const puttDecisions: Decision[] = ["safe", "normal", "aggressive"];
+const puttGeometry: Array<{
+  speed: GreenSpeed;
+  breakDir: "L" | "R" | "straight";
+  slope: "uphill" | "downhill" | "flat";
+}> = [];
+for (const speed of ["Slow", "Medium", "Firm", "Fast"] as const) {
+  for (const breakDir of ["L", "R", "straight"] as const) {
+    for (const slope of ["uphill", "downhill", "flat"] as const) {
+      puttGeometry.push({ speed, breakDir, slope });
+    }
+  }
+}
+
+console.log("\nEXACT-DISTANCE PUTT ODDS");
+console.log("  Neutral = Medium / straight / flat. Range spans every speed, break, and slope.");
+console.log("  Current generated buckets are continuous from 6-19 ft and 20-50 ft.");
+for (const distance of puttDistances) {
+  const bucket = puttBucketForDistance(distance);
+  console.log(`  ${distance} ft (${bucket})`);
+  for (const decision of puttDecisions) {
+    const neutral = normalizePutt(puttWeights(bucket, decision, "Medium", distance));
+    const geometries = puttGeometry.map(({ speed, breakDir, slope }) =>
+      normalizePutt(puttWeights(bucket, decision, speed, distance, breakDir, slope))
+    );
+    const makeRates = geometries.map((odds) => odds.oneputt);
+    const threeRates = geometries.map((odds) => odds.threeputt);
+    console.log(
+      `    ${decision.padEnd(10)} one ${pct(neutral.oneputt, 1)}`
+      + ` [${pct(Math.min(...makeRates), 1)}..${pct(Math.max(...makeRates), 1)}]`
+      + ` three ${pct(neutral.threeputt, 1)}`
+      + ` [${pct(Math.min(...threeRates), 1)}..${pct(Math.max(...threeRates), 1)}]`
+    );
+  }
+}
 
 roundScores.sort((a, b) => a - b);
 const quantile = (p: number) => roundScores[Math.min(roundScores.length - 1, Math.floor(p * roundScores.length))];

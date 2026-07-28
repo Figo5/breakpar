@@ -73,6 +73,7 @@ import {
   puttOddsTakeaway,
   approachOddsReveal,
   approachOddsTakeaway,
+  drivablePar4OddsReveal,
   scrambleOddsReveal,
 } from "@/lib/oddsReveal";
 
@@ -132,6 +133,14 @@ describe("approachOddsReveal", () => {
       expect(row.greenPct).toBe(row.kickinPct + row.makeablePct + row.lagPct);
     }
   });
+  it("reveals the exact extra green-attempt roll used by a drivable par 4", () => {
+    const shortPar4: HoleSpec = { number: 10, par: 4, strokeIndex: 6, yardage: 315 };
+    const drive = drivablePar4OddsReveal(shortPar4, conditions);
+    expect(drive.kickinPct + drive.makeablePct + drive.lagPct + drive.scramblePct).toBe(100);
+    expect(drive.greenPct).toBe(drive.kickinPct + drive.makeablePct + drive.lagPct);
+    expect(drive.scramblePct).toBeGreaterThan(drive.greenPct);
+    expect(drive.holeOutPct).toBe(0);
+  });
   it("aggressive misses the green more than safe", () => {
     const r = approachOddsReveal("fairway", hole2, conditions);
     expect(r.aggressive.scramblePct).toBeGreaterThan(r.safe.scramblePct);
@@ -181,5 +190,11 @@ describe("scrambleOddsReveal", () => {
   it("shows that Punch has no disaster outcome of its own", () => {
     const r = scrambleOddsReveal(hole3, conditions);
     expect(r.safe.disasterPct).toBe(0);
+    expect(r.safe.blowupPct).toBe(0);
+  });
+  it("uses the tougher greenside odds after a missed drivable-par-4 tee shot", () => {
+    const routine = scrambleOddsReveal(hole3, conditions);
+    const driveMiss = scrambleOddsReveal(hole3, conditions, undefined, true);
+    expect(driveMiss.normal.savePct).toBeLessThan(routine.normal.savePct);
   });
 });

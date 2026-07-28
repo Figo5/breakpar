@@ -5,6 +5,10 @@ import type { Decision, Outcome } from "@/lib/engine/probabilities";
 import type { GreenSpeed } from "@/lib/engine/putting";
 import { holeShotSeed, eventSeed, hazardSeed, scoringEventSeed } from "@/lib/engine/rng";
 import { AGGRESSIVE_BUDGET } from "@/lib/holeRead";
+import {
+  STANDARD_V2_RULESET,
+  type GameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 /**
  * BOT OPPONENTS for challenge mode — and, quietly, the AI-field mechanism
@@ -165,7 +169,12 @@ function spend(decision: Decision, st: BotState): Decision {
  * mirroring how two humans in a challenge share hole conditions but the
  * outcome stream differs by their own decisions.
  */
-export function simulateBotRound(seedKey: string, courseSlug: string, botKey: string): BotRound | null {
+export function simulateBotRound(
+  seedKey: string,
+  courseSlug: string,
+  botKey: string,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+): BotRound | null {
   const bot = BOTS[botKey];
   const course = courseBySlug(courseSlug);
   if (!bot || !course) return null;
@@ -192,6 +201,7 @@ export function simulateBotRound(seedKey: string, courseSlug: string, botKey: st
       recent,
       narration: false as const,
       holeContext: { hazard: h.hazard, signature: h.signature },
+      rulesetVersion,
     };
 
     const decisions: Decision[] = [];

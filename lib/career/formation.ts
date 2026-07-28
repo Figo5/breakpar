@@ -17,7 +17,9 @@ import {
   CAREER_FORMULA_VERSION,
   CAREER_CURRENT_FORMULA_BUNDLE,
   pinCareerFormulaBundle,
+  requireCareerFormulaBundle,
 } from "./formulaBundle";
+import type { GameplayRulesetVersion } from "@/lib/engine/rulesets";
 import { CAREER_BASE_FIELD_SIZE } from "./constants";
 import {
   careerBotRoundCards,
@@ -64,6 +66,7 @@ export type BotRoundSimulator = (
   seed: string,
   course: GameCourse,
   archetype: CareerArchetype,
+  rulesetVersion?: GameplayRulesetVersion,
 ) => number;
 
 interface FormationOptions {
@@ -125,6 +128,7 @@ function defaultBotRound(
   seed: string,
   course: GameCourse,
   archetype: CareerArchetype,
+  rulesetVersion = CAREER_CURRENT_FORMULA_BUNDLE.gameplayRulesetVersion,
 ): number {
   return simulateArchetypeRound(
     seed,
@@ -132,6 +136,7 @@ function defaultBotRound(
     archetype,
     "error",
     CAREER_CURRENT_FORMULA_BUNDLE.ability.errorRates,
+    rulesetVersion,
   );
 }
 
@@ -265,6 +270,9 @@ export class CareerFormationService {
         },
       },
     });
+    const gameplayRulesetVersion = requireCareerFormulaBundle(
+      cohort.world.formulaVersion,
+    ).gameplayRulesetVersion;
     if (cohort.competitions.length !== 4) {
       throw new Error(`Career cohort ${cohort.id} must have four competitions before lock`);
     }
@@ -399,7 +407,7 @@ export class CareerFormationService {
               relativeToPar: this.simulateBotRound(seed, gameCourse, {
                 ability: assignment.abilityBand,
                 tendency: assignment.tendency,
-              }),
+              }, gameplayRulesetVersion),
               seed,
             };
           },

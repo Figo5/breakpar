@@ -8,6 +8,10 @@ import {
   simulateBotRound,
   revealBotHoles,
 } from "@/lib/botPlayer";
+import {
+  CURRENT_STANDARD_RULESET,
+  isGameplayRulesetVersion,
+} from "@/lib/engine/rulesets";
 
 /**
  * BOT CHALLENGES — the same Challenge/Round machinery as human-vs-human, with
@@ -65,13 +69,21 @@ export async function createBotChallenge(
       opponentId: botUser.id,
       courseId: courseRow.id,
       seedKey: "pending",
+      rulesetVersion: CURRENT_STANDARD_RULESET,
       status: "active",
     },
     select: { id: true },
   });
 
   const botRound = await prisma.round.create({
-    data: { userId: botUser.id, courseId: courseRow.id, mode: "challenge", dateKey: null, seedKey: ch.id },
+    data: {
+      userId: botUser.id,
+      courseId: courseRow.id,
+      mode: "challenge",
+      rulesetVersion: CURRENT_STANDARD_RULESET,
+      dateKey: null,
+      seedKey: ch.id,
+    },
     select: { id: true },
   });
 
@@ -101,11 +113,12 @@ export async function finalizeBotSideIfNeeded(challengeId: string): Promise<void
     },
   });
   if (!ch || !ch.opponentRound || ch.opponentRound.completed) return;
+  if (!isGameplayRulesetVersion(ch.rulesetVersion)) return;
 
   const botKey = botKeyFromGuestId(ch.opponent.guestId);
   if (!botKey) return; // human opponent — nothing to do
 
-  const sim = simulateBotRound(ch.seedKey, ch.course.slug, botKey);
+  const sim = simulateBotRound(ch.seedKey, ch.course.slug, botKey, ch.rulesetVersion);
   if (!sim) return;
 
   await prisma.$transaction([
@@ -169,6 +182,7 @@ export async function getLiveState(meId: string, challengeId: string): Promise<L
     },
   });
   if (!ch) return null;
+  if (!isGameplayRulesetVersion(ch.rulesetVersion)) return null;
 
   const iAmChallenger = ch.challengerId === meId;
   if (!iAmChallenger && ch.opponentId !== meId) return null;
@@ -188,7 +202,7 @@ export async function getLiveState(meId: string, challengeId: string): Promise<L
 
   if (botKey) {
     const bot = BOTS[botKey];
-    const sim = simulateBotRound(ch.seedKey, ch.course.slug, botKey);
+    const sim = simulateBotRound(ch.seedKey, ch.course.slug, botKey, ch.rulesetVersion);
     if (sim) {
       const visible = me.finished ? sim.holes : revealBotHoles(sim, myThru);
       opponent = {
