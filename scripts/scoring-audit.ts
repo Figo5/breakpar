@@ -258,9 +258,13 @@ for (const distance of puttDistances) {
   const bucket = puttBucketForDistance(distance);
   console.log(`  ${distance} ft (${bucket})`);
   for (const decision of puttDecisions) {
-    const neutral = normalizePutt(puttWeights(bucket, decision, "Medium", distance));
+    const neutral = normalizePutt(
+      puttWeights(bucket, decision, "Medium", distance, undefined, undefined, CURRENT_STANDARD_RULESET),
+    );
     const geometries = puttGeometry.map(({ speed, breakDir, slope }) =>
-      normalizePutt(puttWeights(bucket, decision, speed, distance, breakDir, slope))
+      normalizePutt(
+        puttWeights(bucket, decision, speed, distance, breakDir, slope, CURRENT_STANDARD_RULESET),
+      )
     );
     const makeRates = geometries.map((odds) => odds.oneputt);
     const threeRates = geometries.map((odds) => odds.threeputt);

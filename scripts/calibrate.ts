@@ -470,7 +470,9 @@ for (const slug of FIELD_COURSES) {
   const selectedMeans: number[] = [];
   for (let sample = 0; sample < 5; sample++) {
     const baseSeedKey = `calibrate-neutral:${slug}:${sample}`;
-    const assessed = assessTournamentSeeds(baseSeedKey, course);
+    // Must pass the live ruleset: this helper defaults to v2, so omitting it
+    // silently graded the neutral-seed gate against stale scoring.
+    const assessed = assessTournamentSeeds(baseSeedKey, course, CURRENT_STANDARD_RULESET);
     const center = assessed.reduce((sum, candidate) => sum + candidate.fieldMean, 0) / assessed.length;
     const selectedKey = selectNeutralTournamentSeed(assessed);
     const selected = assessed.find((candidate) => candidate.seedKey === selectedKey);
