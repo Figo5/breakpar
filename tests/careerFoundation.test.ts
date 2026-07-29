@@ -27,6 +27,7 @@ import {
   CAREER_V2_FORMULA_BUNDLE,
   CAREER_V3_FORMULA_BUNDLE,
   CAREER_V4_FORMULA_BUNDLE,
+  CAREER_V5_FORMULA_BUNDLE,
   getCareerFormulaBundle,
   listCareerFormulaVersions,
   pinCareerFormulaBundle,
@@ -254,15 +255,23 @@ describe("Career formula bundle", () => {
     // v1 stays registered and byte-identical so historical snapshots resolve.
     expect(CAREER_V1_FORMULA_VERSION).toBe("career-v1-freeze-candidate");
     expect(getCareerFormulaBundle(CAREER_V1_FORMULA_VERSION)).toBe(CAREER_V1_FORMULA_BUNDLE);
-    // New seasons pin the exact-rank progression package.
-    expect(CAREER_FORMULA_VERSION).toBe("career-v4-progression");
-    expect(getCareerFormulaBundle(CAREER_FORMULA_VERSION)).toBe(CAREER_V4_FORMULA_BUNDLE);
+    // New seasons pin the recovery-ladder package.
+    expect(CAREER_FORMULA_VERSION).toBe("career-v5-recovery-ladder");
+    expect(getCareerFormulaBundle(CAREER_FORMULA_VERSION)).toBe(CAREER_V5_FORMULA_BUNDLE);
     expect(listCareerFormulaVersions()).toEqual([
       "career-v1-freeze-candidate",
       "career-v2-player-paced",
       "career-v3-four-round-events",
       "career-v4-progression",
+      "career-v5-recovery-ladder",
     ]);
+    // v5 moves ONLY the pinned gameplay ruleset; the meta-game is v4-identical.
+    expect(CAREER_V5_FORMULA_BUNDLE.gameplayRulesetVersion).toBe("standard-v3-recovery-ladder");
+    expect(CAREER_V4_FORMULA_BUNDLE.gameplayRulesetVersion).toBe("standard-v2-casual");
+    expect(CAREER_V5_FORMULA_BUNDLE.movement).toEqual(CAREER_V4_FORMULA_BUNDLE.movement);
+    expect(CAREER_V5_FORMULA_BUNDLE.development).toEqual(CAREER_V4_FORMULA_BUNDLE.development);
+    expect(CAREER_V5_FORMULA_BUNDLE.legacyPoints).toEqual(CAREER_V4_FORMULA_BUNDLE.legacyPoints);
+    expect(Object.isFrozen(CAREER_V5_FORMULA_BUNDLE)).toBe(true);
     expect(Object.isFrozen(CAREER_V1_FORMULA_BUNDLE)).toBe(true);
     expect(Object.isFrozen(CAREER_V1_FORMULA_BUNDLE.movement)).toBe(true);
     expect(Object.isFrozen(CAREER_V1_FORMULA_BUNDLE.bots.tierMix.pro)).toBe(true);
@@ -291,7 +300,7 @@ describe("Career formula bundle", () => {
     expect(pinCareerFormulaBundle(CAREER_FORMULA_VERSION, "build-abc")).toEqual({
       formulaPackageVersion: CAREER_FORMULA_VERSION,
       runtimeRevision: "build-abc",
-      bundle: CAREER_V4_FORMULA_BUNDLE,
+      bundle: CAREER_V5_FORMULA_BUNDLE,
     });
     expect(Object.isFrozen(pinCareerFormulaBundle(CAREER_FORMULA_VERSION, "build-abc"))).toBe(true);
     expect(() => pinCareerFormulaBundle(CAREER_FORMULA_VERSION, " ")).toThrow(/must not be empty/);

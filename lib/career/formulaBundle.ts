@@ -6,6 +6,7 @@ import {
 } from "./simulator";
 import { CAREER_CANONICAL_VERSION } from "./canonical";
 import {
+  STANDARD_V3_RULESET,
   STANDARD_V2_RULESET,
   STANDARD_V1_RULESET,
   type GameplayRulesetVersion,
@@ -34,9 +35,11 @@ export const CAREER_V1_FORMULA_VERSION = CAREER_V1_FREEZE_CANDIDATE.id;
 export const CAREER_V2_FORMULA_VERSION = "career-v2-player-paced";
 export const CAREER_V3_FORMULA_VERSION = "career-v3-four-round-events";
 export const CAREER_V4_FORMULA_VERSION = "career-v4-progression";
+/** Pins the standard-v3 recovery ladder. Movement/development are v4-identical. */
+export const CAREER_V5_FORMULA_VERSION = "career-v5-recovery-ladder";
 
 /** The version new settlements pin. */
-export const CAREER_FORMULA_VERSION = CAREER_V4_FORMULA_VERSION;
+export const CAREER_FORMULA_VERSION = CAREER_V5_FORMULA_VERSION;
 
 export const CAREER_COMPONENT_VERSIONS = {
   canonicalSerialization: CAREER_CANONICAL_VERSION,
@@ -342,11 +345,27 @@ const careerV4Progression: CareerFormulaBundle = deepFreeze({
   },
 });
 
+/**
+ * Recovery-ladder package. Every movement, development, points, rating, Legacy
+ * and Championship rule is v4-identical; only the pinned gameplay ruleset moves,
+ * so a Career season formed from here plays the capped-Chip short game.
+ */
+const careerV5RecoveryLadder: CareerFormulaBundle = deepFreeze({
+  ...careerV4Progression,
+  id: CAREER_V5_FORMULA_VERSION,
+  gameplayRulesetVersion: STANDARD_V3_RULESET,
+  componentVersions: {
+    ...careerV4Progression.componentVersions,
+    gameEngine: "breakpar-shot-engine-v3-recovery-ladder",
+  },
+});
+
 const FORMULA_REGISTRY = new Map<string, CareerFormulaBundle>([
   [careerV1FreezeCandidate.id, careerV1FreezeCandidate],
   [careerV2PlayerPaced.id, careerV2PlayerPaced],
   [careerV3FourRoundEvents.id, careerV3FourRoundEvents],
   [careerV4Progression.id, careerV4Progression],
+  [careerV5RecoveryLadder.id, careerV5RecoveryLadder],
 ]);
 
 export function getCareerFormulaBundle(version: string): CareerFormulaBundle | undefined {
@@ -392,8 +411,10 @@ export const CAREER_V2_FORMULA_BUNDLE = careerV2PlayerPaced;
 /** The four-round player-paced package. */
 export const CAREER_V3_FORMULA_BUNDLE = careerV3FourRoundEvents;
 
-/** The bounded player-progression package. */
+/** The bounded player-progression package remains registered for existing seasons. */
 export const CAREER_V4_FORMULA_BUNDLE = careerV4Progression;
+/** The recovery-ladder package for newly formed seasons. */
+export const CAREER_V5_FORMULA_BUNDLE = careerV5RecoveryLadder;
 
-/** What new settlements should read. */
-export const CAREER_CURRENT_FORMULA_BUNDLE = careerV4Progression;
+/** What newly formed seasons should pin. */
+export const CAREER_CURRENT_FORMULA_BUNDLE = careerV5RecoveryLadder;

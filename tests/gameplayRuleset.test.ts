@@ -98,6 +98,7 @@ describe("immutable gameplay rulesets", () => {
     expect(GAMEPLAY_RULESET_VERSIONS).toEqual([
       "standard-v1",
       "standard-v2-casual",
+      "standard-v3-recovery-ladder",
     ]);
     expect(requireGameplayRulesetVersion("standard-v1")).toBe(STANDARD_V1_RULESET);
     expect(() => requireGameplayRulesetVersion("classic-launch-v1")).toThrow(

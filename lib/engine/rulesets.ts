@@ -7,10 +7,17 @@
  */
 export const STANDARD_V1_RULESET = "standard-v1";
 export const STANDARD_V2_RULESET = "standard-v2-casual";
+/**
+ * Adds the recovery ladder: the ordinary Chip can no longer independently
+ * produce a triple. A triple now requires a penalty stroke, compounding
+ * narrated mistakes, or the aggressive Flop.
+ */
+export const STANDARD_V3_RULESET = "standard-v3-recovery-ladder";
 
 export const GAMEPLAY_RULESET_VERSIONS = [
   STANDARD_V1_RULESET,
   STANDARD_V2_RULESET,
+  STANDARD_V3_RULESET,
 ] as const;
 
 export type GameplayRulesetVersion = (typeof GAMEPLAY_RULESET_VERSIONS)[number];
@@ -19,11 +26,12 @@ export type GameplayRulesetVersion = (typeof GAMEPLAY_RULESET_VERSIONS)[number];
 export const LEGACY_GAMEPLAY_RULESET: GameplayRulesetVersion = STANDARD_V1_RULESET;
 
 /** Official rules for newly formed non-Career play after the fairness release. */
-export const CURRENT_STANDARD_RULESET: GameplayRulesetVersion = STANDARD_V2_RULESET;
+export const CURRENT_STANDARD_RULESET: GameplayRulesetVersion = STANDARD_V3_RULESET;
 
 const LABELS: Readonly<Record<GameplayRulesetVersion, string>> = {
   [STANDARD_V1_RULESET]: "Standard v1",
   [STANDARD_V2_RULESET]: "Standard",
+  [STANDARD_V3_RULESET]: "Standard",
 };
 
 export function isGameplayRulesetVersion(value: unknown): value is GameplayRulesetVersion {
@@ -58,7 +66,17 @@ export function gameplayRulesetLabel(version: GameplayRulesetVersion): string {
 }
 
 export function usesCasualFairness(version: GameplayRulesetVersion): boolean {
-  return version === STANDARD_V2_RULESET;
+  return version === STANDARD_V2_RULESET || version === STANDARD_V3_RULESET;
+}
+
+/**
+ * True when the ordinary Chip is capped at a double: it may still cost a shot
+ * or two, but it cannot manufacture a triple on its own. Punch stays fully
+ * protected and Flop keeps its real downside, so the recovery ladder reads
+ * Punch < Chip < Flop.
+ */
+export function usesRecoveryLadder(version: GameplayRulesetVersion): boolean {
+  return version === STANDARD_V3_RULESET;
 }
 
 /** Phase 1 accepts no client-selected rules. Routes use this exact presence

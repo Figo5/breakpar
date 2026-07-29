@@ -48,15 +48,26 @@ export function CareerLiveBoard({
     void load();
   }, [load, holesPlayed]);
 
+  useEffect(() => {
+    setExpanded(false);
+  }, [eventId]);
+
   if (!view) return null;
 
   const { player } = view;
-  const strip = (
-    <div className="career-live-strip">
-      <b>{player.positionLabel}</b>
-      <span>Round <i>{toPar(player.roundRelativeToPar)}</i></span>
-      <span>Event <i>{toPar(player.eventRelativeToPar)}</i></span>
-    </div>
+  const summary = (
+    <button
+      type="button"
+      className="career-live-summary"
+      onClick={() => setExpanded((open) => !open)}
+      aria-expanded={expanded}
+      aria-label={`${expanded ? "Collapse" : "Expand"} live leaderboard. Position ${player.positionLabel}, round ${toPar(player.roundRelativeToPar)}, total ${toPar(player.eventRelativeToPar)}.`}
+    >
+      <span><small>Position</small><b>{player.positionLabel}</b></span>
+      <span><small>Round</small><b>{toPar(player.roundRelativeToPar)}</b></span>
+      <span><small>Total</small><b>{toPar(player.eventRelativeToPar)}</b></span>
+      <i aria-hidden="true">{expanded ? "−" : "+"}</i>
+    </button>
   );
 
   if (!view.available) {
@@ -64,52 +75,39 @@ export function CareerLiveBoard({
     // numbers rather than splitting a stored total into invented holes.
     return (
       <div className="career-live">
-        {strip}
-        <p className="career-live-note">
-          Live standings arrive with your next event — this one was set up before
-          hole-by-hole rival cards.
-        </p>
+        {summary}
+        {expanded && (
+          <p className="career-live-note">
+            Live standings arrive with your next event — this one was set up before
+            hole-by-hole rival cards.
+          </p>
+        )}
       </div>
     );
   }
 
-  // Top five, plus the player's own row when they sit outside it.
-  const top = view.rows.slice(0, 5);
-  const mine = view.rows.find((row) => row.isMe);
-  const shown = expanded
-    ? view.rows
-    : mine && !top.some((row) => row.isMe)
-      ? [...top, mine]
-      : top;
-
   return (
-    <div className="career-live">
-      {strip}
-      <div className="career-live-head">
-        <span>Pos</span><span>Player</span><span>Rd</span><span>Event</span><span>Thru</span>
-      </div>
-      {shown.map((row, index) => (
-        <div
-          className={`career-live-row ${row.isMe ? "is-me" : ""} ${
-            !expanded && mine && index === 5 ? "is-detached" : ""
-          }`}
-          key={row.competitorId}
-        >
-          <span>{row.positionLabel}</span>
-          <span className="career-live-name">{row.displayName}</span>
-          <span>{toPar(row.roundRelativeToPar)}</span>
-          <span><b>{toPar(row.eventRelativeToPar)}</b></span>
-          <span>{row.thruLabel}</span>
+    <div className={`career-live ${expanded ? "is-expanded" : ""}`}>
+      {summary}
+      {expanded && (
+        <div className="career-live-board">
+          <div className="career-live-head">
+            <span>Pos</span><span>Player</span><span>Rd</span><span>Total</span><span>Thru</span>
+          </div>
+          {view.rows.map((row) => (
+            <div
+              className={`career-live-row ${row.isMe ? "is-me" : ""}`}
+              key={row.competitorId}
+            >
+              <span>{row.positionLabel}</span>
+              <span className="career-live-name">{row.displayName}</span>
+              <span>{toPar(row.roundRelativeToPar)}</span>
+              <span><b>{toPar(row.eventRelativeToPar)}</b></span>
+              <span>{row.thruLabel}</span>
+            </div>
+          ))}
         </div>
-      ))}
-      <button
-        type="button"
-        className="career-live-toggle"
-        onClick={() => setExpanded((open) => !open)}
-        aria-expanded={expanded}
-      >
-        {expanded ? "Show top five" : `Full leaderboard · ${view.rows.length} players`}
-      </button>
+      )}
     </div>
   );
 }

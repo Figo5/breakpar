@@ -96,7 +96,7 @@ describe("Personal Journey creation", () => {
       puttingRank: 1,
       developmentPoints: 0,
     });
-    expect(state.cohort.formulaVersion).toBe("career-v4-progression");
+    expect(state.cohort.formulaVersion).toBe("career-v5-recovery-ladder");
     expect(await db.careerBotIdentity.count({ where: { worldId: state.world.id } })).toBe(30);
     // Exactly one profile per Journey — this is a personal universe.
     expect(await db.careerProfile.count({ where: { worldId: state.world.id } })).toBe(1);
@@ -247,7 +247,7 @@ describe("No calendar gates anything", () => {
     // The seed is bound to the locked field, not to the request.
     const round = await db.round.findUniqueOrThrow({ where: { id: a.roundId } });
     expect(round.seedKey).toContain(careerJourneyKey(user.id));
-    expect(round.rulesetVersion).toBe("standard-v2-casual");
+    expect(round.rulesetVersion).toBe("standard-v3-recovery-ladder");
     expect(round.careerSkillSnapshot).toEqual({
       driving: 1,
       approach: 1,

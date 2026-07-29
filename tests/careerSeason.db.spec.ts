@@ -315,7 +315,7 @@ describe("Fourth completion settles the season", () => {
     const next = await db.careerCohort.findUniqueOrThrow({ where: { id: advanced!.nextCohortId! } });
     expect(next.seasonNumber).toBe(2);
     expect(next.state).toBe("ACTIVE");
-    expect(next.formulaVersion).toBe("career-v4-progression");
+    expect(next.formulaVersion).toBe("career-v5-recovery-ladder");
     const nextEvents = await eventsOf(next.id);
     expect(nextEvents).toHaveLength(4);
     expect(nextEvents.every((event) => event.state === "ACTIVE")).toBe(true);
@@ -462,7 +462,7 @@ describe("Season settlement across a formula-package bump", () => {
       "career-v2-player-paced",
       "career-v2-player-paced",
       "career-v2-player-paced",
-      "career-v4-progression",
+      "career-v5-recovery-ladder",
     ]);
   }, 120_000);
 

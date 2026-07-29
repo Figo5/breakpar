@@ -687,18 +687,28 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 
 /* Career live leaderboard — Career rounds only; no other mode mounts it. */
 .career-live{background:rgba(17,24,15,.82);border:1px solid rgba(255,255,255,.16);border-radius:12px;
-  padding:8px 9px;backdrop-filter:blur(3px)}
-.career-live-strip{display:flex;align-items:baseline;gap:9px;padding:0 1px 7px;
-  border-bottom:1px solid rgba(255,255,255,.14);margin-bottom:6px}
-.career-live-strip>b{font-family:'Anton',sans-serif;font-size:19px;font-weight:400;color:var(--pm-amber);
-  line-height:1;flex:none}
-.career-live-strip>span{font-family:'Oswald',sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.1em;
-  text-transform:uppercase;color:#b9c7b1;white-space:nowrap}
-.career-live-strip>span>i{font-style:normal;font-size:13px;color:var(--pm-paper);margin-left:3px}
+  padding:0;backdrop-filter:blur(3px);overflow:hidden}
+.career-live-summary{display:grid;grid-template-columns:1fr 1fr 1fr 28px;align-items:center;width:100%;
+  min-height:42px;padding:6px 8px 6px 11px;background:transparent;border:0;color:var(--pm-paper);
+  cursor:pointer;text-align:left}
+.career-live-summary:hover{background:rgba(255,255,255,.04)}
+.career-live-summary>span{display:flex;align-items:baseline;gap:6px;min-width:0}
+.career-live-summary small{font-family:'Oswald',sans-serif;font-size:8.5px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:#9fae97;white-space:nowrap}
+.career-live-summary b{font-family:'Oswald',sans-serif;font-size:15px;font-weight:700;color:var(--pm-paper);
+  line-height:1;white-space:nowrap}
+.career-live-summary>span:first-child b{font-family:'Anton',sans-serif;font-size:19px;font-weight:400;
+  color:var(--pm-amber)}
+.career-live-summary>i{display:grid;place-items:center;width:22px;height:22px;border:1px solid rgba(255,255,255,.2);
+  border-radius:50%;font-family:'Inter',sans-serif;font-size:14px;font-style:normal;color:#cbd8c3}
+.career-live.is-expanded .career-live-summary{border-bottom:1px solid rgba(255,255,255,.14)}
+.career-live-board{max-height:320px;padding:7px 9px 8px;overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-width:thin;scrollbar-color:rgba(242,193,78,.5) transparent}
 .career-live-head,.career-live-row{display:grid;grid-template-columns:30px minmax(0,1fr) 34px 40px 46px;
   gap:5px;align-items:center}
 .career-live-head{font-family:'Oswald',sans-serif;font-size:8.5px;font-weight:700;letter-spacing:.09em;
-  text-transform:uppercase;color:#8b9a84;padding:0 1px 3px}
+  text-transform:uppercase;color:#8b9a84;padding:0 1px 3px;position:sticky;top:-7px;z-index:1;
+  background:#11180f}
 .career-live-row{font-family:'Oswald',sans-serif;font-size:11.5px;color:#dfe7da;padding:3px 1px}
 .career-live-row>span:nth-child(1),.career-live-row>span:nth-child(3),
 .career-live-row>span:nth-child(4),.career-live-row>span:nth-child(5){text-align:center}
@@ -707,15 +717,13 @@ body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
 .career-live-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .career-live-row.is-me{background:rgba(242,193,78,.2);border-radius:6px}
 .career-live-row.is-me .career-live-name{font-weight:700;color:#fff}
-/* A player outside the top five is shown detached, so the gap is legible. */
-.career-live-row.is-detached{margin-top:5px;border-top:1px dashed rgba(255,255,255,.2);padding-top:5px}
-.career-live-toggle{width:100%;margin-top:6px;background:transparent;border:1px solid rgba(255,255,255,.2);
-  border-radius:8px;color:#cbd8c3;font-family:'Oswald',sans-serif;font-size:9.5px;font-weight:600;
-  letter-spacing:.09em;text-transform:uppercase;padding:5px;cursor:pointer}
-.career-live-toggle:hover{border-color:var(--pm-amber);color:var(--pm-amber)}
-.career-live-note{font-size:10px;line-height:1.4;color:#a9b8a2;margin:2px 1px 0}
+.career-live-note{font-size:10px;line-height:1.4;color:#a9b8a2;margin:0;padding:8px 10px}
 
 @media (max-width:390px){
+  .career-live-summary{grid-template-columns:1.1fr 1fr 1fr 25px;padding-left:9px}
+  .career-live-summary>span{gap:4px}
+  .career-live-summary small{font-size:8px}
+  .career-live-board{max-height:240px}
   .career-live-head,.career-live-row{grid-template-columns:26px minmax(0,1fr) 30px 36px 42px;gap:4px}
   .career-live-row{font-size:11px}
 }

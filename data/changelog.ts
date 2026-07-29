@@ -17,6 +17,8 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-07-29",
     items: [
+      "The normal short-game Chip can no longer create an unexplained triple by itself. It can still make a double, while penalty strokes and the aggressive Flop retain their full downside.",
+      "Short-game choices now show a clearer green, yellow, and red risk ladder for Punch, Chip, and Flop.",
       "Career rounds now show a live leaderboard after every hole, with every rival scored only through the same hole you have completed.",
       "Career play now shows your current position, score for the round, and cumulative event score together.",
       "Added 10 courses: Prestonwood SAS Composite, CCNC Dogwood, Kingsbarns, Tobacco Road, Tot Hill Farm, East Lake, Valhalla, Oakland Hills South, Inverness, and Olympic Club Lake. The roster is now 63.",

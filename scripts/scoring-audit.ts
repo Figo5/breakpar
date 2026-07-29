@@ -10,6 +10,7 @@
  * Read-only: no database or external calls.
  */
 import { COURSES, coursePar } from "../data/courses";
+import { CURRENT_STANDARD_RULESET } from "../lib/engine/rulesets";
 import { holeDifficulty, type HoleSpec } from "../lib/engine/resolveHole";
 import { resolveHoleChain, type ChainResult } from "../lib/engine/shots";
 import {
@@ -131,6 +132,7 @@ for (const [playerIndex, player] of Object.values(players).entries()) {
         recent,
         narration: false as const,
         holeContext: { hazard: hole.hazard, signature: hole.signature },
+        rulesetVersion: CURRENT_STANDARD_RULESET,
       };
 
       state.holesLeft = course.holes.length - holeIndex;
@@ -256,9 +258,13 @@ for (const distance of puttDistances) {
   const bucket = puttBucketForDistance(distance);
   console.log(`  ${distance} ft (${bucket})`);
   for (const decision of puttDecisions) {
-    const neutral = normalizePutt(puttWeights(bucket, decision, "Medium", distance));
+    const neutral = normalizePutt(
+      puttWeights(bucket, decision, "Medium", distance, undefined, undefined, CURRENT_STANDARD_RULESET),
+    );
     const geometries = puttGeometry.map(({ speed, breakDir, slope }) =>
-      normalizePutt(puttWeights(bucket, decision, speed, distance, breakDir, slope))
+      normalizePutt(
+        puttWeights(bucket, decision, speed, distance, breakDir, slope, CURRENT_STANDARD_RULESET),
+      )
     );
     const makeRates = geometries.map((odds) => odds.oneputt);
     const threeRates = geometries.map((odds) => odds.threeputt);

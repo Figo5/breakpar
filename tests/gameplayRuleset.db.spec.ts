@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { officialDailyRuleset } from "@/lib/gameplayRuleset.server";
 import {
+  CURRENT_STANDARD_RULESET,
   STANDARD_V1_RULESET,
   STANDARD_V2_RULESET,
 } from "@/lib/engine/rulesets";
@@ -128,7 +129,7 @@ describe("gameplay ruleset persistence migration", () => {
       .toBe(STANDARD_V2_RULESET);
   });
 
-  it("inherits a historical Daily day and pins a new Daily day to v2", async () => {
+  it("inherits a historical Daily day and pins a new Daily day to the current ruleset", async () => {
     const historicalKey = "2026-07-27";
     await db.round.create({
       data: {
@@ -144,9 +145,12 @@ describe("gameplay ruleset persistence migration", () => {
       where: { dateKey: historicalKey },
     })).rulesetVersion).toBe(STANDARD_V1_RULESET);
 
+    // A day with no pin takes whatever is current, and keeps it thereafter —
+    // asserted against CURRENT_STANDARD_RULESET so a future bump does not
+    // silently need this test edited to keep passing.
     const newKey = "2026-07-28";
-    expect(await officialDailyRuleset(db, newKey)).toBe(STANDARD_V2_RULESET);
-    expect(await officialDailyRuleset(db, newKey)).toBe(STANDARD_V2_RULESET);
+    expect(await officialDailyRuleset(db, newKey)).toBe(CURRENT_STANDARD_RULESET);
+    expect(await officialDailyRuleset(db, newKey)).toBe(CURRENT_STANDARD_RULESET);
   });
 
   it("copies one Challenge ruleset to both players and resumes without rerolling", async () => {
