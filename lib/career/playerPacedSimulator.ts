@@ -19,7 +19,7 @@ import {
   type ChampionshipSettlementCompetitor,
 } from "./championshipSettlement";
 import {
-  CAREER_V4_FORMULA_BUNDLE,
+  CAREER_CURRENT_FORMULA_BUNDLE,
   type CareerFormulaBundle,
 } from "./formulaBundle";
 import {
@@ -63,12 +63,16 @@ import {
   type Tendency,
 } from "./simulator";
 
-const FORMULA = CAREER_V4_FORMULA_BUNDLE;
+// This is a release gate, so it must follow the package new Career seasons
+// actually pin. Historical packages remain reproducible from their frozen code
+// and stored snapshots; silently testing the previous package here is unsafe.
+const FORMULA = CAREER_CURRENT_FORMULA_BUNDLE;
 const FIELD_SIZE = FORMULA.championship.fieldSize;
 const EVENTS_PER_SEASON = FORMULA.eventPoints.scheduledEvents;
 
 export interface CareerSkillScoreBank {
   readonly seed: string;
+  readonly formulaVersion: string;
   readonly samplesPerArchetype: number;
   readonly base: ScoreBank;
   readonly skillScores: ReadonlyMap<string, readonly number[]>;
@@ -211,6 +215,7 @@ export function buildCareerSkillScoreBank(
   }
   return {
     seed,
+    formulaVersion: FORMULA.id,
     samplesPerArchetype,
     base,
     skillScores,
@@ -229,7 +234,7 @@ export interface PlayerPacedCareerConfig {
    * defaults to playing each one immediately to exercise its Legacy curve. */
   readonly playChampionships?: boolean;
   /** Calibration-only override. Production omits this and reads the immutable
-   * v4 package. */
+   * formula package pinned to the season. */
   readonly movementThresholds?: Readonly<Record<CareerTier, {
     readonly promoteThreshold: number;
     readonly promotionFloor: number;
@@ -464,7 +469,8 @@ export function simulatePlayerPacedCareer(
     throw new TypeError("Player-paced simulation seasons must be a positive safe integer");
   }
   if (
-    config.scoreBank.base.model !== FORMULA.ability.model
+    config.scoreBank.formulaVersion !== FORMULA.id
+    || config.scoreBank.base.model !== FORMULA.ability.model
     || JSON.stringify(config.scoreBank.base.errorRates)
       !== JSON.stringify(FORMULA.ability.errorRates)
   ) {

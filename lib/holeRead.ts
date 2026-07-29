@@ -193,15 +193,15 @@ export function shortGameRiskRead(
 ): { tone: Tone; text: string } {
   if (birdieSave) {
     if (decision === "safe") return { tone: "good", text: "Play for par · birdie chance" };
-    if (decision === "normal") return { tone: "good", text: "Get up & down for birdie" };
-    return { tone: "warn", text: "Chase birdie · blow-up risk" };
+    if (decision === "normal") return { tone: "warn", text: "Birdie chance · some risk" };
+    return { tone: "bad", text: "Chase birdie · blow-up risk" };
   }
   // Make the trade explicit: Punch usually takes bogey but almost never blows up;
   // Flop chases par at the cost of big numbers. So the safe choice is a knowing
   // card-protection call, not a promise of a save.
   if (decision === "safe") return { tone: "good", text: "Punch — take bogey, kill the blow-up" };
-  if (decision === "normal") return { tone: "good", text: "Get it close" };
-  return { tone: "warn", text: "Go for the save — blow-up risk" };
+  if (decision === "normal") return { tone: "warn", text: "Get it close · some risk" };
+  return { tone: "bad", text: "Go for the save — blow-up risk" };
 }
 
 /** Whether the current greenside recovery can still save birdie. A drivable

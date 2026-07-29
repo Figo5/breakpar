@@ -27,6 +27,7 @@ import type { Lie } from "./shots";
 import {
   STANDARD_V2_RULESET,
   usesCasualFairness,
+  usesRecoveryLadder,
   type GameplayRulesetVersion,
 } from "./rulesets";
 
@@ -430,6 +431,29 @@ const SCRAMBLE_BASE_V2: typeof SCRAMBLE_BASE_V1 = {
   aggressive: { updown: 48, twochip: 35, blowup: 14, disaster: 3 },
 };
 
+/**
+ * The recovery ladder.
+ *
+ * v2 protected Punch and left Chip alone, which made the option most players
+ * read as "the sensible one" the largest source of unexplained big numbers:
+ * four in five of its doubles and triples arrived with no penalty stroke and so
+ * no visible cause. v3 caps Chip at a double — `disaster` is the only path to an
+ * independent triple, and Chip no longer has one. The removed triple weight
+ * becomes a double, preserving real downside without an unexplained triple.
+ *
+ * A triple now requires a penalty stroke, compounding narrated mistakes, or the
+ * aggressive Flop, which keeps its full downside deliberately.
+ */
+const SCRAMBLE_BASE_V3: typeof SCRAMBLE_BASE_V1 = {
+  safe: { updown: 34, twochip: 66, blowup: 0, disaster: 0 },
+  // The triple weight becomes a DOUBLE, not a bogey. Chip is capped, not made
+  // easier: the same proportion of chips still go wrong, the worst one just
+  // stops at a double. Sending it to bogey instead pushed break-par to 38.8%,
+  // outside the [30-37%] band — a cap should not be a difficulty cut.
+  normal: { updown: 38, twochip: 50, blowup: 12, disaster: 0 },
+  aggressive: { updown: 48, twochip: 35, blowup: 14, disaster: 3 },
+};
+
 export const SCRAMBLE_DIFFICULTY = {
   updownDecay: 0.45,
   twochipGrowth: 0.2,
@@ -455,7 +479,10 @@ export function scrambleWeights(
   const casual = usesCasualFairness(rulesetVersion);
   const d = holeDifficulty(hole, c);
   const aggressive = decision === "aggressive" ? 1 : 0;
-  const w = fillScramble((casual ? SCRAMBLE_BASE_V2 : SCRAMBLE_BASE_V1)[decision]);
+  const ladder = usesRecoveryLadder(rulesetVersion);
+  const w = fillScramble(
+    (ladder ? SCRAMBLE_BASE_V3 : casual ? SCRAMBLE_BASE_V2 : SCRAMBLE_BASE_V1)[decision],
+  );
   const S = SCRAMBLE_DIFFICULTY;
   w.updown *= 1 - S.updownDecay * d;
   w.twochip *= 1 + S.twochipGrowth * d;

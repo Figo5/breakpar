@@ -5,7 +5,7 @@ import {
   careerSkillKey,
   totalCareerSkillRanks,
 } from "@/lib/career/development";
-import { CAREER_V4_FORMULA_BUNDLE } from "@/lib/career/formulaBundle";
+import { CAREER_CURRENT_FORMULA_BUNDLE } from "@/lib/career/formulaBundle";
 import {
   autoAllocateCareerSkills,
   balancedCareerSkillPath,
@@ -37,8 +37,8 @@ function frozenBaseBank(): ScoreBank {
     samplesPerArchetype: 3,
     scores,
     means,
-    model: CAREER_V4_FORMULA_BUNDLE.ability.model,
-    errorRates: { ...CAREER_V4_FORMULA_BUNDLE.ability.errorRates },
+    model: CAREER_CURRENT_FORMULA_BUNDLE.ability.model,
+    errorRates: { ...CAREER_CURRENT_FORMULA_BUNDLE.ability.errorRates },
   };
 }
 
@@ -64,6 +64,7 @@ function frozenFixedBank(): CareerSkillScoreBank {
   }
   return {
     seed: base.seed,
+    formulaVersion: CAREER_CURRENT_FORMULA_BUNDLE.id,
     samplesPerArchetype: base.samplesPerArchetype,
     base,
     skillScores,
@@ -84,7 +85,7 @@ describe("player-paced Career simulator", () => {
     const second = simulatePlayerPacedCareer(config);
 
     expect(second).toEqual(first);
-    expect(first.formulaVersion).toBe("career-v4-progression");
+    expect(first.formulaVersion).toBe("career-v5-recovery-ladder");
     expect(first.histories).toHaveLength(25);
     expect(first.histories.every((history) => history.movement !== "inactive")).toBe(true);
     expect(first.histories.every((history) => history.legacyTotal >= history.legacyEarned)).toBe(true);
@@ -96,8 +97,8 @@ describe("player-paced Career simulator", () => {
       seed: "wrong-package",
       seasons: 1,
       ability: "ace",
-      scoreBank: { ...bank, base: { ...bank.base, model: "v5" } },
-    })).toThrow(/requires a career-v4-progression real-engine score bank/);
+      scoreBank: { ...bank, formulaVersion: "career-v4-progression" },
+    })).toThrow(/requires a career-v5-recovery-ladder real-engine score bank/);
   });
 
   it("proves Tour Rating is independent of career volume when recent form matches", () => {

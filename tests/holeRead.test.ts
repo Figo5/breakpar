@@ -38,8 +38,14 @@ describe("putt labels reflect what the putt is FOR (not the distance bucket)", (
 
   it("labels an early greenside miss as an up-and-down for birdie", () => {
     expect(greenRead("scramble", "birdie").text).toBe("Missed green — up & down for birdie");
-    expect(shortGameRiskRead("normal", true).text).toBe("Get up & down for birdie");
-    expect(shortGameRiskRead("normal").text).toBe("Get it close");
+    expect(shortGameRiskRead("normal", true)).toEqual({
+      tone: "warn",
+      text: "Birdie chance · some risk",
+    });
+    expect(shortGameRiskRead("normal")).toEqual({
+      tone: "warn",
+      text: "Get it close · some risk",
+    });
   });
 
   it("does not promise a birdie save after a water penalty consumed the advantage", () => {
@@ -57,7 +63,7 @@ describe("putt labels reflect what the putt is FOR (not the distance bucket)", (
     expect(recoveryIsForBirdie(4, earlyMiss)).toBe(false);
     expect(
       shortGameRiskRead("normal", recoveryIsForBirdie(4, earlyMiss)).text,
-    ).toBe("Get it close");
+    ).toBe("Get it close · some risk");
   });
 
   it("keeps an unpenalized drivable-par-4 miss as a birdie recovery", () => {

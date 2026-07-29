@@ -10,6 +10,7 @@
  * Read-only: no database or external calls.
  */
 import { COURSES, coursePar } from "../data/courses";
+import { CURRENT_STANDARD_RULESET } from "../lib/engine/rulesets";
 import { holeDifficulty, type HoleSpec } from "../lib/engine/resolveHole";
 import { resolveHoleChain, type ChainResult } from "../lib/engine/shots";
 import {
@@ -131,6 +132,7 @@ for (const [playerIndex, player] of Object.values(players).entries()) {
         recent,
         narration: false as const,
         holeContext: { hazard: hole.hazard, signature: hole.signature },
+        rulesetVersion: CURRENT_STANDARD_RULESET,
       };
 
       state.holesLeft = course.holes.length - holeIndex;

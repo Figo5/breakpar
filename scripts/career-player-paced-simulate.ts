@@ -15,7 +15,7 @@ import {
   simulatePlayerPacedCareer,
   type PlayerPacedCareerSimulation,
 } from "../lib/career/playerPacedSimulator";
-import { CAREER_V4_FORMULA_BUNDLE } from "../lib/career/formulaBundle";
+import { CAREER_CURRENT_FORMULA_BUNDLE } from "../lib/career/formulaBundle";
 import { careerSkillKey } from "../lib/career/development";
 import { tourRating, type RatingSeason } from "../lib/career/rules";
 import {
@@ -118,18 +118,18 @@ if (!options.quick && options.seasons < Math.max(...requiredHorizons)) {
 }
 
 console.log(
-  `Building ${CAREER_V4_FORMULA_BUNDLE.id} exact-rank real-engine score bank `
+  `Building ${CAREER_CURRENT_FORMULA_BUNDLE.id} exact-rank real-engine score bank `
   + `(${options.bankSamples} rounds/archetype/rank vector)…`,
 );
 const bank = buildCareerSkillScoreBank(
   options.seed,
   options.bankSamples,
-  CAREER_V4_FORMULA_BUNDLE.ability.model,
-  { ...CAREER_V4_FORMULA_BUNDLE.ability.errorRates },
+  CAREER_CURRENT_FORMULA_BUNDLE.ability.model,
+  { ...CAREER_CURRENT_FORMULA_BUNDLE.ability.errorRates },
 );
 
 const simulations = new Map<AbilityBand, PlayerPacedCareerSimulation[]>();
-const formulaMovement = CAREER_V4_FORMULA_BUNDLE.movement.tierThresholds!;
+const formulaMovement = CAREER_CURRENT_FORMULA_BUNDLE.movement.tierThresholds!;
 const movementThresholds = options.localPromote == null
   ? undefined
   : {
@@ -230,7 +230,7 @@ const allRanksBounded = allHistories.every((history) =>
 const lines: string[] = [
   "# Player-paced Career long-horizon simulation",
   "",
-  `Formula package: \`${CAREER_V4_FORMULA_BUNDLE.id}\`.`,
+  `Formula package: \`${CAREER_CURRENT_FORMULA_BUNDLE.id}\`.`,
   movementThresholds
     ? `Calibration movement override: Local ${(movementThresholds.local.promoteThreshold * 100).toFixed(0)}%/${(movementThresholds.local.promotionFloor * 100).toFixed(0)}% floor, Challenger ${(movementThresholds.challenger.promoteThreshold * 100).toFixed(0)}%/${(movementThresholds.challenger.promotionFloor * 100).toFixed(0)}% floor, and ${(movementThresholds.pro.relegateThreshold * 100).toFixed(0)}% relegation.`
     : `Movement: Local ${(formulaMovement.local.promoteThreshold * 100).toFixed(0)}%/${(formulaMovement.local.promotionFloor * 100).toFixed(0)}% floor, Challenger ${(formulaMovement.challenger.promoteThreshold * 100).toFixed(0)}%/${(formulaMovement.challenger.promotionFloor * 100).toFixed(0)}% floor, and ${(formulaMovement.pro.relegateThreshold * 100).toFixed(0)}% relegation.`,
