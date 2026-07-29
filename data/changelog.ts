@@ -15,6 +15,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-07-29",
+    items: [
+      "Career rounds now show a live leaderboard after every hole, with every rival scored only through the same hole you have completed.",
+      "Career play now shows your current position, score for the round, and cumulative event score together.",
+      "Added 10 courses: Prestonwood SAS Composite, CCNC Dogwood, Kingsbarns, Tobacco Road, Tot Hill Farm, East Lake, Valhalla, Oakland Hills South, Inverness, and Olympic Club Lake. The roster is now 63.",
+      "Added all 10 new courses to Unlimited, Career, and the regular weekly tournament rotation.",
+    ],
+  },
+  {
     date: "2026-07-28",
     items: [
       "Reduced ordinary-distance three-putts, especially when lagging from 20 to 30 feet.",

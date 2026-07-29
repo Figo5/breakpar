@@ -4,7 +4,11 @@ import {
 } from "@prisma/client";
 
 import { COURSES, type Course as GameCourse } from "@/data/courses";
-import { simulateArchetypeRound, type CareerArchetype } from "./simulator";
+import {
+  simulateArchetypeRoundCard,
+  type ArchetypeRoundCard,
+  type CareerArchetype,
+} from "./simulator";
 import { assignCareerBotSlots } from "./botRoster";
 import {
   CAREER_CANONICAL_VERSION,
@@ -62,12 +66,24 @@ export type CareerFormationResult =
   | { readonly status: "locked"; readonly field: CareerLockedField }
   | { readonly status: "already-locked"; readonly lockedAt: Date | null };
 
+/**
+ * A bot round producer. Returning a full card supplies the per-hole detail a
+ * live leaderboard needs; returning a bare number stays supported for callers
+ * that only care about the total, and yields a card with no hole detail rather
+ * than a split invented from that total.
+ */
 export type BotRoundSimulator = (
   seed: string,
   course: GameCourse,
   archetype: CareerArchetype,
   rulesetVersion?: GameplayRulesetVersion,
-) => number;
+) => number | ArchetypeRoundCard;
+
+function asRoundCard(result: number | ArchetypeRoundCard): ArchetypeRoundCard {
+  return typeof result === "number"
+    ? { relativeToPar: result, holeScores: [] }
+    : result;
+}
 
 interface FormationOptions {
   readonly runtimeRevision?: string;
@@ -129,8 +145,8 @@ function defaultBotRound(
   course: GameCourse,
   archetype: CareerArchetype,
   rulesetVersion = CAREER_CURRENT_FORMULA_BUNDLE.gameplayRulesetVersion,
-): number {
-  return simulateArchetypeRound(
+): ArchetypeRoundCard {
+  return simulateArchetypeRoundCard(
     seed,
     course,
     archetype,
@@ -409,12 +425,14 @@ export class CareerFormationService {
           { length: event.roundsPerPlayer },
           (_, roundIndex) => {
             const seed = careerBotRoundSeed(seedNamespace, roundIndex + 1, slot.slotId);
+            const card = asRoundCard(this.simulateBotRound(seed, gameCourse, {
+              ability: assignment.abilityBand,
+              tendency: assignment.tendency,
+            }, gameplayRulesetVersion));
             return {
               roundNumber: roundIndex + 1,
-              relativeToPar: this.simulateBotRound(seed, gameCourse, {
-                ability: assignment.abilityBand,
-                tendency: assignment.tendency,
-              }, gameplayRulesetVersion),
+              relativeToPar: card.relativeToPar,
+              holeScores: card.holeScores,
               seed,
             };
           },
@@ -635,6 +653,7 @@ export class CareerFormationService {
             slotId: result.slotId,
             roundNumber: card.roundNumber,
             relativeToPar: card.relativeToPar,
+            holeScores: [...card.holeScores],
             seed: card.seed,
             formulaVersion: claim.formulaVersion,
           })));

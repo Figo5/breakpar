@@ -43,14 +43,14 @@ import { nextMonday, easternMidnight, dateKey } from "@/lib/daily";
 /** Regular weekly rotation. Deterministic order; loops when exhausted.
  *
  * This is now EVERY course on the roster except the crown jewels — one full
- * cycle is ~11 months, so nothing repeats often enough to feel stale, and a
+ * cycle is longer than a year, so nothing repeats often enough to feel stale, and a
  * course no longer has to earn its way in. The only reason to keep a course out
  * is that it should feel like an event, which is what the crown-jewel list and
  * TOURNAMENT_COURSE_OVERRIDES below are for.
  *
  * Two courses that used to be held out are now in:
  *   - pebble-beach was the launch event and was parked so it wouldn't come
- *     straight back. At 48 courses "a while" is nearly a year, so it's safe.
+ *     straight back. With the expanded roster, "a while" is over a year, so it's safe.
  *   - winged-foot-west was reserved for the 2026-W29 override. That week is in
  *     the past, so there's no double-appearance left to avoid.
  *
@@ -109,6 +109,17 @@ export const TOURNAMENT_COURSE_POOL: string[] = [
   "ballybunion-old",
   "sand-hills",
   "turnberry-ailsa",
+  // Batch 12
+  "prestonwood-sas-composite",
+  "ccnc-dogwood",
+  "kingsbarns",
+  "tobacco-road",
+  "tot-hill-farm",
+  "east-lake",
+  "valhalla",
+  "oakland-hills-south",
+  "inverness-club",
+  "olympic-club-lake",
 ];
 
 /**

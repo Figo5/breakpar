@@ -60,6 +60,17 @@ const EXPECTED_PAR: Record<string, number> = {
   "ballybunion-old": 71,
   "sand-hills": 71,
   "turnberry-ailsa": 71,
+  // Batch 12 — tournament and championship cards:
+  "prestonwood-sas-composite": 72,
+  "ccnc-dogwood": 72,
+  kingsbarns: 72,
+  "tobacco-road": 71,
+  "tot-hill-farm": 72,
+  "east-lake": 70,
+  valhalla: 71,
+  "oakland-hills-south": 70,
+  "inverness-club": 71,
+  "olympic-club-lake": 70,
 };
 
 const EXPECTED_YARDAGE: Record<string, number> = {
@@ -79,11 +90,21 @@ const EXPECTED_YARDAGE: Record<string, number> = {
   "ballybunion-old": 6802,
   "sand-hills": 7073,
   "turnberry-ailsa": 7489,
+  "prestonwood-sas-composite": 7237,
+  "ccnc-dogwood": 7301,
+  kingsbarns: 7212,
+  "tobacco-road": 6557,
+  "tot-hill-farm": 6627,
+  "east-lake": 7440,
+  valhalla: 7609,
+  "oakland-hills-south": 7303,
+  "inverness-club": 7730,
+  "olympic-club-lake": 7214,
 };
 
 describe("course catalogue integrity", () => {
-  it("roster is the expected size (53 after batch 11)", () => {
-    expect(COURSES.length).toBe(53);
+  it("roster is the expected size (63 after batch 12)", () => {
+    expect(COURSES.length).toBe(63);
   });
 
   it("every course has 18 holes", () => {
@@ -134,6 +155,20 @@ describe("course catalogue integrity", () => {
     }
   });
 
+  it("only true island-green par 3s trigger the island renderer", () => {
+    const islands = COURSES.flatMap((course) =>
+      course.holes
+        .filter((hole) =>
+          hole.par === 3
+          && hole.hazard === "water"
+          && /island/i.test(hole.signature ?? ""))
+        .map((hole) => `${course.slug}:${hole.number}`));
+    expect(islands).toEqual([
+      "tpc-sawgrass:17",
+      "prestonwood-sas-composite:8",
+    ]);
+  });
+
   it("verified courses sum to their documented par total", () => {
     for (const [slug, par] of Object.entries(EXPECTED_PAR)) {
       const c = COURSES.find((x) => x.slug === slug);
@@ -142,7 +177,7 @@ describe("course catalogue integrity", () => {
     }
   });
 
-  it("batch 8 + 9 courses sum to their documented championship yardage", () => {
+  it("verified courses sum to their documented championship yardage", () => {
     for (const [slug, yardage] of Object.entries(EXPECTED_YARDAGE)) {
       const c = COURSES.find((x) => x.slug === slug);
       expect(c, slug).toBeDefined();

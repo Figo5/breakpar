@@ -15,6 +15,7 @@ import {
   rollingHistoryAfterPromotion,
   rollingMovementForSeason,
   simulateArchetypeRound,
+  simulateArchetypeRoundCard,
   simulateCareerWorld,
   type ScoreBank,
 } from "@/lib/career/simulator";
@@ -513,5 +514,39 @@ describe("Career simulator", () => {
     expect(result.careers).toHaveLength(30);
     expect(result.tierSnapshots.every((snapshot) => snapshot.fieldSize >= 20)).toBe(true);
     expect(result.tierSnapshots.some((snapshot) => snapshot.fieldSize > 20)).toBe(true);
+  });
+});
+
+describe("Per-hole archetype cards", () => {
+  const archetype = { ability: "scratch", tendency: "balanced" } as const;
+
+  it("sums its holes to exactly the round total the engine already returned", () => {
+    // The live leaderboard shows a bot "Thru 11" from these holes, so the card
+    // and the total must be the same simulation, not two that merely agree.
+    for (const course of COURSES.slice(0, 6)) {
+      const card = simulateArchetypeRoundCard("hole-card", course, archetype, "error");
+      const total = simulateArchetypeRound("hole-card", course, archetype, "error");
+      expect(card.holeScores).toHaveLength(course.holes.length);
+      expect(card.holeScores.reduce((sum, hole) => sum + hole, 0)).toBe(card.relativeToPar);
+      expect(card.relativeToPar).toBe(total);
+    }
+  });
+
+  it("is deterministic per hole, not just in aggregate", () => {
+    const first = simulateArchetypeRoundCard("determinism", COURSES[0], archetype, "error");
+    const second = simulateArchetypeRoundCard("determinism", COURSES[0], archetype, "error");
+    expect(second.holeScores).toEqual(first.holeScores);
+    // A different seed must actually move the card, or the hole detail is inert.
+    const other = simulateArchetypeRoundCard("determinism-2", COURSES[0], archetype, "error");
+    expect(other.holeScores).not.toEqual(first.holeScores);
+  });
+
+  it("produces plausible golf per hole rather than one lumped total", () => {
+    const card = simulateArchetypeRoundCard("shape", COURSES[0], archetype, "error");
+    // Every hole is a real score relative to par, so nothing may be absurd.
+    expect(card.holeScores.every((hole) => Number.isInteger(hole))).toBe(true);
+    expect(card.holeScores.every((hole) => hole >= -3 && hole <= 8)).toBe(true);
+    // A whole round of identical holes would mean the per-hole detail is fake.
+    expect(new Set(card.holeScores).size).toBeGreaterThan(1);
   });
 });

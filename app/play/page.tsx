@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HoleMap } from "@/components/HoleMap";
 import { OpponentStrip } from "@/components/OpponentStrip";
+import { CareerLiveBoard } from "./CareerLiveBoard";
 import { PuttView } from "@/components/PuttView";
 import { Scorecard } from "@/components/Scorecard";
 import {
@@ -416,6 +417,14 @@ function PlayInner() {
               {challengeId && (
                 <div className="pm-opponent">
                   <OpponentStrip challengeId={challengeId} holesCompleted={outcomes.filter(Boolean).length} />
+                </div>
+              )}
+              {careerEventId && (
+                <div className="pm-opponent">
+                  <CareerLiveBoard
+                    eventId={careerEventId}
+                    holesPlayed={outcomes.filter(Boolean).length}
+                  />
                 </div>
               )}
 
