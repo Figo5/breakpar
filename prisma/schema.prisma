@@ -618,6 +618,13 @@ model CareerBotRoundResult {
   slotId         Int
   roundNumber    Int
   relativeToPar  Int
+  /// This card's eighteen hole scores RELATIVE TO EACH HOLE'S PAR, in hole
+  /// order. Always sums to relativeToPar. Generated once during field formation
+  /// from the same simulation that produced the total, so a live leaderboard can
+  /// show a rival "Thru 11" without ever splitting or guessing at a total.
+  /// Empty only for cards written before hole detail existed — those events fall
+  /// back to whole-round reveal rather than inventing a split.
+  holeScores     Int[]
   seed           String
   formulaVersion String
   createdAt      DateTime @default(now())

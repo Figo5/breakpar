@@ -429,8 +429,22 @@ function decisionWithError(
   return others[Math.floor(pickRoll * others.length) % others.length];
 }
 
-/** One real-engine round for an archetype; exported for focused verification. */
-export function simulateArchetypeRound(
+/**
+ * One real-engine round for an archetype, hole by hole.
+ *
+ * `holeScores[i]` is hole i+1's score RELATIVE TO ITS PAR, and the array always
+ * sums to `relativeToPar`. This is the same loop `simulateArchetypeRound` has
+ * always run — it simply keeps the per-hole values instead of discarding them —
+ * so a card built here is byte-identical to the total that function returns.
+ * That identity is what lets a live leaderboard show a bot "Thru 11" without
+ * ever splitting or guessing at a stored round total.
+ */
+export interface ArchetypeRoundCard {
+  readonly holeScores: readonly number[];
+  readonly relativeToPar: number;
+}
+
+export function simulateArchetypeRoundCard(
   seed: string,
   course: Course,
   archetype: CareerArchetype,
@@ -438,10 +452,11 @@ export function simulateArchetypeRound(
   errorRates: CareerErrorRates = CAREER_ERROR_RATE,
   rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
   careerSkills?: CareerSkillRanks,
-): number {
+): ArchetypeRoundCard {
   const conditions: Conditions = { difficulty: course.difficulty, wind: course.wind };
   const state: PolicyState = { rel: 0, holesLeft: course.holes.length, aggrLeft: AGGRESSIVE_BUDGET };
   const recent: Outcome[] = [];
+  const holeScores: number[] = [];
   let total = 0;
 
   for (let holeIndex = 0; holeIndex < course.holes.length; holeIndex++) {
@@ -497,12 +512,34 @@ export function simulateArchetypeRound(
     }
     if (!result.complete) throw new Error(`Career simulator failed to complete ${course.slug} hole ${sourceHole.number}`);
     const relative = result.scoreDelta ?? 0;
+    holeScores.push(relative);
     total += sourceHole.par + relative;
     state.rel += relative;
     recent.push(result.outcome as Outcome);
   }
 
-  return total - coursePar(course);
+  return { holeScores, relativeToPar: total - coursePar(course) };
+}
+
+/** One real-engine round for an archetype; exported for focused verification. */
+export function simulateArchetypeRound(
+  seed: string,
+  course: Course,
+  archetype: CareerArchetype,
+  model: AbilityModel = "v5",
+  errorRates: CareerErrorRates = CAREER_ERROR_RATE,
+  rulesetVersion: GameplayRulesetVersion = STANDARD_V2_RULESET,
+  careerSkills?: CareerSkillRanks,
+): number {
+  return simulateArchetypeRoundCard(
+    seed,
+    course,
+    archetype,
+    model,
+    errorRates,
+    rulesetVersion,
+    careerSkills,
+  ).relativeToPar;
 }
 
 export function buildScoreBank(

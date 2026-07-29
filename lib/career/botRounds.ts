@@ -16,12 +16,14 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { COURSES, type Course as GameCourse } from "@/data/courses";
-import { simulateArchetypeRound, type CareerArchetype } from "./simulator";
+import { simulateArchetypeRoundCard, type CareerArchetype } from "./simulator";
 import { requireCareerFormulaBundle, type CareerFormulaBundle } from "./formulaBundle";
 
 export interface CareerBotRoundCard {
   readonly roundNumber: number;
   readonly relativeToPar: number;
+  /** The card's per-hole scores relative to par; always sums to relativeToPar. */
+  readonly holeScores: readonly number[];
   readonly seed: string;
 }
 
@@ -57,16 +59,20 @@ export function careerBotRoundCards(input: {
   return Array.from({ length: input.roundsPerPlayer }, (_, index) => {
     const roundNumber = index + 1;
     const seed = careerBotRoundSeed(input.seedNamespace, roundNumber, input.slotId);
+    // The hole detail and the total come from ONE simulation, so a card can
+    // never disagree with itself.
+    const card = simulateArchetypeRoundCard(
+      seed,
+      input.course,
+      input.archetype,
+      "error",
+      input.errorRates,
+      input.gameplayRulesetVersion,
+    );
     return {
       roundNumber,
-      relativeToPar: simulateArchetypeRound(
-        seed,
-        input.course,
-        input.archetype,
-        "error",
-        input.errorRates,
-        input.gameplayRulesetVersion,
-      ),
+      relativeToPar: card.relativeToPar,
+      holeScores: card.holeScores,
       seed,
     };
   });
@@ -214,4 +220,65 @@ export async function careerBotCumulativeBySlot(
     if (count !== throughRound) return null;
   }
   return cumulative;
+}
+
+/** One rival's position in a round that is still being played. */
+export interface CareerBotLivePosition {
+  readonly slotId: number;
+  /** Score in the CURRENT round, through `holesPlayed` only. */
+  readonly roundRelativeToPar: number;
+  /** Completed prior rounds plus the current round through `holesPlayed`. */
+  readonly eventRelativeToPar: number;
+  readonly holesPlayed: number;
+}
+
+/**
+ * Live standings through a specific hole of a specific round. Read-only.
+ *
+ * A rival shown "Thru 11" is represented by holes 1–11 of their card and
+ * nothing beyond it: the remaining holes are never summed, so the number to
+ * beat cannot leak from a stored total. Returns null when the event's cards
+ * carry no hole detail (formed before it existed) — the caller then falls back
+ * to whole-round reveal rather than inventing a split.
+ */
+export async function careerBotLiveStandings(
+  db: PrismaClient,
+  competitionId: string,
+  roundNumber: number,
+  holesPlayed: number,
+): Promise<Map<number, CareerBotLivePosition> | null> {
+  if (roundNumber < 1 || holesPlayed < 0) return null;
+  const cards = await db.careerBotRoundResult.findMany({
+    where: { competitionId, roundNumber: { lte: roundNumber } },
+    select: { slotId: true, roundNumber: true, relativeToPar: true, holeScores: true },
+    orderBy: [{ slotId: "asc" }, { roundNumber: "asc" }],
+  });
+  if (cards.length === 0) return null;
+
+  const bySlot = new Map<number, typeof cards>();
+  for (const card of cards) {
+    bySlot.set(card.slotId, [...(bySlot.get(card.slotId) ?? []), card]);
+  }
+  const live = new Map<number, CareerBotLivePosition>();
+  for (const [slotId, slotCards] of bySlot) {
+    if (slotCards.length !== roundNumber) return null;
+    const current = slotCards.find((card) => card.roundNumber === roundNumber);
+    // Hole detail is required for a partial round. Without it we would have to
+    // split a total, which is exactly what must never happen.
+    if (!current || current.holeScores.length === 0) return null;
+    if (holesPlayed > current.holeScores.length) return null;
+    const priorRounds = slotCards
+      .filter((card) => card.roundNumber < roundNumber)
+      .reduce((sum, card) => sum + card.relativeToPar, 0);
+    const roundRelativeToPar = current.holeScores
+      .slice(0, holesPlayed)
+      .reduce((sum, hole) => sum + hole, 0);
+    live.set(slotId, {
+      slotId,
+      roundRelativeToPar,
+      eventRelativeToPar: priorRounds + roundRelativeToPar,
+      holesPlayed,
+    });
+  }
+  return live;
 }

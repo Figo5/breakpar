@@ -55,6 +55,7 @@ const REGION_BY_PLACE: Record<string, Region> = {
   Georgia: "south",
   Florida: "south",
   Texas: "south",
+  Kentucky: "south",
   // Midwest
   Wisconsin: "midwest",
   Ohio: "midwest",

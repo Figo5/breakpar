@@ -17,7 +17,10 @@ import {
 } from "./repair";
 import type { CareerEventStanding } from "./eventSettlement";
 import { calculateCareerEventStandings } from "./eventSettlement";
-import { careerBotCumulativeBySlot } from "./botRounds";
+import { careerBotCumulativeBySlot, careerBotLiveStandings } from "./botRounds";
+
+/** A Career round is always the full eighteen. */
+const COURSE_HOLES = 18;
 import { hashSeed } from "@/lib/engine/rng";
 import {
   compareSeasonPerformance,
@@ -1168,5 +1171,195 @@ export async function careerChampionshipView(
         isMe: slot.profileId === viewerProfileId,
       };
     }),
+  };
+}
+
+/** One row of a leaderboard that updates while a Career round is being played. */
+export interface CareerLiveLeaderboardRow {
+  readonly slotId: number;
+  readonly competitorId: string;
+  readonly competitorType: "HUMAN" | "BOT";
+  readonly displayName: string;
+  readonly isMe: boolean;
+  readonly position: number;
+  /** "T4" when the position is shared, otherwise "4". */
+  readonly positionLabel: string;
+  /** Score in the round being played, through `holesPlayed`. */
+  readonly roundRelativeToPar: number;
+  /** Completed prior rounds plus the current round through `holesPlayed`. */
+  readonly eventRelativeToPar: number;
+  readonly holesPlayed: number;
+  /** "Thru 11", or "F" once the round's holes are all in. */
+  readonly thruLabel: string;
+}
+
+export interface CareerLiveLeaderboardView {
+  readonly competitionId: string;
+  readonly eventNumber: number | null;
+  readonly courseName: string;
+  readonly roundNumber: number;
+  readonly roundsTotal: number;
+  readonly holesTotal: number;
+  /**
+   * False when this event's bot cards carry no per-hole detail (it was formed
+   * before that existed). The caller shows the round-level board instead of
+   * splitting a stored total, which would be an invention.
+   */
+  readonly available: boolean;
+  readonly player: {
+    readonly holesPlayed: number;
+    readonly roundRelativeToPar: number;
+    readonly eventRelativeToPar: number;
+    readonly positionLabel: string;
+  };
+  readonly rows: readonly CareerLiveLeaderboardRow[];
+}
+
+/** Label shared positions as ties, e.g. two players on 4 both read "T4". */
+function positionLabels(sorted: readonly { eventRelativeToPar: number }[]): string[] {
+  return sorted.map((row, index) => {
+    const first = sorted.findIndex((other) => other.eventRelativeToPar === row.eventRelativeToPar);
+    const shared = sorted.filter((other) => other.eventRelativeToPar === row.eventRelativeToPar).length;
+    void index;
+    return `${shared > 1 ? "T" : ""}${first + 1}`;
+  });
+}
+
+/**
+ * The leaderboard as it stands mid-round, through the hole the player has
+ * reached. Strictly read-only: it settles nothing, creates nothing, and rolls
+ * no dice.
+ *
+ * Every competitor is shown through the SAME hole the viewer has completed, so
+ * a rival's remaining holes are never summed and the number to beat cannot leak
+ * from a stored total.
+ */
+export async function careerLiveLeaderboard(
+  db: PrismaClient,
+  competitionId: string,
+  viewerProfileId: string,
+): Promise<CareerLiveLeaderboardView | null> {
+  const competition = await db.careerCompetition.findUnique({
+    where: { id: competitionId },
+    include: {
+      course: { select: { name: true, slug: true } },
+      lockRevisions: {
+        orderBy: { revision: "desc" },
+        take: 1,
+        include: {
+          slots: {
+            orderBy: { slotId: "asc" },
+            include: {
+              profile: { include: { user: { select: { username: true } } } },
+              botIdentity: { select: { displayName: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!competition) return null;
+  const slots = competition.lockRevisions[0]?.slots ?? [];
+  if (slots.length === 0) return null;
+
+  const entry = await db.careerEventEntry.findFirst({
+    where: { competitionId, profileId: viewerProfileId },
+    select: {
+      rounds: {
+        orderBy: { roundNumber: "asc" },
+        select: {
+          roundNumber: true,
+          completed: true,
+          relativeToPar: true,
+          round: { select: { holeResults: { select: { scoreChange: true } } } },
+        },
+      },
+    },
+  });
+  if (!entry) return null;
+
+  const completedRounds = entry.rounds.filter((round) => round.completed);
+  const currentRound = entry.rounds.find((round) => !round.completed);
+  const roundNumber = currentRound?.roundNumber ?? Math.max(completedRounds.length, 1);
+  const holesPlayed = currentRound?.round.holeResults.length
+    ?? (completedRounds.length > 0 ? COURSE_HOLES : 0);
+  const priorRelativeToPar = completedRounds
+    .filter((round) => round.roundNumber < roundNumber)
+    .reduce((sum, round) => sum + (round.relativeToPar ?? 0), 0);
+  const playerRoundScore = currentRound
+    ? currentRound.round.holeResults.reduce((sum, hole) => sum + hole.scoreChange, 0)
+    : completedRounds.find((round) => round.roundNumber === roundNumber)?.relativeToPar ?? 0;
+
+  const live = await careerBotLiveStandings(db, competitionId, roundNumber, holesPlayed);
+  const displayName = (slotId: number): string => {
+    const slot = slots.find((candidate) => candidate.slotId === slotId);
+    return slot?.profile?.user.username
+      ?? slot?.botIdentity?.displayName
+      ?? (slot?.competitorType === "HUMAN" ? "Player" : `Rival ${slotId}`);
+  };
+  const base = {
+    competitionId,
+    eventNumber: competition.eventNumber,
+    courseName: competition.course.name,
+    roundNumber,
+    roundsTotal: competition.roundsPerPlayer,
+    holesTotal: COURSE_HOLES,
+  };
+  if (!live) {
+    return {
+      ...base,
+      available: false,
+      player: {
+        holesPlayed,
+        roundRelativeToPar: playerRoundScore,
+        eventRelativeToPar: priorRelativeToPar + playerRoundScore,
+        positionLabel: "—",
+      },
+      rows: [],
+    };
+  }
+
+  const unsorted = slots.map((slot) => {
+    const isMe = slot.profileId != null && slot.profileId === viewerProfileId;
+    const rival = live.get(slot.slotId);
+    const roundRelativeToPar = isMe ? playerRoundScore : rival?.roundRelativeToPar ?? 0;
+    const eventRelativeToPar = isMe
+      ? priorRelativeToPar + playerRoundScore
+      : rival?.eventRelativeToPar ?? 0;
+    return {
+      slotId: slot.slotId,
+      competitorId: slot.competitorType === "HUMAN"
+        ? `human:${slot.profileId}`
+        : `bot:${slot.botIdentityId}`,
+      competitorType: slot.competitorType,
+      displayName: displayName(slot.slotId),
+      isMe,
+      roundRelativeToPar,
+      eventRelativeToPar,
+      holesPlayed,
+      thruLabel: holesPlayed >= COURSE_HOLES ? "F" : `Thru ${holesPlayed}`,
+    };
+  });
+  const sorted = [...unsorted].sort((left, right) =>
+    left.eventRelativeToPar - right.eventRelativeToPar
+    || left.roundRelativeToPar - right.roundRelativeToPar
+    || left.slotId - right.slotId);
+  const labels = positionLabels(sorted);
+  const rows = sorted.map((row, index) => ({
+    ...row,
+    position: index + 1,
+    positionLabel: labels[index],
+  }));
+
+  return {
+    ...base,
+    available: true,
+    player: {
+      holesPlayed,
+      roundRelativeToPar: playerRoundScore,
+      eventRelativeToPar: priorRelativeToPar + playerRoundScore,
+      positionLabel: rows.find((row) => row.isMe)?.positionLabel ?? "—",
+    },
+    rows,
   };
 }

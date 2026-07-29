@@ -13,6 +13,7 @@ import {
   careerSeasonTable,
 } from "@/lib/career/read";
 import { careerLegacyForUser } from "@/lib/career/legacy";
+import { careerLiveLeaderboard } from "@/lib/career/read";
 import { rebuildCareerBotRounds } from "@/lib/career/botRounds";
 
 /**
@@ -560,5 +561,178 @@ describe("Legacy ledger", () => {
     // An unknown award type still renders as words, not as a raw key.
     expect(shown.label).toBe("Impossible penalty");
     expect(shown.reason.length).toBeGreaterThan(0);
+  }, 60_000);
+});
+
+describe("Live in-round leaderboard", () => {
+  /**
+   * Bots play a known shape: +1 on every hole except hole 3, which is -2. So a
+   * bot is exactly (holes - 1) - 2 through any hole >= 3, which makes "revealed
+   * through hole N" checkable by arithmetic rather than by trusting the code.
+   */
+  const HOLE_SCORES = Array.from({ length: 18 }, (_, index) => (index === 2 ? -2 : 1));
+  const SHAPED = {
+    runtimeRevision: "career-live-test",
+    simulateBotRound: () => ({
+      relativeToPar: HOLE_SCORES.reduce((sum, hole) => sum + hole, 0),
+      holeScores: HOLE_SCORES,
+    }),
+  } as const;
+
+  const expectedThrough = (holes: number) =>
+    HOLE_SCORES.slice(0, holes).reduce((sum, hole) => sum + hole, 0);
+
+  async function playHoles(userId: string, roundId: string, from: number, to: number) {
+    await db.holeResult.createMany({
+      data: Array.from({ length: to - from + 1 }, (_, index) => ({
+        roundId,
+        holeNumber: from + index,
+        decision: "normal",
+        outcome: "birdie",
+        scoreChange: -1,
+      })),
+    });
+    void userId;
+  }
+
+  it("reveals rivals only through the hole the player has completed", async () => {
+    const user = await newUser("live");
+    const state = await startCareerJourney(db, user.id, SHAPED);
+    const event = state.competitions[0];
+    const started = await startCareerEventRound(db, user.id, event.id);
+    if (!started.ok) throw new Error("start failed");
+
+    // Nothing played yet: everyone sits at level through zero holes.
+    const atStart = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    expect(atStart!.available).toBe(true);
+    expect(atStart!.rows).toHaveLength(20);
+    expect(atStart!.player.holesPlayed).toBe(0);
+    expect(atStart!.rows.every((row) => row.eventRelativeToPar === 0)).toBe(true);
+    expect(atStart!.rows.every((row) => row.thruLabel === "Thru 0")).toBe(true);
+
+    let previousThru = 0;
+    for (const thru of [1, 3, 7, 11]) {
+      await playHoles(user.id, started.roundId, previousThru + 1, thru);
+      previousThru = thru;
+      const board = await careerLiveLeaderboard(db, event.id, state.profile.id);
+      expect(board!.player.holesPlayed).toBe(thru);
+      const rival = board!.rows.find((row) => !row.isMe)!;
+      // The rival is their first `thru` holes and NOTHING beyond them.
+      expect(rival.roundRelativeToPar).toBe(expectedThrough(thru));
+      expect(rival.thruLabel).toBe(`Thru ${thru}`);
+      // Their finished-round total must never appear mid-round.
+      expect(rival.eventRelativeToPar).not.toBe(HOLE_SCORES.reduce((a, b) => a + b, 0));
+      const me = board!.rows.find((row) => row.isMe)!;
+      expect(me.roundRelativeToPar).toBe(-thru);
+      expect(me.positionLabel).toBe("1");
+    }
+  }, 60_000);
+
+  it("labels shared positions as ties", async () => {
+    const user = await newUser("ties");
+    const state = await startCareerJourney(db, user.id, SHAPED);
+    const event = state.competitions[0];
+    const started = await startCareerEventRound(db, user.id, event.id);
+    if (!started.ok) throw new Error("start failed");
+    // Match the rivals exactly: +1 through one hole.
+    await db.holeResult.create({
+      data: {
+        roundId: started.roundId,
+        holeNumber: 1,
+        decision: "normal",
+        outcome: "bogey",
+        scoreChange: 1,
+      },
+    });
+    const board = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    // All twenty are level with each other, so every row is a shared first.
+    expect(board!.rows.every((row) => row.positionLabel === "T1")).toBe(true);
+    expect(board!.player.positionLabel).toBe("T1");
+  }, 60_000);
+
+  it("carries completed prior rounds into the event score", async () => {
+    const user = await newUser("carry");
+    const state = await startCareerJourney(db, user.id, SHAPED);
+    const event = state.competitions[0];
+    await playRound(user.id, event.id, -5);
+
+    const started = await startCareerEventRound(db, user.id, event.id);
+    if (!started.ok) throw new Error("round two failed");
+    expect(started.roundNumber).toBe(2);
+    await db.holeResult.createMany({
+      data: Array.from({ length: 4 }, (_, index) => ({
+        roundId: started.roundId,
+        holeNumber: index + 1,
+        decision: "normal",
+        outcome: "birdie",
+        scoreChange: -1,
+      })),
+    });
+
+    const board = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    expect(board!.roundNumber).toBe(2);
+    // ROUND is this round only; EVENT adds the completed first round.
+    expect(board!.player.roundRelativeToPar).toBe(-4);
+    expect(board!.player.eventRelativeToPar).toBe(-9);
+    const rival = board!.rows.find((row) => !row.isMe)!;
+    expect(rival.roundRelativeToPar).toBe(expectedThrough(4));
+    expect(rival.eventRelativeToPar)
+      .toBe(HOLE_SCORES.reduce((a, b) => a + b, 0) + expectedThrough(4));
+  }, 60_000);
+
+  it("repeated reads are identical and write nothing", async () => {
+    const user = await newUser("stable");
+    const state = await startCareerJourney(db, user.id, SHAPED);
+    const event = state.competitions[0];
+    const started = await startCareerEventRound(db, user.id, event.id);
+    if (!started.ok) throw new Error("start failed");
+    await db.holeResult.createMany({
+      data: Array.from({ length: 6 }, (_, index) => ({
+        roundId: started.roundId,
+        holeNumber: index + 1,
+        decision: "normal",
+        outcome: "par",
+        scoreChange: 0,
+      })),
+    });
+
+    const cardsBefore = await db.careerBotRoundResult.findMany({
+      where: { competitionId: event.id },
+      orderBy: [{ slotId: "asc" }, { roundNumber: "asc" }],
+    });
+    const first = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    const second = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    const third = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+    const cardsAfter = await db.careerBotRoundResult.findMany({
+      where: { competitionId: event.id },
+      orderBy: [{ slotId: "asc" }, { roundNumber: "asc" }],
+    });
+    expect(cardsAfter).toEqual(cardsBefore);
+    expect(await db.round.count({ where: { userId: user.id } })).toBe(1);
+  }, 60_000);
+
+  it("falls back rather than splitting a total when hole detail is absent", async () => {
+    const user = await newUser("nodetail");
+    // A bare number: the legacy shape, which carries no hole detail.
+    const state = await startCareerJourney(db, user.id, OPTS);
+    const event = state.competitions[0];
+    const started = await startCareerEventRound(db, user.id, event.id);
+    if (!started.ok) throw new Error("start failed");
+    await db.holeResult.create({
+      data: {
+        roundId: started.roundId,
+        holeNumber: 1,
+        decision: "normal",
+        outcome: "par",
+        scoreChange: 0,
+      },
+    });
+    const board = await careerLiveLeaderboard(db, event.id, state.profile.id);
+    expect(board!.available).toBe(false);
+    expect(board!.rows).toHaveLength(0);
+    // The player's own numbers are still theirs to see.
+    expect(board!.player.holesPlayed).toBe(1);
   }, 60_000);
 });
