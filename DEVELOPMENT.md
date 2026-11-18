@@ -1,7 +1,6 @@
-# CLAUDE.md
+# Development guide
 
-Guidance for AI coding agents working in this repo. Read this first, then the
-`README.md` for product/architecture detail.
+See the `README.md` for product and architecture details.
 
 ## What this is
 

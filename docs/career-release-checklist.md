@@ -17,7 +17,7 @@ Include only:
 - `tests/career*.ts`, `tests/career*.spec.ts`, and
   `tests/botPlayer.test.ts`.
 
-Explicitly exclude unrelated local artifacts, including `.claude/`,
+Explicitly exclude unrelated local artifacts, including local tooling directories,
 `.osm-cache/`, `sawgrass.txt`, and non-Career investigation/recovery scripts.
 Do not use an unreviewed blanket `git add .`.
 
